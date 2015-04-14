@@ -1,31 +1,40 @@
 module Num = struct
   module type Num = sig
     type a
-    val plus : a -> a -> a
+    val (+) : a -> a -> a
+    val (-) : a -> a -> a
   end
 
-  let plus (type a) ?_d = match _d with
+  let (+) (type a) ?_d = match _d with
     | None -> assert false
     | Some _d ->
-        let module D = (val (_d : (module Num with type a = a))) in D.plus
+        let module D = (val (_d : (module Num with type a = a))) in D.(+)
 
   (* This is inefficient. This should be replaced by the following,
      so that it could be directly replaced by the instance value:
 
-     plus => let plus = let module Num = (val Instance.int) in Num.plus in plus
-     
      external plus : ?_d:(module Num with type a = 'a) -> 'a -> 'a -> 'a = "%OVERLOADED"
+
+     plus => let plus = let module Num = (val Instance.int) in Num.plus in plus
   *)
+
+  let (-) (type a) ?_d = match _d with
+    | None -> assert false
+    | Some _d ->
+        let module D = (val (_d : (module Num with type a = a))) in D.(-)
+
 end
 
 module Int = struct
   type a = int
-  let plus = (+)
+  let (+) = (+)
+  let (-) = (-)
 end
 
 module Float = struct
   type a = float
-  let plus = (+.)
+  let (+) = (+.)
+  let (-) = (-.)
 end
 
 module Instance = struct
@@ -39,9 +48,10 @@ module Instance = struct
   *)
 end
 
-let () = assert (Num.plus 1 2 = 3)
-let () = assert (Num.plus 1.2 3.4 = 4.6)
+let () = assert (Num.(+) 1 2 = 3)
+let () = assert (Num.(+) 1.2 3.4 = 4.6)
+let () = assert (Num.(-) 2 1 = 1)
 
 (* With an explicit dispatch code, the derived overloading works! *)
-let double ?_d x = Num.plus ?_d x x
+let double ?_d x = Num.(+) ?_d x x
 let () = assert (double 2 = 4)
