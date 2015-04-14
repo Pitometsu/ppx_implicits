@@ -36,6 +36,18 @@ module Num = struct
 
 end
 
+(* The above should be auto-generated from the following:
+
+[%% typeclass
+module type Num = sig
+  type a
+  val (+) : a -> a -> a
+  val (-) : a -> a -> a
+end
+]
+
+*)
+ 
 module Int = struct
   type a = int
   let (+) = (+)
@@ -66,3 +78,21 @@ let () = assert (Num.(-) 2 1 = 1)
 (* With an explicit dispatch code, the derived overloading works! *)
 let double ?_d x = Num.(+) ?_d x x
 let () = assert (double 2 = 4)
+
+(* We must prevent the following:
+
+  Num.(+) ?_d:(List.hd [None]) 1 2
+
+Since the ppx misunderstands some dictionary is supplied.
+
+What users are allowed to do are:
+
+  * Omit ?_d and ask the ppx fill it:  Num.(+) 1 2
+  * Apply just ?_d for explicit dispatching:  Num.(+) ?_d x x   ...   well, still we can write let _d = stupid expression in ... :-(
+  * Apply a dictionary explicitly with ~_d:  Num.(+) ~_d:Instance.int 1 2
+
+What users should not do are:
+
+  * Apply some expression with ?_d:   Num.(+) ?_d:(if b then Some Instance.int else None)
+*)
+
