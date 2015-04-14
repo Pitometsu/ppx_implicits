@@ -1,0 +1,13 @@
+OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot
+
+OCAMLDEPFLAGS= -package ppx_tools.metaquot
+OCAMLPPFLAGS=  
+
+FILES[] =
+    untypeast
+    ppxx
+    mod
+    compile
+    ppx
+
+MyOCamlFindPackage(ppx_monadic, $(MyOCamlPPX ppx_typeclass, $(FILES)))
