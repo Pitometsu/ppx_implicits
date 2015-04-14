@@ -1,3 +1,14 @@
+(* 
+
+$ ocamlc -ppx ppx_typeclass example.ml
+$ ./a.out
+
+or
+
+$ ./ppx_typeclass -debug example.ml
+
+*)
+
 module Num = struct
   module type Num = sig
     type a
