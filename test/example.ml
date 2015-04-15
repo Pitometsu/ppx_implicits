@@ -23,6 +23,9 @@ module Num = struct
     | Some _d ->
         let module D = (val (_d : a t)) in D.(+)
 
+  (* Types for overloading are distinguished from the normal types
+     by the special label "_[A-z]+" *)
+
   (* This is inefficient. This should be replaced by the following,
      so that it could be directly replaced by the instance value:
 
