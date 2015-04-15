@@ -19,6 +19,16 @@ let get_name = function
   | Path.Pdot (_, name, _) -> name
   | Path.Papply _ -> assert false
 
+(* 
+   ty : context type
+   vdesc : packed type of class instance
+
+   vdesc.val_type -> instantiate -> ity
+   if ity has _d:aaa -> ... -> ity' 
+   unify ty and ity'
+   check ty is unchhanged
+   return aaa to solve sub-problems
+*)
 let test env ty vdesc =
   let snapshot = Btype.snapshot () in
 (*
