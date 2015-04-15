@@ -21,10 +21,13 @@ let get_name = function
 
 let test env ty vdesc =
   let snapshot = Btype.snapshot () in
+(*
   let ity = Ctype.instance env vdesc.val_type in
   let res = try  Ctype.unify env ty ity; true with _ -> false in
   Btype.backtrack snapshot;
-  res
+*)
+  (* Unification changes the context type. Therefore we cannot use it. *)
+  Ctype.moregeneral env false vdesc.val_type ty
 
 (* Oops, there is no good exposed API to compare a module type
    and a packed module type. 
@@ -147,12 +150,11 @@ let resolve_entrypoint exp lidloc path vdesc =
       Ctype.unify env packed_mty ity; (* should succeed *)
       (* plus => let plus = let module X = (val Instance.int) in X.plus in plus 
 *)
-      let dummy_exp = exp in
-      let dummy_vdesc = vdesc in
-      let dummy_mty = mdecl.md_type in
-      let dummy_env = env in
-      let dummy_ty = ty in
-      let loc txt = { Location.txt; loc = Location.none } in
+      let dummy_exp   = exp           in
+      let dummy_vdesc = vdesc         in
+      let dummy_mty   = mdecl.md_type in
+      let dummy_env   = env           in
+      let dummy_ty    = ty            in
       let exp_ident p = 
         { dummy_exp 
           with exp_desc = Texp_ident (p, loc (Untypeast.lident_of_path p), dummy_vdesc) } 

@@ -4,9 +4,19 @@ ppx_typeclass is to provide typeclass/modular implicit to OCaml via ppx framewor
 
 ## Highlights
 
-* **No need of compiler patching**: this is not a compiler patch, but a ppx plugin.  You can use typeclasses with the vainlla OCaml compiler.
-* Assured **type safety**: the output of ppx_typeclass is type-checked by the vanilla OCaml compiler.
+### Simple
+
+ppx_typeclass is a pre-processor solution: **no need of compiler patching**. 
+You can use typeclasses with the vainlla OCaml compiler now.
+
+It only uses the result of the original type inference and does not modify it.
+
+### Safety
+
+The translation of ppx_typeclass does not use `Obj.magic` trick and it is type-checked again by the vanilla OCaml compiler.
 
 ## Limitations
 
+* The use of optional arguments makes hard to provide non function overloading:
+  `one : ?_d:(module Num with type a = 'a) -> 'a`
 * This does not work with toplevel.
