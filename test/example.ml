@@ -16,10 +16,12 @@ module Num = struct
     val (-) : a -> a -> a
   end
 
+  type 'a t = (module Num with type a = 'a)
+
   let (+) (type a) ?_d = match _d with
     | None -> assert false
     | Some _d ->
-        let module D = (val (_d : (module Num with type a = a))) in D.(+)
+        let module D = (val (_d : a t)) in D.(+)
 
   (* This is inefficient. This should be replaced by the following,
      so that it could be directly replaced by the instance value:
@@ -32,7 +34,7 @@ module Num = struct
   let (-) (type a) ?_d = match _d with
     | None -> assert false
     | Some _d ->
-        let module D = (val (_d : (module Num with type a = a))) in D.(-)
+        let module D = (val (_d : a t)) in D.(-)
 
 end
 
@@ -61,8 +63,8 @@ module Float = struct
 end
 
 module Instance = struct
-  let int = (module Int : Num.Num with type a = int)
-  let float = (module Float : Num.Num with type a = float)
+  let int : int Num.t = (module Int)
+  let float : float Num.t = (module Float)
 
   (* I believe currently there is no good exposed API to compare
      a packed module type and a module type.
