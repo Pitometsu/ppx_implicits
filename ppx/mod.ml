@@ -2,8 +2,6 @@ open Types
 open Typedtree
 open Ppxx
 
-let (&) = (@@)
-
 let repr_desc ty = (Ctype.repr ty).desc
 let expand_repr_desc env ty = (Ctype.repr & Ctype.expand_head env ty).desc
 
@@ -160,48 +158,23 @@ let resolve_entrypoint exp lidloc path vdesc =
       Ctype.unify env packed_mty ity; (* should succeed *)
       (* plus => let plus = let module X = (val Instance.int) in X.plus in plus 
 *)
-      let dummy_exp   = exp           in
-      let dummy_vdesc = vdesc         in
-      let dummy_mty   = mdecl.md_type in
-      let dummy_env   = env           in
-      let dummy_ty    = ty            in
-      let exp_ident p = 
-        { dummy_exp 
-          with exp_desc = Texp_ident (p, loc (Untypeast.lident_of_path p), dummy_vdesc) } 
-      in
+      let open Forge in
       (* (val Instance.int) *)
-      let mexpr = { mod_desc = Tmod_unpack (exp_ident path, dummy_mty);
-                    mod_loc = Location.none;
-                    mod_type = dummy_mty;
-                    mod_env = dummy_env;
-                    mod_attributes = [] }
-      in
+      let mexpr = Forge.Mod.unpack (Exp.ident path) in
       let expr1 = 
         let tmp_id = Ident.create "X" in
         let path = Path.Pdot (Path.Pident tmp_id, name, 0) in
-        { exp with exp_desc = 
-            Texp_letmodule( tmp_id, 
-                            loc "X", 
-                            mexpr, 
-                            exp_ident path ) }
+        Exp.letmodule tmp_id mexpr & Exp.ident path
       in
       let tmp_id = Ident.create name in
       let tmp_lident = Longident.Lident name in
-      let tmp_id_exp = exp_ident (Pident tmp_id) in
-      let vb = { vb_pat = { pat_desc = Tpat_var (tmp_id, loc name);
-                            pat_loc = Location.none;
-                            pat_extra = [];
-                            pat_type = dummy_ty;
-                            pat_env = dummy_env;
-                            pat_attributes = [];
-                          };
+      let tmp_id_exp = Exp.ident (Pident tmp_id) in
+      let vb = { vb_pat = Pat.var tmp_id;
                  vb_expr = expr1;
                  vb_attributes = [];
                  vb_loc = Location.none }
       in
-      { exp with 
-        exp_desc = Texp_let( Nonrecursive, [ vb ],
-                             tmp_id_exp ) }
+      Exp.let_ [vb] tmp_id_exp
   | _ -> failwith "overload resolution failed: too ambiguous" 
 
 let resolve_dispatch env ty = 

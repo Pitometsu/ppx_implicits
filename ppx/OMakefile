@@ -6,6 +6,7 @@ OCAMLPPFLAGS=
 FILES[] =
     untypeast
     ppxx
+    forge
     mod
     compile
     ppx
