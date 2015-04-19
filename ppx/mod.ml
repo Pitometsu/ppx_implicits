@@ -17,6 +17,14 @@ let get_name = function
   | Path.Pdot (_, name, _) -> name
   | Path.Papply _ -> assert false
 
+let is_dispatch_label l =
+  let len = String.length l in
+  len >= 3 && String.unsafe_get l 0 = '?' && String.unsafe_get l 1 = '_'
+
+let is_constraint_label l =
+  let len = String.length l in
+  len >= 2 && String.unsafe_get l 0 = '_'
+
 let protect f = try `Ok (f ()) with e -> `Error e
 let unprotect = function
   | `Ok v -> v
@@ -52,7 +60,17 @@ let force_generalize ty =
 *)
 let test env ty vdesc =
   with_snapshot & fun () ->
-    force_generalize ty;
+    (* force_generalize ty; *)
+    let rec extract_constraint_labels ty = 
+      let ty = Ctype.expand_head env ty in
+      match repr_desc ty with
+      | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
+          let cs, ty = extract_constraint_labels ty2 in
+          (l,ty1)::cs, ty
+      | _ -> [], ty
+    in
+    let _cs, ty = extract_constraint_labels ty in
+    (* oops, we want to use unification... *)
     let b = Ctype.moregeneral env true vdesc.val_type ty in
     Format.eprintf "Check against %a  <>  %a@." 
       Printtyp.type_scheme vdesc.val_type
@@ -64,10 +82,6 @@ let test env ty vdesc =
 (* Oops, there is no good exposed API to compare a module type
    and a packed module type. 
 *)
-
-let is_dispatch_label l =
-  let len = String.length l in
-  len >= 3 && String.unsafe_get l 0 = '?' && String.unsafe_get l 1 = '_'
 
 let is_constr env ty = match expand_repr_desc env ty with
   | Tconstr (p, tys, _) -> Some (p, tys)
