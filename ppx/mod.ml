@@ -17,6 +17,29 @@ let get_name = function
   | Path.Pdot (_, name, _) -> name
   | Path.Papply _ -> assert false
 
+let protect f = try `Ok (f ()) with e -> `Error e
+let unprotect = function
+  | `Ok v -> v
+  | `Error e -> raise e
+
+let with_snapshot f =
+  let snapshot = Btype.snapshot () in
+  let res = protect f in
+  Btype.backtrack snapshot;
+  unprotect res
+
+let with_current_level x f =
+  let open Ctype in
+  begin_def (); (* save it *)
+  init_def x;
+  let res = protect f in
+  end_def ();
+  unprotect res
+
+let force_generalize ty =
+  with_current_level Btype.lowest_level & fun () ->
+    Ctype.generalize ty (* it is destructive! *)
+    
 (* 
    ty : context type
    vdesc : packed type of class instance
@@ -28,14 +51,15 @@ let get_name = function
    return aaa to solve sub-problems
 *)
 let test env ty vdesc =
-  let snapshot = Btype.snapshot () in
-(*
-  let ity = Ctype.instance env vdesc.val_type in
-  let res = try  Ctype.unify env ty ity; true with _ -> false in
-  Btype.backtrack snapshot;
-*)
-  (* Unification changes the context type. Therefore we cannot use it. *)
-  Ctype.moregeneral env false vdesc.val_type ty
+  with_snapshot & fun () ->
+    force_generalize ty;
+    let b = Ctype.moregeneral env true vdesc.val_type ty in
+    Format.eprintf "Check against %a  <>  %a@." 
+      Printtyp.type_scheme vdesc.val_type
+      Printtyp.type_scheme ty;
+    b
+    
+
 
 (* Oops, there is no good exposed API to compare a module type
    and a packed module type. 
@@ -132,14 +156,14 @@ let rec find_candidates env ty path mty =
   
 let loc txt = { Location.txt; loc = Location.none }
 
-let resolve_entrypoint exp lidloc path vdesc = 
+let resolve_entrypoint exp path vdesc = 
 
   let env = exp.exp_env in
   let name = get_name path in
 
   match check_entrypoint env vdesc with
   | None -> failwith "strange type for an overloaded entrypoint"
-  | Some (string, packed_mty, ty) ->
+  | Some (_string, packed_mty, _ty) ->
 
   match search_space env with
   | None -> assert false
@@ -167,7 +191,6 @@ let resolve_entrypoint exp lidloc path vdesc =
         Exp.letmodule tmp_id mexpr & Exp.ident path
       in
       let tmp_id = Ident.create name in
-      let tmp_lident = Longident.Lident name in
       let tmp_id_exp = Exp.ident (Pident tmp_id) in
       let vb = { vb_pat = Pat.var tmp_id;
                  vb_expr = expr1;
@@ -207,6 +230,7 @@ let resolve_dispatch env ty =
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
+(*
   let is_entrypoint e = match e.exp_desc with
     | Texp_ident (path, lidloc, vdesc) ->
         begin match vdesc.val_kind with
@@ -215,7 +239,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
         | _ -> None
         end
     | _ -> None
-
+*)
+    
   let resolve_arg env = function
     (* (l, None, Optional) means not applied *)
     | (l, Some e, Optional as a) when is_dispatch_label l -> 
