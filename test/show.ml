@@ -29,7 +29,7 @@ module List(A : Show.Show) = struct
   end
   type a = A.a list
   (* Need type constraint so that the internal use of Show.show can be resovled *)
-  let show (xs : a) = String.concat " " (List.map Show.show xs)
+  let show (xs : a) = "[ " ^ String.concat "; " (List.map Show.show xs) ^ " ]"
 end
 
 module Instance = struct
@@ -45,7 +45,7 @@ end
 
 let () = assert (Show.show 1 = "1")
 let () = assert (Show.show 1.0 = "1.")
-let () = assert (Show.show [1] = "1") 
-  
+let () = assert (Show.show [1;2;3] = "[ 1; 2; 3 ]") 
+
   
   
