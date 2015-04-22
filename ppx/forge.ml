@@ -57,6 +57,31 @@ module Exp = struct
     { Dummy.exp with 
       exp_desc = Texp_letmodule (id, loc (Ident.name id), mexpr, e) }
 
+  let app e les =
+    match les with
+    | [] -> e
+    | _ ->
+        { Dummy.exp with
+          exp_desc = Texp_apply(e, List.map (fun (l,e) -> l, Some e, Required (*?*)) les)
+        }
+
+  let some e =
+    { Dummy.exp with
+      exp_desc = Texp_construct ( loc (Longident.Lident "Some"),
+                                 { Types.cstr_name = "Some"
+                                 ; cstr_res = Dummy.type_expr
+                                 ; cstr_existentials = []
+                                 ; cstr_args = []
+                                 ; cstr_arity = 1
+                                 ; cstr_tag = Cstr_block 0
+                                 ; cstr_consts = 1
+                                 ; cstr_nonconsts = 1
+                                 ; cstr_normal = 0
+                                 ; cstr_generalized = false
+                                 ; cstr_private = Public
+                                 ; cstr_loc = Location.none
+                                 ; cstr_attributes = [] },
+                                 [e]) }
 end
 
 module Pat = struct

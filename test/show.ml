@@ -42,3 +42,10 @@ module Instance = struct
     (module List( (val _d) ))  (* <- crazy parens! *)
 end
 
+
+let () = assert (Show.show 1 = "1")
+let () = assert (Show.show 1.0 = "1.")
+let () = assert (Show.show [1] = "1") 
+  
+  
+  

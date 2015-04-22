@@ -76,8 +76,6 @@ let test env ty vdesc =
       Printtyp.type_scheme vdesc.val_type
       Printtyp.type_scheme ty;
     b
-    
-
 
 (* Oops, there is no good exposed API to compare a module type
    and a packed module type. 
@@ -103,6 +101,71 @@ let check_entrypoint env vdesc =
       end
   | _ -> None
   
+let rec get_candidates env path mty =
+  let sg = 
+    match Env.scrape_alias env @@ Mtype.scrape env mty with
+    | Mty_signature sg -> sg
+    | _ -> assert false
+  in
+  List.fold_right (fun sitem st -> match sitem with
+  | Sig_value (id, _vdesc) -> 
+      let lident = Longident.Ldot (Untypeast.lident_of_path path, Ident.name id) in
+      let path, vdesc = Env.lookup_value lident env  in
+      (path, vdesc) :: st
+  | Sig_module (id, _mty, _) -> 
+      let lident = Longident.Ldot (Untypeast.lident_of_path path, Ident.name id) in
+      let path = Env.lookup_module ~load:true (*?*) lident env  in
+      let moddecl = Env.find_module path env in
+      get_candidates env path moddecl.Types.md_type @ st
+  | _ -> st) sg []
+
+let rec extract_constraint_labels env ty = 
+  let ty = Ctype.expand_head env ty in
+  match repr_desc ty with
+  | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
+      let cs, ty = extract_constraint_labels env ty2 in
+      (l,ty1)::cs, ty
+  | _ -> [], ty
+
+let gen_vars ty =
+  flip List.filter (Ctype.free_variables ty) & fun ty ->
+    ty.level = Btype.generic_level
+
+let rec resolve env cands : type_expr list -> expression list list = function
+  | [] -> [[]]
+  | ty::tys ->
+      List.concat & flip List.map cands & fun (path,vdesc) ->
+        let ity = Ctype.instance env ty in
+        let ivty = Ctype.instance env vdesc.val_type in
+        
+        let cs, ivty = extract_constraint_labels env ivty in
+        Format.eprintf "Got:@.";
+        flip List.iter cs (fun (l,ty) ->
+          Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
+        Format.eprintf "  %a@." Printtyp.type_expr ivty;
+(*
+        let gvars = gen_vars ty in
+*)
+        let tys = List.map snd cs @ tys in
+        with_snapshot & fun () ->
+          try
+            Format.eprintf "Checking %a <> %a@."
+              Printtyp.type_expr ity
+              Printtyp.type_expr ivty;
+            ignore & Ctype.unify env ity ivty;
+            flip List.map (resolve env cands tys) & fun res ->
+              let rec app res cs = match res, cs with
+                | res, [] -> res, []
+                | r::res, (l,_)::cs ->
+                    let res, args = app res cs in
+                    res, (l,r)::args
+                | _ -> assert false
+              in
+              let res, args = app res cs in
+              Forge.Exp.(app (ident path) args) :: res
+          with
+          | _ -> []
+          
 (*
 let is_type_class_modtype ty =
   match repr_desc ty with
@@ -183,11 +246,13 @@ let resolve_entrypoint exp path vdesc =
   | None -> assert false
   | Some (path, mdecl) ->
 
+  let cands = get_candidates env path mdecl.md_type in
   match 
-    find_candidates env packed_mty path mdecl.md_type
+    resolve env cands [packed_mty]
   with
   | [] -> failwith "overload resolution failed: no match" 
-  | [path, vdesc] -> 
+  | [[e]] -> 
+(*
       Format.eprintf "RESOLVED: %a@." print_path path;
       let ity = Ctype.instance env vdesc.val_type in
       Format.eprintf "RESOLVED against %a  <>  %a@." 
@@ -196,9 +261,10 @@ let resolve_entrypoint exp path vdesc =
       Ctype.unify env packed_mty ity; (* should succeed *)
       (* plus => let plus = let module X = (val Instance.int) in X.plus in plus 
 *)
+*)
       let open Forge in
       (* (val Instance.int) *)
-      let mexpr = Forge.Mod.unpack (Exp.ident path) in
+      let mexpr = Forge.Mod.unpack e in
       let expr1 = 
         let tmp_id = Ident.create "X" in
         let path = Path.Pdot (Path.Pident tmp_id, name, 0) in
@@ -264,11 +330,18 @@ module MapArg : TypedtreeMap.MapArgument = struct
             | None -> assert false
             | Some ty ->
                 let e = 
+                  match search_space env with
+                  | None -> assert false
+                  | Some (path, mdecl) ->
+(*
                   let some_lid = Longident.Lident "Some" in
                   let cdesc = Env.lookup_constructor some_lid env in
-                  
-                  { e with exp_desc = 
-                      Texp_construct(loc some_lid, cdesc, [resolve_dispatch env ty]) }
+*)
+                  let cands = get_candidates env path mdecl.md_type in
+                  match resolve env cands [ty] with
+                  | [] -> failwith "overload resolution failed: no match" 
+                  | [[e]] -> Forge.Exp.some e
+                  | _ -> failwith "overload resolution failed: too ambiguous" 
                 in
                 (l, Some e, Optional)
             end

@@ -9,6 +9,8 @@ external ( & ) : ('a -> 'b) -> 'a -> 'b = "%apply"
 
 let (!!%) = Format.eprintf
 
+let flip f x y = f y x
+    
 module Option = struct
   let map f = function
     | None -> None
