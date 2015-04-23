@@ -13,4 +13,4 @@ FILES[] =
 
 MyOCamlFindPackage(ppx_monadic, $(MyOCamlPPX ppx_typeclass, $(FILES)))
 
-# WithMerlin()
+WithMerlin()
