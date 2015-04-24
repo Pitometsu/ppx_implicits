@@ -1,3 +1,12 @@
+(*
+  ocamlc -ppx ../ppx/ppx_typeclass -o show show.ml
+
+  or
+
+  (after installation)
+  ocamlfind ocamlc -package ppx_typeclass -o show show.ml
+*)
+
 module Show = struct
   module type Show = sig
     type a
