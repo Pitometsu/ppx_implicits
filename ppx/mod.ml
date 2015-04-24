@@ -2,6 +2,15 @@ open Types
 open Typedtree
 open Ppxx
 
+let errorf fmt =
+  let open Format in
+  let ksprintf f fmt =
+    let buf = Buffer.create 100 in
+    let ppf = formatter_of_buffer buf in
+    kfprintf (fun ppf -> pp_print_flush ppf (); f (Buffer.contents buf)) ppf fmt
+  in
+  ksprintf (fun s -> prerr_endline s; exit 1) fmt
+
 let repr_desc ty = (Ctype.repr ty).desc
 let expand_repr_desc env ty = (Ctype.repr & Ctype.expand_head env ty).desc
 
@@ -147,23 +156,26 @@ let search_space env =
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
-  let resolve_arg env = function
+  let resolve_arg f env = function
     (* (l, None, Optional) means not applied *)
     | (l, Some e, Optional as a) when is_dispatch_label l -> 
         begin match e.exp_desc with
-        | Texp_construct ({txt=Longident.Lident "None"}, _, []) ->
+        | Texp_construct ({Location.txt=Longident.Lident "None"}, _, []) ->
             begin match is_option_type env e.exp_type with
             | None -> assert false
             | Some ty ->
                 let e = 
                   match search_space env with
-                  | None -> assert false
+                  | None ->
+                      errorf "%a: no instance search space Instance found" Location.print_loc f.exp_loc
                   | Some (path, mdecl) ->
                       let cands = get_candidates env path mdecl.md_type in
+                      if gen_vars ty <> [] then
+                        errorf "%a: overloaded value has a generalized type: %a" Location.print_loc f.exp_loc Printtyp.type_scheme ty;
                       match resolve env cands [ty] with
-                      | [] -> failwith "overload resolution failed: no match" 
+                      | [] -> errorf "%a: no instance found for %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
                       | [[e]] -> Forge.Exp.some e
-                      | _ -> failwith "overload resolution failed: too ambiguous" 
+                      | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
                 in
                 (l, Some e, Optional)
             end
@@ -173,8 +185,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
   let enter_expression = function
     | ({ exp_desc= Texp_apply (f, args) } as e) ->
-        { e with exp_desc= Texp_apply (f, 
-                                       List.map (resolve_arg e.exp_env) args) }
+        { e with
+          exp_desc= Texp_apply (f, List.map (resolve_arg f e.exp_env) args) }
     | e -> e
 end
 
