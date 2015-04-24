@@ -1,6 +1,6 @@
 name="ppx_typeclass"
 version="0.0.1"
-description="Typeclass a.k.a modular implicits via ppx"
+description="Typeclass or modular implicits via ppx"
 requires=""
 ppx="./ppx_typeclass"
 linkopts = ""

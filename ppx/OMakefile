@@ -11,6 +11,6 @@ FILES[] =
     compile
     ppx
 
-MyOCamlFindPackage(ppx_monadic, $(MyOCamlPPX ppx_typeclass, $(FILES)))
+MyOCamlFindPackage(ppx_typeclass, $(MyOCamlPPX ppx_typeclass, $(FILES)))
 
 # WithMerlin()
