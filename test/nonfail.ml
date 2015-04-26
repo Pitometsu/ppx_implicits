@@ -26,8 +26,8 @@ module Instance = struct
   let listint : int list Show.t = (module ListInt)
 end
 
-(* This must fail, since [] is 'a list.
-   Instantiating with Instnace.listint is changes the type!
+(* The overload resolution instantiates the type variable of ref [] to int
+   but it is ok, since the variable is free '_a
 *)
 let () =
   let x = ref [] in

@@ -27,11 +27,11 @@ module Instance = struct
 end
 
 (* This must fail, since [] is 'a list.
-   Instantiating with Instnace.listint is changes the type!
+   Instantiating with Instnace.listint changes the type!
 *)
 let f (x : 'a list) = print_string @@ Show.show x; x
 
-(* Wrong overload resolution above changes the type of f
+(* Forcing the above overload resolution changes the type of f
    from 'a list -> 'a list to int list -> int list
    which makes the following code ill-typed!
 *)
