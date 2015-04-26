@@ -84,6 +84,19 @@ let () = assert (Num.(-) 2 1 = 1)
 let double ?_d x = Num.(+) ?_d x x
 let () = assert (double 2 = 4)
 
+(* Does not work :-(
+(* We can also extend the instance space! *)
+let double ?_d x =
+  let module Instance = struct
+    include Instance
+    let _d = match _d with
+      | None -> assert false
+      | Some d -> d
+  end in
+  Num.(+) x x
+let () = assert (double 2 = 4)
+*)
+  
 (* We must prevent the following:
 
   Num.(+) ?_d:(List.hd [None]) 1 2
