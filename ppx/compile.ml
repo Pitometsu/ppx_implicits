@@ -83,7 +83,7 @@ let print_if ppf flag printer arg =
   if !flag then fprintf ppf "%a@." printer arg;
   arg
 
-let (++) x f = prerr_endline "."; f x
+let (++) x f = f x
 
 let implementation ppf sourcefile ast outputprefix =
   Compmisc.init_path false;
