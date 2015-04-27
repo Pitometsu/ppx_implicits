@@ -81,23 +81,42 @@ let check_entrypoint env vdesc =
       end
   | _ -> None
   
-let rec get_candidates env path mty =
+let rec get_candidates env lid mty =
   let sg = 
-    match Env.scrape_alias env @@ Mtype.scrape env mty with
-    | Mty_signature sg -> sg
-    | _ -> assert false
+    try
+      match Env.scrape_alias env @@ Mtype.scrape env mty with
+      | Mty_signature sg -> sg
+      | _ -> assert false
+    with
+    | e ->
+        prerr_endline "get_candidates: scraping failed";
+        raise e
   in
-  List.fold_right (fun sitem st -> match sitem with
+  flip2 List.fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) -> 
-      let lident = Longident.Ldot (Untypeast.lident_of_path path, Ident.name id) in
-      let path, vdesc = Env.lookup_value lident env  in
-      (path, vdesc) :: st
+      let lid = Longident.Ldot (lid, Ident.name id) in
+      begin try
+        let path, vdesc = Env.lookup_value lid env in
+        (lid, path, vdesc) :: st
+        with
+        | e ->
+            Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
+            raise e
+      end
   | Sig_module (id, _mty, _) -> 
-      let lident = Longident.Ldot (Untypeast.lident_of_path path, Ident.name id) in
-      let path = Env.lookup_module ~load:true (*?*) lident env  in
-      let moddecl = Env.find_module path env in
-      get_candidates env path moddecl.Types.md_type @ st
-  | _ -> st) sg []
+      let lid = Longident.Ldot (lid, Ident.name id) in
+      let path = 
+        try Env.lookup_module ~load:true (*?*) lid env with e ->
+          Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
+          raise e
+      in
+      let moddecl = 
+        try Env.find_module path env with e ->
+          Format.eprintf "get_candidates: failed to find the module declaration of %a in the current env@." print_path path;
+          raise e
+      in
+      get_candidates env lid moddecl.Types.md_type @ st
+  | _ -> st
 
 let rec extract_constraint_labels env ty = 
   let ty = Ctype.expand_head env ty in
@@ -114,7 +133,7 @@ let gen_vars ty =
 let rec resolve env cands : type_expr list -> expression list list = function
   | [] -> [[]]
   | ty::tys ->
-      List.concat & flip List.map cands & fun (path,vdesc) ->
+      List.concat & flip List.map cands & fun (lid,path,vdesc) ->
         let ity = Ctype.instance env ty in
         let ivty = Ctype.instance env vdesc.val_type in
         
@@ -142,14 +161,15 @@ let rec resolve env cands : type_expr list -> expression list list = function
                 | _ -> assert false
               in
               let res, args = app res cs in
-              Forge.Exp.(app (ident path) args) :: res
+              Forge.Exp.(app (ident lid path) args) :: res
           with
           | _ -> []
           
 let search_space env =
   try
-    let p = Env.lookup_module ~load:true (Longident.Lident "Instance") env in
-    Some (p, Env.find_module p env)
+    let lid = Longident.Lident "Instance" in
+    let p = Env.lookup_module ~load:true lid env in
+    Some (lid, p, Env.find_module p env)
   with
   | Not_found -> None
   
@@ -168,8 +188,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
                   match search_space env with
                   | None ->
                       errorf "%a: no instance search space Instance found" Location.print_loc f.exp_loc
-                  | Some (path, mdecl) ->
-                      let cands = get_candidates env path mdecl.md_type in
+                  | Some (lid, _path, mdecl) ->
+                      let cands = get_candidates env lid mdecl.md_type in
                       if gen_vars ty <> [] then
                         errorf "%a: overloaded value has a generalized type: %a" Location.print_loc f.exp_loc Printtyp.type_scheme ty;
                       match resolve env cands [ty] with

@@ -56,5 +56,3 @@ let () = assert (show [1;2;3] = "[ 1; 2; 3 ]")
 
 let show_3 (sh : ?_d: 'a show -> 'a -> string) =
   sh 3
-
-  

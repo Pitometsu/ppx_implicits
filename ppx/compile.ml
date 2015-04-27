@@ -83,7 +83,7 @@ let print_if ppf flag printer arg =
   if !flag then fprintf ppf "%a@." printer arg;
   arg
 
-let (++) x f = f x
+let (++) x f = prerr_endline "."; f x
 
 let implementation ppf sourcefile ast outputprefix =
   Compmisc.init_path false;
@@ -119,11 +119,12 @@ let implementation ppf sourcefile ast outputprefix =
                   Printtyped.implementation_with_coercion
 
       (* HACK: typed mod *)
-      ++ (fun (str, mc)   -> Mod.Map.map_structure str, mc)
+      ++ (fun (str, mc) -> prerr_endline "hacking"; Mod.Map.map_structure str, mc)
       (* HACK END *)
 
       (* HACK: untype + retype *)
       ++ (fun (str, _) -> 
+        prerr_endline "untype";
         (* Untype then save it as xxx.ml2 *)
         let ast =  Untypeast.untype_structure str in
 (*
@@ -142,12 +143,13 @@ let implementation ppf sourcefile ast outputprefix =
 *)
      ast
     in
-    try comp ast
-    with x ->
+    (* try *)
+    comp ast
 (*
+    with x ->
       close_out oc;
       remove_file objfile;
       Stypes.dump (Some (outputprefix ^ ".annot"));
-*)
       raise x
+*)
   end

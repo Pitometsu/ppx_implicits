@@ -10,6 +10,7 @@ external ( & ) : ('a -> 'b) -> 'a -> 'b = "%apply"
 let (!!%) = Format.eprintf
 
 let flip f x y = f y x
+let flip2 f x y z = f z x y
     
 module Option = struct
   let map f = function

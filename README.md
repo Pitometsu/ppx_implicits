@@ -237,3 +237,5 @@ These are the limitations from the design and hard to resolve:
   `one : ?_d:(module Num with type a = 'a) -> 'a`
 * This does not work with toplevel. Ppx only works against one compilation unit and it is each toplevel phrase in toplevel. Ppx has a framework to pass some states from one toplevel pharse to another, but it is very limited and almost impossible to carry type environments ppx_typeclass requires.
 * You have to write dispatching code explicitly as we have seen at `show_twice`.To make it implicit we require some changes in the type inference algorithm, which is too much for our ppx based simple hack approach.
+* You can explicitly apply None to dispatch labels and bust the code.  The automatic overloading resolution occurs when the dispatch label takes a *constant* `None`.  If you pass a non-constant `None` to the label, you can bust it: `show ?_d:(if true then None else None)`.
+

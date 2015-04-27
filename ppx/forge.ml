@@ -42,9 +42,9 @@ let loc txt =
 module Exp = struct
   open Typedtree
 
-  let ident p = 
+  let ident lid p = 
     { Dummy.exp with
-      exp_desc = Texp_ident (p, loc (Untypeast.lident_of_path p), Dummy.value_description) } 
+      exp_desc = Texp_ident (p, loc lid, Dummy.value_description) } 
 
   let let_ ?(recursive=false) vbs e =
     { Dummy.exp with
