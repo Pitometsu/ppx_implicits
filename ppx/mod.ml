@@ -104,7 +104,7 @@ let rec get_candidates env path mty =
   in
   flip2 List.fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) -> 
-      let p = Path.Pdot (path, Ident.name id, Ident.stamp id) in
+      let p = Path.Pdot (path, Ident.name id, id.Ident.stamp) in
       begin try
         let vdesc = Env.find_value p env in
         (p, vdesc) :: st
@@ -114,7 +114,7 @@ let rec get_candidates env path mty =
             raise e
       end
   | Sig_module (id, _mty, _) -> 
-      let p = Path.Pdot (path, Ident.name id, Ident.stamp id) in
+      let p = Path.Pdot (path, Ident.name id, id.Ident.stamp) in
       let moddecl = 
         try Env.find_module p env with e ->
           Format.eprintf "get_candidates: failed to find %a in the current env@." print_path p;
@@ -138,7 +138,7 @@ let gen_vars ty =
 let rec resolve env cands : type_expr list -> expression list list = function
   | [] -> [[]]
   | ty::tys ->
-      List.concat & flip List.map cands & fun (lid,path,vdesc) ->
+      List.concat & flip List.map cands & fun (path,vdesc) ->
         let ity = Ctype.instance env ty in
         let ivty = Ctype.instance env vdesc.val_type in
         
@@ -166,7 +166,7 @@ let rec resolve env cands : type_expr list -> expression list list = function
                 | _ -> assert false
               in
               let res, args = app res cs in
-              Forge.Exp.(app (ident lid path) args) :: res
+              Forge.Exp.(app (ident' (* lid *) path) args) :: res
           with
           | _ -> []
           
@@ -181,6 +181,7 @@ let search_space env =
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
+(*
   let resolve_arg f env = function
     (* (l, None, Optional) means not applied *)
     | (l, Some e, Optional as a) when is_dispatch_label l -> 
@@ -193,8 +194,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
                   match search_space env with
                   | None ->
                       errorf "%a: no instance search space Instance found" Location.print_loc f.exp_loc
-                  | Some (lid, _path, mdecl) ->
-                      let cands = get_candidates env lid mdecl.md_type in
+                  | Some (_lid, path, mdecl) ->
+                      let cands = get_candidates env path mdecl.md_type in
                       if gen_vars ty <> [] then
                         errorf "%a: overloaded value has a generalized type: %a" Location.print_loc f.exp_loc Printtyp.type_scheme ty;
                       match resolve env cands [ty] with
@@ -211,18 +212,21 @@ module MapArg : TypedtreeMap.MapArgument = struct
             a
         end
     | a -> a
-
+*)
+    
   let enter_expression e =
     match e.exp_desc with
     | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
-        begin match is_option_type e.exp_type with
+        begin match is_option_type e.exp_env e.exp_type with
         | None -> e
         | Some ty ->
             match expand_repr_desc e.exp_env ty with
             | Tconstr (p, [ty], _) ->
+                Format.eprintf "option : %a@." print_path p;
                 begin match is_implicit_path p with
                 | None -> e
                 | Some p' ->
+                    prerr_endline "IMP PATH";
                     match 
                       try
                         Some (Env.find_module p' e.exp_env)
@@ -230,15 +234,15 @@ module MapArg : TypedtreeMap.MapArgument = struct
                       | _ -> None
                     with
                     | None ->
-                        errorf "%a: no instance search space found: %a" print_path p'
+                        errorf "%a: no instance search space found: %a" Location.print_loc e.exp_loc print_path p'
                     | Some mdecl ->
-                        let cands = get_candidates env path mdecl.md_type in
+                        let cands = get_candidates e.exp_env p' mdecl.md_type in
                         if gen_vars ty <> [] then
-                          errorf "%a: overloaded value has a generalized type: %a" Location.print_loc f.exp_loc Printtyp.type_scheme ty;
-                        match resolve env cands [ty] with
-                        | [] -> errorf "%a: no instance found for %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
+                          errorf "%a: overloaded value has a generalized type: %a" Location.print_loc e.exp_loc Printtyp.type_scheme ty;
+                        match resolve e.exp_env cands [ty] with
+                        | [] -> errorf "%a: no instance found for %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
                         | [[e]] -> Forge.Exp.some e
-                        | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
+                        | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
                 end
             | _ -> e
         end
