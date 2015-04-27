@@ -199,7 +199,11 @@ module MapArg : TypedtreeMap.MapArgument = struct
                 in
                 (l, Some e, Optional)
             end
-        | _ -> a
+        | Texp_construct ({Location.txt=Longident.Lident "Some"}, _, [_]) -> a
+        | _ -> 
+            (* This is problematic: https://bitbucket.org/camlspotter/ppx_typeclass/issue/1/prevent-indirect-application-of-none-to
+            *)
+            a
         end
     | a -> a
 
@@ -207,7 +211,12 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | ({ exp_desc= Texp_apply (f, args) } as e) ->
         { e with
           exp_desc= Texp_apply (f, List.map (resolve_arg f e.exp_env) args) }
+(*
+    | ({ exp_desc= Texp_function (l, [case], _) } as e) when is_dispatch_label l ->
+        e
+*)
     | e -> e
+
 end
 
 module Map = TypedtreeMap.MakeMap(MapArg)
