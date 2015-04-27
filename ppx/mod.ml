@@ -2,6 +2,8 @@ open Types
 open Typedtree
 open Ppxx
 
+open Longident
+
 let errorf fmt =
   let open Format in
   let ksprintf f fmt =
@@ -94,7 +96,7 @@ let rec get_candidates env lid mty =
   in
   flip2 List.fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) -> 
-      let lid = Longident.Ldot (lid, Ident.name id) in
+      let lid = Ldot (lid, Ident.name id) in
       begin try
         let path, vdesc = Env.lookup_value lid env in
         (lid, path, vdesc) :: st
@@ -104,7 +106,7 @@ let rec get_candidates env lid mty =
             raise e
       end
   | Sig_module (id, _mty, _) -> 
-      let lid = Longident.Ldot (lid, Ident.name id) in
+      let lid = Ldot (lid, Ident.name id) in
       let path = 
         try Env.lookup_module ~load:true (*?*) lid env with e ->
           Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
@@ -167,7 +169,7 @@ let rec resolve env cands : type_expr list -> expression list list = function
           
 let search_space env =
   try
-    let lid = Longident.Lident "Instance" in
+    let lid = Lident "Instance" in
     let p = Env.lookup_module ~load:true lid env in
     Some (lid, p, Env.find_module p env)
   with
@@ -180,7 +182,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     (* (l, None, Optional) means not applied *)
     | (l, Some e, Optional as a) when is_dispatch_label l -> 
         begin match e.exp_desc with
-        | Texp_construct ({Location.txt=Longident.Lident "None"}, _, []) ->
+        | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
             begin match is_option_type env e.exp_type with
             | None -> assert false
             | Some ty ->
@@ -199,7 +201,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
                 in
                 (l, Some e, Optional)
             end
-        | Texp_construct ({Location.txt=Longident.Lident "Some"}, _, [_]) -> a
+        | Texp_construct ({Location.txt=Lident "Some"}, _, [_]) -> a
         | _ -> 
             (* This is problematic: https://bitbucket.org/camlspotter/ppx_typeclass/issue/1/prevent-indirect-application-of-none-to
             *)
