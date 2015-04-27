@@ -83,6 +83,7 @@ let check_entrypoint env vdesc =
       end
   | _ -> None
   
+(* Recursively visit the module and get values defined in it *)
 let rec get_candidates env lid mty =
   let sg = 
     try
