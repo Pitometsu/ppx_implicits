@@ -46,10 +46,6 @@ module Exp = struct
     { Dummy.exp with
       exp_desc = Texp_ident (p, loc lid, Dummy.value_description) } 
 
-  let ident' p = 
-    { Dummy.exp with
-      exp_desc = Texp_ident (p, loc @@ Untypeast.lident_of_path p, Dummy.value_description) } 
-
   let let_ ?(recursive=false) vbs e =
     { Dummy.exp with
       exp_desc = Texp_let((if recursive then Recursive else Nonrecursive),
