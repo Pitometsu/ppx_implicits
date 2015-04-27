@@ -28,6 +28,13 @@ let get_name = function
   | Path.Pdot (_, name, _) -> name
   | Path.Papply _ -> assert false
 
+(* XXX.IMP.t *)
+let is_implicit_path p = 
+  let open Path in 
+  match p with      
+  | Pdot (Pdot (p, "IMP", _), "t", _) -> Some p
+  | _ -> None
+
 let is_dispatch_label l =
   let len = String.length l in
   len >= 3 && String.unsafe_get l 0 = '?' && String.unsafe_get l 1 = '_'
@@ -84,7 +91,7 @@ let check_entrypoint env vdesc =
   | _ -> None
   
 (* Recursively visit the module and get values defined in it *)
-let rec get_candidates env lid mty =
+let rec get_candidates env path mty =
   let sg = 
     try
       match Env.scrape_alias env @@ Mtype.scrape env mty with
@@ -97,28 +104,23 @@ let rec get_candidates env lid mty =
   in
   flip2 List.fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) -> 
-      let lid = Ldot (lid, Ident.name id) in
+      let p = Path.Pdot (path, Ident.name id, Ident.stamp id) in
       begin try
-        let path, vdesc = Env.lookup_value lid env in
-        (lid, path, vdesc) :: st
+        let vdesc = Env.find_value p env in
+        (p, vdesc) :: st
         with
         | e ->
-            Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
+            Format.eprintf "get_candidates: failed to find %a in the current env@." print_path p;
             raise e
       end
   | Sig_module (id, _mty, _) -> 
-      let lid = Ldot (lid, Ident.name id) in
-      let path = 
-        try Env.lookup_module ~load:true (*?*) lid env with e ->
-          Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
-          raise e
-      in
+      let p = Path.Pdot (path, Ident.name id, Ident.stamp id) in
       let moddecl = 
-        try Env.find_module path env with e ->
-          Format.eprintf "get_candidates: failed to find the module declaration of %a in the current env@." print_path path;
+        try Env.find_module p env with e ->
+          Format.eprintf "get_candidates: failed to find %a in the current env@." print_path p;
           raise e
       in
-      get_candidates env lid moddecl.Types.md_type @ st
+      get_candidates env p moddecl.Types.md_type @ st
   | _ -> st
 
 let rec extract_constraint_labels env ty = 
@@ -210,15 +212,37 @@ module MapArg : TypedtreeMap.MapArgument = struct
         end
     | a -> a
 
-  let enter_expression = function
-    | ({ exp_desc= Texp_apply (f, args) } as e) ->
-        { e with
-          exp_desc= Texp_apply (f, List.map (resolve_arg f e.exp_env) args) }
-(*
-    | ({ exp_desc= Texp_function (l, [case], _) } as e) when is_dispatch_label l ->
-        e
-*)
-    | e -> e
+  let enter_expression e =
+    match e.exp_desc with
+    | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
+        begin match is_option_type e.exp_type with
+        | None -> e
+        | Some ty ->
+            match expand_repr_desc e.exp_env ty with
+            | Tconstr (p, [ty], _) ->
+                begin match is_implicit_path p with
+                | None -> e
+                | Some p' ->
+                    match 
+                      try
+                        Some (Env.find_module p' e.exp_env)
+                      with
+                      | _ -> None
+                    with
+                    | None ->
+                        errorf "%a: no instance search space found: %a" print_path p'
+                    | Some mdecl ->
+                        let cands = get_candidates env path mdecl.md_type in
+                        if gen_vars ty <> [] then
+                          errorf "%a: overloaded value has a generalized type: %a" Location.print_loc f.exp_loc Printtyp.type_scheme ty;
+                        match resolve env cands [ty] with
+                        | [] -> errorf "%a: no instance found for %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
+                        | [[e]] -> Forge.Exp.some e
+                        | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc f.exp_loc Printtyp.type_expr ty;
+                end
+            | _ -> e
+        end
+    | _ -> e
 
 end
 
