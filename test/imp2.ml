@@ -12,10 +12,9 @@ open X
    Therefore we cannot write (fun _ -> assert false) [@imp2 Show] 
  *)
 
-(* imp_fun [@imp2 Show]  is equivalent with [%imp Show] *)
-external _imp_ : 'a = "%identity"
-let () = assert ( (_imp_ [@imp2 Show]) 1 = "1" )
-let () = assert ( (_imp_ [@imp2 Show]) 1.0 = "1." )
+(* If you cannot use [%imp2 Show], you can always replace it by (assert false) [@imp2 Show] *)
+let () = assert ( [%imp2 Show] 1 = "1" )
+let () = assert ( [%imp2 Show] 1.0 = "1." )
 
 module Y = struct
   module Show = struct
@@ -25,7 +24,7 @@ end
 
 open Y
 
-let () = assert ( (_imp_ [@imp2 Show]) [1;2] = "[ 1; 2 ]" )
+let () = assert ( [%imp2 Show] [1;2] = "[ 1; 2 ]" )
 (*
 module Y = struct
   module Show = struct

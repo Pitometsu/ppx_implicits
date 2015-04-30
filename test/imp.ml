@@ -1,100 +1,160 @@
-(* Let's start to have some functions to show various data types 
-   in one module Show *)
+(* 
+   
+   Let's start to have functions to show various data types in one module Show.
+
+*)
+
 module Show = struct
   let int = string_of_int
   let float = string_of_float
   let list show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
 end
 
-(* It should work like this *)
+(*
+
+  They work as follows. Pretty normal.
+
+*)
+
 let () = assert (Show.int 1 = "1")
 let () = assert (Show.float 1.0 = "1.")
 let () = assert (Show.(list int) [1;2] = "[ 1; 2 ]")
 
-(* They are all `show`, let's the compiler to create the values!
-   This is the idea of the value implicits.
+(*
+
+  Let the compiler to create show functions for given type contexts by composing
+  values defined in Show.  This is the idea of the value implicits.
 
      let () = assert ([%imp Show] 1 = "1")
      let () = assert ([%imp Show] 1.0 = "1.")
      let () = assert ([%imp Show] [1;2] = "[ 1; 2 ]")
 
-   [%imp M] means create a value which matches with the current typing context
-   using the values defined in M.
+  [%imp M] means to create a value which matches with the current typing context
+  composing the values defined in M.
 *)
 
-(* An example of deriving value implicits *)
+(*
+
+  Deriving value implicits.  You can defined higher order functions which take
+  implicit values from the outer world:
+
+*)
 
 let show_twice imp x = imp x ^ imp x
 
 let () = assert (show_twice Show.(list int) [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
 (*
-let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
+  [%imp Show] can replace Show.(list int):
+
+  let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
 *)
 
-(* Put the idea back to the first examples: *)
+(*
+
+  If we put this idea of higher order functions which take implicit values back to
+  the first show example, we get:
+
+*)
+  
 let show (f : 'a -> string) = f
 
-(* Now it looks like overloading:
+(*
 
-     let () = assert (show [%imp Show] 1 = "1")
-     let () = assert (show [%imp Show] 1.0 = "1.")
-     let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
+  and
+
+  let () = assert (show [%imp Show] 1 = "1")
+  let () = assert (show [%imp Show] 1.0 = "1.")
+  let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
+
+  it looks like overloading.
 *)
 
-(* We can extend the recipe. Candidates are searched recursively
-   into the sub modules:
+(*
+
+  Closed extension.
+
+  We can extend the recipe. Candidates are searched recursively into the sub modules:
+
 *)
+  
 module Show' = struct
   module Show = Show
   let tuple imp1 imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
 end
 
-let () = assert (show_twice (Show'.tuple Show'.Show.int Show'.Show.float) (1,1.2) = "(1, 1.2)")
+let () = assert (show_twice (Show'.tuple Show'.Show.int Show'.Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
+
 (*
-let () = assert (show_twice [%imp Show'] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
+  let () = assert (show_twice [%imp Show'] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
 *)
 
 
-(* We may be able to merge recipes at [%imp] side: *)
+(*
+  
+  We may also be able to list multiple recipes inside [%imp]: 
+
+*)
+
 module Show'' = struct
   let tuple imp1 imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
 end
 
-let () = assert (show_twice (Show''.tuple Show.int Show.float) (1,1.2) = "(1, 1.2)")
+let () = assert (show_twice (Show''.tuple Show.int Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
+
 (*
-let () = assert (show_twice [%imp Show Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
+  let () = assert (show_twice [%imp Show Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
 *)
 
-(* Composing modules are bit inefficient and listing more than one modules
-   are bit boring. Any good idea?
+(*
 
-   We can make use of open.  [%imp* Show]  (or some better syntax)
-   seek child module Show defined in explicitly opened modules 
-   in the current context..
+  Easier extension by module open
+
+  Composing modules are bit inefficient and listing more than one modules
+  are bit boring. Any good idea?
+
+  We can make use of open M.  [%imp* Show]  (or some better syntax)
+  seek child module Show defined in explicitly opened modules 
+  in the current context.
   
-   let () = assert (show_twice [%imp* Show] [1;2] = "[ 1; 2 ][ 1; 2 ]") 
+  let () = assert (show_twice [%imp* Show] [1;2] = "[ 1; 2 ][ 1; 2 ]") 
 
-   Possible problem:
+  Possible problem:
 
-     open X  (* has Show *)
-     module X = struct
-       ...
-     end 
+  open X  (* has Show *)
+  module X = struct
+  ...
+  end 
+  
+  [%imp* Show]
 
-   Now X.Show is not accessible. ppx is a source based solution :-( 
+  Now X.Show is not accessible at the position of [%imp* Show]. 
+  ppx is a source based solution.  If a recipe module N.M for [%imp* M] is shadowed 
+  it must warn or reject such shadowing.
+
 *)
 
 
-(* show and show_twice normally use [%imp Show], so writing Show is boring.
-   Any good way to omit them like
+(*
 
-   show [%imp] 1
-   show_twice [%imp] 1
+  Open extension:
 
-   ???
 
-   This requires the shift of the information of the module name Show from
-   syntax to type:  [%imp] must have a type with "Show".
+  show and show_twice normally use [%imp Show], so writing Show is boring.
+  Any good way to omit them like
+
+  show [%imp] 1
+  show_twice [%imp] 1
+
+  This requires the shift of the information of the module name Show from
+  syntax to type:  functions show and show_twice must have types which enforce
+  [%imp] have types with "Show".
    
 *)
 

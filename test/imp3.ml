@@ -18,15 +18,14 @@ end
 open M
 open X
 
-external _imp_ : 'a = "%identity"
-let () = assert (show (_imp_ [@imp2 Show]) 1 = "1")
-let () = assert (show (_imp_ [@imp3]) 1 = "1")
+let () = assert (show [%imp2 Show] 1 = "1")
+let () = assert (show [%imp3] 1 = "1")
 
 
 let show (type a) ?imp = match imp with
   | None -> assert false
   | Some imp -> (imp : a M.Show.__imp__ :> a)
 
-let () = assert (show ?imp:(Some (_imp_ [@imp3])) 1 = "1")
+let () = assert (show ?imp:(Some [%imp3]) 1 = "1")
 let () = assert (show ?imp:None 1 = "1")
 let () = assert (show 1 = "1")
