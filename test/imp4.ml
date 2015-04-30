@@ -43,9 +43,9 @@ module X = struct
         end
       end in
       let open Y in
-      let module A = (val _d) in
       let module List = struct
-        type a = A.a list
+        type a' = a list
+        type a = a'
         (* Need type constraint so that the internal use of Show.show can be resovled *)
         let show (xs : a) = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
       end in (module List)
