@@ -18,6 +18,18 @@ module Option = struct
     | Some v -> Some (f v)
 end
 
+module List = struct
+  include List
+
+  let rec filter_map f = function
+    | [] -> []
+    | x :: xs -> match f x with
+      | None -> filter_map f xs
+      | Some y -> y :: filter_map f xs
+
+  let concat_map f xs = concat (map f xs)
+end 
+
 let at ?loc txt = 
   let loc = match loc with 
       | None -> !Ast_helper.default_loc
