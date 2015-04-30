@@ -25,13 +25,8 @@ end
 open Y
 
 let () = assert ( [%imp2 Show] [1;2] = "[ 1; 2 ]" )
-(*
-module Y = struct
-  module Show = struct
-    let list ~_x:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
-  end
-end
 
-open Y
-
-*)
+(* derived *)
+  
+let show_twice imp x = imp x ^ imp x
+let () = assert ( show_twice [%imp2 Show] [1;2] = "[ 1; 2 ][ 1; 2 ]" )

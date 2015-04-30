@@ -27,3 +27,9 @@ module Show3 = struct
 end
 
 let () = assert ( [%imp Show3] [1;2] = "[ 1; 2 ]" )
+
+(* derived *)
+  
+let show_twice imp x = imp x ^ imp x
+let () = assert ( show_twice [%imp Show3] [1;2] = "[ 1; 2 ][ 1; 2 ]" )
+
