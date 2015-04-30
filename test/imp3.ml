@@ -29,3 +29,4 @@ let show (type a) ?imp = match imp with
 
 let () = assert (show ?imp:(Some (_imp_ [@imp3])) 1 = "1")
 let () = assert (show ?imp:None 1 = "1")
+let () = assert (show 1 = "1")
