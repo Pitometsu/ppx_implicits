@@ -55,10 +55,10 @@ BYTE_ENABLED = true
 OCAMLFLAGS = -g 
 
 #|Warnings not to be printed separted with space
-OCAMLWARNING_IGNORE[] = 3 4 9 40 41 42 44 45 48
+OCAMLWARNING_IGNORE[] = 3 4 9 40 42 44 45 48
 
 #|Warnings treated as non errors
-OCAMLWARNING_NON_ERROR[] = 4 9 40 41 42 44 45 48
+OCAMLWARNING_NON_ERROR[] = 4 9 40 42 44 45 48
 
 #|If it is false, warnings do not stop the compilation even if they are listed in OCAMLWARNING_NON_ERROR
 #If you are in developing something, override it to true!
@@ -793,3 +793,14 @@ MyOCamlOUnitTest(LIB) =
     .PHONY:test
 
     test: inline_tests.log
+
+WithMerlin() =
+  .merlin:
+    section:
+      chan=$(fopen $@, w)
+      fprintln($(chan), "PKG $(string $(OCAMLPACKS))")
+      foreach(x, $(OCAMLINCLUDES))
+        fprintln($(chan), "S $(x)")
+      close($(chan))
+  .DEFAULT: .merlin
+  export

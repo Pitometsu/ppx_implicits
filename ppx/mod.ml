@@ -16,18 +16,6 @@ let errorf fmt =
 let repr_desc ty = (Ctype.repr ty).desc
 let expand_repr_desc env ty = (Ctype.repr & Ctype.expand_head env ty).desc
 
-let print_ident ppf id = Format.fprintf ppf "%s/%d" id.Ident.name id.Ident.stamp
-
-let rec print_path ppf = function
-  | Path.Pident id -> print_ident ppf id
-  | Path.Pdot (p, name, n) -> Format.fprintf ppf "%a.%s__%d" print_path p name n
-  | Path.Papply (p1, p2) -> Format.fprintf ppf "%a(%a)" print_path p1 print_path p2
-
-let get_name = function
-  | Path.Pident id -> Ident.name id
-  | Path.Pdot (_, name, _) -> name
-  | Path.Papply _ -> assert false
-
 (* XXX.IMP.t *)
 let is_implicit_path (p, lid) = 
   let open Path in 
@@ -36,10 +24,6 @@ let is_implicit_path (p, lid) =
   | Pdot (p, "__imp__", _), Lident "__imp__" -> Some (p, None)
   | Pdot (p, "__imp__", _), Ldot (l, "__imp__") -> Some (p, Some l)
   | _ -> None
-
-let is_dispatch_label l =
-  let len = String.length l in
-  len >= 3 && String.unsafe_get l 0 = '?' && String.unsafe_get l 1 = '_'
 
 let is_constraint_label l =
   let len = String.length l in
@@ -56,18 +40,6 @@ let with_snapshot f =
   Btype.backtrack snapshot;
   unprotect res
 
-let with_current_level x f =
-  let open Ctype in
-  begin_def (); (* save it *)
-  init_def x;
-  let res = protect f in
-  end_def ();
-  unprotect res
-
-let force_generalize ty =
-  with_current_level Btype.lowest_level & fun () ->
-    Ctype.generalize ty (* it is destructive! *)
-    
 (* Oops, there is no good exposed API to compare a module type
    and a packed module type. 
 *)
@@ -80,26 +52,6 @@ let is_option_type env ty = match is_constr env ty with
   | Some (po, [ty]) when po = Predef.path_option -> Some ty
   | _ -> None
 
-let check_entrypoint env vdesc =
-  match expand_repr_desc env vdesc.val_type with
-  | Tarrow (l, ty1, ty2, _) when is_dispatch_label l ->
-      begin match is_option_type env ty1 with
-      | None -> None
-      | Some ty ->
-          match expand_repr_desc env ty with
-          | Tpackage _ -> Some (l, ty, ty2)
-          | _ -> assert false
-      end
-  | _ -> None
-  
-(* Recursively visit the module and get values defined in it *)
-(*
-val get_candidates : Env.t ->
-                          Longident.t ->
-                          Types.module_type ->
-                          (Longident.t * Path.t * Types.value_description)
-                          list
-*)
 let rec get_candidates env lid mty =
   let sg = 
     try
@@ -131,7 +83,7 @@ let rec get_candidates env lid mty =
       in
       let moddecl = 
         try Env.find_module path env with e ->
-          Format.eprintf "get_candidates: failed to find the module declaration of %a in the current env@." print_path path;
+          Format.eprintf "get_candidates: failed to find the module declaration of %a in the current env@." Path.format path;
           raise e
       in
       get_candidates env lid moddecl.Types.md_type @ st
@@ -184,14 +136,6 @@ let rec resolve env cands : type_expr list -> expression list list = function
           with
           | _ -> []
           
-let search_space env =
-  try
-    let lid = Lident "Instance" in
-    let p = Env.lookup_module ~load:true lid env in
-    Some (lid, p, Env.find_module p env)
-  with
-  | Not_found -> None
-
 let is_imp e = 
   let open Parsetree in
   let imps = 
@@ -261,7 +205,7 @@ let lids_in_open_path env lids = function
       flip Ppxx.List.filter_map lids (fun lid ->
         try
           let path = Env.lookup_module ~load:false (*?*) lid env in
-          Format.eprintf "CURRENT %a@." print_path path;
+          Format.eprintf "CURRENT %a@." Path.format path;
           Some path
         with
         | _ -> None)
@@ -269,7 +213,7 @@ let lids_in_open_path env lids = function
       (* We assume Pervasives has no instances *)
       []
   | Some open_ ->
-      Format.eprintf "open %a@." print_path open_;
+      Format.eprintf "open %a@." Path.format open_;
       let mdecl = Env.find_module open_ env in (* It should succeed *)
       match Mtype.scrape env mdecl.md_type with
       | Mty_signature sg ->
@@ -277,7 +221,7 @@ let lids_in_open_path env lids = function
           flip Ppxx.List.filter_map lids (fun lid ->
             try
               let p = Env.lookup_module ~load:false (*?*) lid env in
-              Format.eprintf "%a %a@." print_path open_ print_path p;
+              Format.eprintf "%a %a@." Path.format open_ Path.format p;
               Some p
             with
             | _ -> None)
@@ -306,15 +250,15 @@ module MapArg : TypedtreeMap.MapArgument = struct
       | _ -> assert false
     in
     let opens = get_opens & Env.summary env in
-    flip List.iter opens (Format.eprintf "open %a@." print_path);
+    flip List.iter opens (Format.eprintf "open %a@." Path.format);
     let paths = List.sort_uniq compare & lids_in_open_paths env [Lident n] (None :: List.map (fun x -> Some x) opens) in
-    List.iter (fun p -> Format.eprintf "found %a@." print_path p) paths;
+    List.iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
     let cands = List.flatten & flip List.map paths & fun path ->
       match 
         try Some (Env.find_module path env) with _ -> None
       with
       | None -> 
-          errorf "%a: no module desc found: %a" Location.print_loc loc print_path path
+          errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
       | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
     in
     begin match resolve env cands [ty] with
@@ -370,7 +314,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
                 try Some (Env.find_module path env) with _ -> None
               with
               | None -> 
-                  errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc print_path path
+                  errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
               | Some mdecl -> get_candidates e.exp_env lid mdecl.md_type
         in
         begin match resolve e.exp_env cands [ty] with
@@ -385,15 +329,15 @@ module MapArg : TypedtreeMap.MapArgument = struct
           errorf "%a: overloaded value has a generalized type: %a" Location.print_loc e.exp_loc Printtyp.type_scheme ty;
         let env = e.exp_env in
         let opens = get_opens & Env.summary env in
-flip List.iter opens (Format.eprintf "open %a@." print_path);
+flip List.iter opens (Format.eprintf "open %a@." Path.format);
         let paths = List.sort_uniq compare & lids_in_open_paths env lids (None :: List.map (fun x -> Some x) opens) in
-        List.iter (fun p -> Format.eprintf "found %a@." print_path p) paths;
+        List.iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
         let cands = List.flatten & flip List.map paths & fun path ->
           match 
             try Some (Env.find_module path env) with _ -> None
           with
           | None -> 
-              errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc print_path path
+              errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
           | Some mdecl -> get_candidates e.exp_env (Untypeast.lident_of_path path) mdecl.md_type
         in
         begin match resolve e.exp_env cands [ty] with
