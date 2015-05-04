@@ -52,6 +52,20 @@ let is_option_type env ty = match is_constr env ty with
   | Some (po, [ty]) when po = Predef.path_option -> Some ty
   | _ -> None
 
+let rec extract_constraint_labels env ty = 
+  let ty = Ctype.expand_head env ty in
+  match repr_desc ty with
+  | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
+      let cs, ty = extract_constraint_labels env ty2 in
+      (l,ty1)::cs, ty
+  | _ -> [], ty
+
+let check_admissivity env vdesc =
+  let cs, vty = extract_constraint_labels env vdesc.val_type in
+  List.for_all (fun (_,ty) ->
+    let open Tysize in
+    lt (size vty) (size ty)) cs
+
 let rec get_candidates env lid mty =
   let sg = 
     try
@@ -68,8 +82,12 @@ let rec get_candidates env lid mty =
       let lid = Ldot (lid, Ident.name id) in
       begin try
         let path, vdesc = Env.lookup_value lid env in
-        (lid, path, vdesc) :: st
-        with
+        if check_admissivity env vdesc then (lid, path, vdesc) :: st
+        else begin
+          prerr_endline "This is not admissible";
+          st
+        end
+      with
         | e ->
             Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
             raise e
@@ -89,14 +107,6 @@ let rec get_candidates env lid mty =
       get_candidates env lid moddecl.Types.md_type @ st
   | _ -> st
 
-let rec extract_constraint_labels env ty = 
-  let ty = Ctype.expand_head env ty in
-  match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
-      let cs, ty = extract_constraint_labels env ty2 in
-      (l,ty1)::cs, ty
-  | _ -> [], ty
-
 let gen_vars ty =
   flip List.filter (Ctype.free_variables ty) & fun ty ->
     ty.level = Btype.generic_level
@@ -104,8 +114,6 @@ let gen_vars ty =
 let rec resolve env cands : type_expr list -> expression list list = function
   | [] -> [[]]
   | ty::tys ->
-      Format.eprintf "SIZE %a : %d@."
-        Printtyp.type_expr ty (Tysize.size ty);
       List.concat & flip List.map cands & fun (lid,path,vdesc) ->
         let ity = Ctype.instance env ty in
         let ivty = Ctype.instance env vdesc.val_type in
