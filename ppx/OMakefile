@@ -7,10 +7,11 @@ FILES[] =
     untypeast
     ppxx
     forge
+    pre
     mod
     compile
     ppx
 
 MyOCamlFindPackage(ppx_typeclass, $(MyOCamlPPX ppx_typeclass, $(FILES)))
 
-# WithMerlin()
+WithMerlin()
