@@ -28,6 +28,7 @@ let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
 
   [%imp M] means to create a value which matches with the current typing context
   composing the values defined in M.
+
 *)
 
 let () = assert ([%imp Show] 1 = "1")
@@ -60,7 +61,8 @@ let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 *)
   
-let show (f : 'a -> string) = f
+let show (f : 'a -> string) = f  
+(* 'a -> string  is the most general anti-unifier of the recipes *)
 
 let () = assert (show [%imp Show] 1 = "1")
 let () = assert (show [%imp Show] 1.0 = "1.")
@@ -74,7 +76,7 @@ let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
 
   Closed extension.
 
-  We can extend the recipe. Candidates are searched recursively into the sub modules:
+  We can extend the recipe. Candidates are searched recursively into the sub-modules:
 
 *)
   
@@ -84,7 +86,7 @@ module Show' = struct
 end
 
 let () = assert (show_twice (Show'.tuple Show'.Show.int Show'.Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
-let () = assert (show_twice [%imp Show'] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+let () = assert (show_twice [%imp Show'] (1,1.2) = "(1, 1.2)(1, 1.2)")
 
 
 (*
@@ -104,12 +106,14 @@ let () = assert (show_twice [%imp Show, Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
   Easier closed extension by module open
 
-  Composing modules are bit inefficient and listing more than one modules
-  are bit boring. Any good idea?
+  Composing modules by include and module aliases are bit inefficient 
+  and listing more modules is bit boring. Any good idea to facilitate this?
 
-  We can make use of open M.  [%imp2 Show]  (or some better syntax)
-  seek child module Show defined in explicitly opened modules 
-  in the current context.
+  Haskell uses module import to define the search space for type class instances
+  and we can borrow the idea: make use of open M.  [%imp2 Show]  
+  (or some better syntax) seek child module Show defined in explicitly 
+  opened modules in the current context: if we have open X and X.Show exists,
+  X.Show is searched for [%imp2 Show].
 
 *)
 
@@ -127,15 +131,18 @@ open Y
 let () = assert (show_twice [%imp2 Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
+
   is equivalent with 
+
 *)
   
 let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]") 
 
 (*
+
   Possible problem:
 
-  open X  (* has Show *)
+  open X  (* x.ml, which has Show *)
   module X = struct
   ...
   end 
@@ -143,8 +150,8 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
   [%imp2 Show]
 
   Now X.Show is not accessible at the position of [%imp2 Show]. 
-  ppx is a source based solution.  If a recipe module N.M for [%imp* M] is shadowed 
-  it must warn or reject such shadowing.
+  ppx is a source based solution.  If a recipe module N.M for [%imp2 M] is 
+  shadowed, it must warn or reject such shadowing.
 
 *)
 
@@ -153,14 +160,13 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
   Open extension:
 
-
-  show and show_twice normally use [%imp Show] or [%imp2 Show], so writing Show everytime is boring.
-  It would be better if we can omit writing Show like:
+  show and show_twice normally use [%imp Show] or [%imp2 Show], so writing 
+  Show everytime is boring. It would be better if we can omit writing Show like:
 
   show [%imp] 1
   show_twice [%imp] 1
 
-  This requires the shift of the information of the module name Show from
+  This requires the shift of the information of the search space name Show from
   syntax to type:  functions show and show_twice must have types which enforce
   [%imp] have types with "Show".
    
@@ -179,7 +185,7 @@ let show (type a) imp = let imp = (imp : a Z.Show.__imp__ :> a) in imp
 let () = assert (show (Z.Show.pack ~_d:X.Show.int) 1 = "1")
 
 (*
-  X.Show.pack is actually automatically composable.
+  X.Show.pack ~_d:X.Show.int is actually automatically composable.
 *)
 
 open Z
@@ -190,7 +196,7 @@ let () = assert (show [%imp2 Show] 1 = "1")
 
   We want to replace this [%imp2 Show] by [%imp3].
 
-  We introduce a conversion from [%imp3] of type (t1, .., tn) X.Y.Z.name
+  We introduce a conversion from [%imp3] of type (t1, .., tn) X.Y.Z.t
   to                             [%imp2 Y]
 
 *)
@@ -209,19 +215,24 @@ module W = struct
 
   let show (type a) imp = let imp = (imp : a Wohs.__imp__ :> a) in imp
 
-(* In this case, [%imp] : t Wohs.__imp__  should become [%imp2 Show] ? 
-   Or not?
+  (*
+    
+    In this case, [%imp] : t Wohs.__imp__  is expanded to [%imp2 Show],
+    expanding the type alias.
 
-   If [%imp] : t X.__imp__   where X is a functor parameter, what happens,
-   probably we should reject it.
-*)
+    If [%imp] : t X.__imp__   where X is fa functor parameter, what happens?
+    probably we should reject it.
+
+  *)
 end
 
 (*
+
    Implicit applicaiton of [%imp] by the optional parameters
 
    Omitting [%imp].  Writing [%imp] is now boring, but vanilla 
-   OCaml has no way of omitting code... except the optional arguments!
+   OCaml provides no way of omitting code... except the optional arguments!
+
 *)
 
 let show (type a) ?x:imp = match imp with
@@ -238,6 +249,7 @@ let () = assert (show ~x:[%imp3] 1 = "1")
   Now __imp__ becomes a special name.
 
 *)
+
 let () = assert (show ?x:None 1 = "1")
 
 (*
