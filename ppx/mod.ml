@@ -104,6 +104,8 @@ let gen_vars ty =
 let rec resolve env cands : type_expr list -> expression list list = function
   | [] -> [[]]
   | ty::tys ->
+      Format.eprintf "SIZE %a : %d@."
+        Printtyp.type_expr ty (Tysize.size ty);
       List.concat & flip List.map cands & fun (lid,path,vdesc) ->
         let ity = Ctype.instance env ty in
         let ivty = Ctype.instance env vdesc.val_type in
