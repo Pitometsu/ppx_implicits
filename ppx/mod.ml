@@ -60,12 +60,6 @@ let rec extract_constraint_labels env ty =
       (l,ty1)::cs, ty
   | _ -> [], ty
 
-let check_admissivity env vdesc =
-  let cs, vty = extract_constraint_labels env vdesc.val_type in
-  List.for_all (fun (_,ty) ->
-    let open Tysize in
-    lt (size vty) (size ty)) cs
-
 let rec get_candidates env lid mty =
   let sg = 
     try
@@ -82,11 +76,7 @@ let rec get_candidates env lid mty =
       let lid = Ldot (lid, Ident.name id) in
       begin try
         let path, vdesc = Env.lookup_value lid env in
-        if check_admissivity env vdesc then (lid, path, vdesc) :: st
-        else begin
-          prerr_endline "This is not admissible";
-          st
-        end
+        (lid, path, vdesc) :: st
       with
         | e ->
             Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
@@ -111,40 +101,48 @@ let gen_vars ty =
   flip List.filter (Ctype.free_variables ty) & fun ty ->
     ty.level = Btype.generic_level
 
-let rec resolve env cands : type_expr list -> expression list list = function
+let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
-  | ty::tys ->
+  | (trace,ty)::tr_tys ->
       List.concat & flip List.map cands & fun (lid,path,vdesc) ->
-        let ity = Ctype.instance env ty in
-        let ivty = Ctype.instance env vdesc.val_type in
+         match
+           try Some (List.assoc path trace) with _ -> None
+         with
+         | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
+             (* recursive call and the type size is not strictly decreasing *)
+             Format.eprintf "ADM failure: %a : %a  =>  %a@." 
+               Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+             []
+         | _ ->
+             let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding is no longer useful. Replace instead of add? *)
+
+             let ity = Ctype.instance env ty in
+             let ivty = Ctype.instance env vdesc.val_type in
         
-        let cs, ivty = extract_constraint_labels env ivty in
-        Format.eprintf "Got:@.";
-        flip List.iter cs (fun (l,ty) ->
-          Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
-        Format.eprintf "  %a@." Printtyp.type_expr ivty;
-(*
-        let gvars = gen_vars ty in
-*)
-        let tys = List.map snd cs @ tys in
-        with_snapshot & fun () ->
-          try
-            Format.eprintf "Checking %a <> %a@."
-              Printtyp.type_expr ity
-              Printtyp.type_expr ivty;
-            ignore & Ctype.unify env ity ivty;
-            flip List.map (resolve env cands tys) & fun res ->
-              let rec app res cs = match res, cs with
-                | res, [] -> res, []
-                | r::res, (l,_)::cs ->
-                    let res, args = app res cs in
-                    res, (l,r)::args
-                | _ -> assert false
-              in
-              let res, args = app res cs in
-              Forge.Exp.(app (ident lid path) args) :: res
-          with
-          | _ -> []
+             let cs, ivty = extract_constraint_labels env ivty in
+             Format.eprintf "Got:@.";
+             flip List.iter cs (fun (l,ty) ->
+               Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
+             Format.eprintf "  %a@." Printtyp.type_expr ivty;
+             let tr_tys = List.map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
+             with_snapshot & fun () ->
+               try
+                 Format.eprintf "Checking %a <> %a@."
+                 Printtyp.type_expr ity
+                 Printtyp.type_expr ivty;
+                 ignore & Ctype.unify env ity ivty;
+                 flip List.map (resolve env cands tr_tys) & fun res ->
+                   let rec app res cs = match res, cs with
+                     | res, [] -> res, []
+                     | r::res, (l,_)::cs ->
+                         let res, args = app res cs in
+                         res, (l,r)::args
+                     | _ -> assert false
+                   in
+                   let res, args = app res cs in
+                   Forge.Exp.(app (ident lid path) args) :: res
+               with
+               | _ -> []
           
 let is_imp e = 
   let open Parsetree in
@@ -271,7 +269,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
           errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
       | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
     in
-    begin match resolve env cands [ty] with
+    begin match resolve env cands [([],ty)] with
     | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
     | [[e]] -> e
     | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty;
@@ -327,7 +325,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
                   errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
               | Some mdecl -> get_candidates e.exp_env lid mdecl.md_type
         in
-        begin match resolve e.exp_env cands [ty] with
+        begin match resolve e.exp_env cands [([],ty)] with
         | [] -> errorf "%a: no instance found for %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
         | [[e]] -> e
         | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
@@ -350,7 +348,7 @@ flip List.iter opens (Format.eprintf "open %a@." Path.format);
               errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
           | Some mdecl -> get_candidates e.exp_env (Untypeast.lident_of_path path) mdecl.md_type
         in
-        begin match resolve e.exp_env cands [ty] with
+        begin match resolve e.exp_env cands [([],ty)] with
         | [] -> errorf "%a: no instance found for %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
         | [[e]] -> e
         | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
