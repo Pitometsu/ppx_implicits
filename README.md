@@ -1,241 +1,242 @@
-# Ppx_typeclass
+# Value Implicits, or resurrection of Extensional Polymorphism
 
-Ppx_typeclass is to provide typeclass/modular implicit to OCaml 
-via ppx ( [link](http://whitequark.org/blog/2014/04/16/a-guide-to-extension-points-in-ocaml/) or [link](https://blogs.janestreet.com/extension-points-or-how-ocaml-is-becoming-more-like-lisp/) ) framework.
+To say short this is an implementation of type class or modular implicits
+for OCaml via PPX preprocessor framework, built over value implicits,
+automatic value construction from types.
 
-## Highlights
+## Implicit values `[%imp M]`
 
-### Simple
-
-Ppx_typeclass is a pre-processor solution: **no need of compiler patching**. 
-You can use typeclasses with the vanilla OCaml compiler just now.
-
-The implementation of ppx_typeclass is pretty small: 
-it uses the result of the vanilla OCaml type checker 
-and just replaces the uses of overloaded values by their proper instances.
-
-### Safety
-
-Ppx_typeclass is a ppx: it output is OCaml source code then it is type-checked
-again by the vanilla OCaml compiler. The output does not add any `Obj.magic`
-trick therefore type safety of its output is assured.
-
-## Current status
-
-This is still at a "proof of concept" stage.
-
-## Ideas
-
-You need some knowledge of Haskell typeclasses.
-
-### Type class declaration = module type declaration
-
-A type class declaration in Haskell like
-
-```haskell
-class Show a where
-  show :: a -> String
-```
-
-is translated to a module type:
+Let's start to have functions to show various data types in one module Show.
 
 ```ocaml
-module type Show = sig
-  type a
-  val show : a -> string
+module Show = struct
+  let int = string_of_int
+  let float = string_of_float
+  let list ~_d:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
+  (* currently a label starts with '_' is required to express recipe dependencies *)
 end
 ```
 
-### Type class instance = module implementation
+They work as follows. Pretty normal.
 
-A type class instance (or dictionary implementation) in Haskell like
-
-```haskell
-instance Show Int where
-  show = string_of_int
-
-instance Show Float where
-  show = string_of_float
-```
-
-is translated to a module implementation:
 
 ```ocaml
-module Int = struct
-  type a = int
-  let show = string_of_int
+let () = assert (Show.int 1 = "1")
+let () = assert (Show.float 1.0 = "1.")
+let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
+```
+
+
+Let the compiler to create show functions for given type contexts by composing
+values defined in Show.  This is the idea of the value implicits.
+
+`[%imp M]` means to create a value which matches with the current typing context
+composing the values defined in `M`.
+
+```ocaml
+let () = assert ([%imp Show] 1 = "1")
+let () = assert ([%imp Show] 1.0 = "1.")
+let () = assert ([%imp Show] [1;2] = "[ 1; 2 ]")
+```
+
+### Deriving value implicits
+  
+Deriving value implicits.  You can defined higher order functions which take
+implicit values from the outer scope:
+
+```ocaml
+let show_twice imp x = imp x ^ imp x
+
+let () = assert (show_twice Show.(list ~_d:int) [1;2] = "[ 1; 2 ][ 1; 2 ]")
+```
+
+`[%imp Show]` can compose `Show.(list int)`:
+
+```ocaml
+let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+```
+
+If we put this idea of higher order functions taking implicit values 
+back to the first show example, we get:
+
+```ocaml
+let show (f : 'a -> string) = f  
+(* 'a -> string  is the most general anti-unifier of the recipes *)
+
+let () = assert (show [%imp Show] 1 = "1")
+let () = assert (show [%imp Show] 1.0 = "1.")
+let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
+```
+
+It looks like overloading with explicit dispatch.
+
+### (Somewhat) Closed extension
+
+We can extend the recipe. Candidates are searched recursively into the sub-modules:
+  
+```ocaml
+module Show' = struct
+  module Show = Show
+  let tuple imp1 imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
 end
 
-module Float = struct
-  type a = float
-  let show = string_of_float
+let () = assert (show_twice (Show'.tuple Show'.Show.int Show'.Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
+let () = assert (show_twice [%imp Show'] (1,1.2) = "(1, 1.2)(1, 1.2)")
+```
+
+We may also be able to list multiple recipes inside `[%imp]`: 
+
+```ocaml
+module Show'' = struct
+  let tuple imp1 imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
 end
+
+let () = assert (show_twice (Show''.tuple Show.int Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
+let () = assert (show_twice [%imp Show, Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 ```
 
-Of course the instance module must be an instance of the module type
-of type class, here `Int` must be an instance of `Show` and actually
-its module type is `Show with type a = int`.
+## `[%imp2 M]` extension by open (but still somewhat closed)
 
-### Implicit dictionary dispatching via optional arguments
+Composing modules by include and module aliases are bit inefficient 
+and listing more modules is bit boring. Any good idea to facilitate this?
 
-Each member of type classes must have its entry point
-and it is implemented as a function which takes a first class module value
-for the dictionary dispatching. This argument for the dispatching is optional
-so that the users can omit it. If the dispatch argument is omitted, 
-ppx_typeclass automatically fills it using the inferred type of the argument.
-The optional label for the dispatching must have a special form
-`_[A-z]*`, in order to be distinguished from the ordinaly optional arguments.
-
-For example, the entry point of `show` has the following type:
+Haskell uses module import to define the search space for type class instances
+and we can borrow the idea: make use of `open M`.  
+`[%imp2 Show]` (or some better syntax) seek child module `Show` defined 
+in explicitly opened modules in the current context: if we have `open X`
+and `X.Show` exists, `X.Show` is searched for `[%imp2 Show]`.
 
 ```ocaml
-(* Need to write by yourself but it can be automatically generated in future. *)
-type 'a show = (module Show with type a = 'a) 
-val show : ?_d:'a show -> 'a -> string   (* ?_ indicates it is for dispatching *)
-```
-
-which looks like the type of `show` in Haskell:
-
-```haskell
-show :: Show a => a -> string
-```
-
-The implementation of `show` entry point is as follows:
-
-```ocaml
-(* Need to write by yourself but it can be automatically generated in future. *)
-let show : ?_d:(module Show with type a = 'a) -> 'a -> string = 
-    | None -> assert false
-    | Some _d -> let module D = (val (_d : a t)) in D.show
-```
-
-It looks a bit complicated because of the use of the first class module
-but actually simple. `show` is given by the dictionary module argument of 
-the label `?_d`.  If the optional argument is omitted, it is an error,
-but usually ppx_typeclass fills omitted dictionary dispatching automatically.
-For example,
-
-```ocaml
-show 1
-```
-
-is syntactically as same as 
-
-```ocaml
-show ?_d:None 1
-```
-
-and by passing it to ppx_typeclass, translated equivalent to
-
-```ocaml
-show ?_d:(Some (module Int : int show)) 1
-```
-
-### Instance search space
-
-**This part can be likely changed in the future release.**
-
-If ppx_typeclass finds a use of optional argument `?_d:None`
-where `None`'s type is `t option` for some `t`, it tries to build a value
-of type `t` from the available instances.  But what are the available instances?
-Where are they searched from?
-
-We cannot allow the entire of the current scope, since it is huge and even worse, not really fixed: there are tons of modules available in the library path... Therefore we must restrict the search space somehow.
-
-Currently, the overloaded instances are searched in the module named `Instance` in the scope of the resolving overloading. There, each instance module must be converted to a first class module value:
-
-```ocaml
-module Instance = struct
-  (* You have to do it manually now but this conversion of modules to values can be automatic. *)
-  let int : int show = (module Int)
-  let float : float show = (module Float)
+module X = struct
+  module Show = Show
 end
-```
 
-The module `Instance` is searched recursively inside its submodules, therefore merging sets of instances is easily done:
-
-```ocaml
-module Instance = struct
-  module X = X.Instance
-  module Y = Y.Instance
+module Y = struct
+  module Show = Show''
 end
+
+open X
+open Y
+
+let () = assert (show_twice [%imp2 Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
+(*
+
+  is equivalent with 
+
+*)
+  
+let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]") 
 ```
 
-### Derived overloading
-
-You can define derived overloaded values, whose overloading is derived from the uses of other overloaded values inside the definition:
+### Problem to be addressed
 
 ```ocaml
-let show_twice ?_d x = show ?_d x ^ show ?_d x
+open X  (* x.ml, which has Show *)
+module X = struct
+...
+end 
+  
+[%imp2 Show]
 ```
 
-Unfortunately, we need explicit coding of dictionary dispatching for derived overloading. `let show_twice x = show x ^ show x` is not right: the overloadings of the 2 `show`'s are resolved locally, and result in ambiguous errors.
+Now `X.Show` is not accessible at the position of `[%imp2 Show]`. 
+Ppx is a source based solution.  If a recipe module `N.M` for `[%imp2 M]`
+is shadowed, it must warn or reject such shadowing.
 
-### Constrained instances as functors
 
-A constrained instance of a type class is coded as a functor which takes
-a module for a dependent overloading. Here is an instance of `show` for 'a list`:
+## Open extension `[%imp3]` 
+
+`show` and `show_twice` normally use `[%imp Show]` or `[%imp2 Show]`, so writing 
+`Show` everytime is boring. It would be better if we can omit writing `Show` like:
 
 ```ocaml
-module List(A : Show.Show) = struct
-  type a = A.a list
-  let show xs = "[ " ^ String.concat "; " (List.map A.show xs) ^ " ]"
-end
+show [%imp] 1
+show_twice [%imp] 1
 ```
 
-Note that `A.show` is not overloaded.  
-You can also write as follows, if you want to use the overloaded `Show.show` 
-to define `List.show`:
+This requires the shift of the information of the search space name `Show` from
+syntax to type:  functions `show` and `show_twice` must have types which enforce
+`[%imp]` have types with `"Show"`.
 
 ```ocaml
-module List(A : Show.Show) = struct
-  module Instance = struct
-    (* Need to extend the search space with A *)
-    let a : A.a show = (module A)
+module Z = struct
+  module Show = struct
+    type 'a __imp__ = private 'a
+    external pack : _d:'a -> 'a __imp__ = "%identity"
+    (* private alias and %identity assure this wrapping is cost 0 *)
   end
-  type a = A.a list
-  (* Need type constraint so that the internal use of Show.show can be resovled *)
-  let show (xs : a) = "[ " ^ String.concat "; " (List.map Show.show xs) ^ " ]"
+end
+    
+let show (type a) imp = let imp = (imp : a Z.Show.__imp__ :> a) in imp
+
+let () = assert (show (Z.Show.pack ~_d:X.Show.int) 1 = "1")
+```
+
+
+`X.Show.pack ~_d:X.Show.int` is actually automatically composable.
+
+
+```ocaml
+open Z
+
+let () = assert (show [%imp2 Show] 1 = "1")
+```
+
+We want to replace this `[%imp2 Show]` by `[%imp3]`.
+
+We introduce a conversion from `[%imp3]` of type `(t1, .., tn) X.Y.Z.t`
+to                             `[%imp2 Y]`.
+  
+```ocaml
+let () = assert (show [%imp3] 1 = "1")
+let x_show_twice imp x = show imp x ^ show imp x
+let () = assert (x_show_twice [%imp3] 1 = "11")
+```
+
+### What about module alias? 
+
+```ocaml
+module W = struct
+  module Wohs = Z.Show
+
+  let show (type a) imp = let imp = (imp : a Wohs.__imp__ :> a) in imp
+
 end
 ```
 
-Registering a constrained instance in the instance search space is bit lousy for this moment:
+In this case, `[%imp] : t Wohs.__imp__`  is expanded to `[%imp2 Show]`,
+expanding the type alias.
+
+If `[%imp] : t X.__imp__`   where `X` is fa functor parameter, what happens?
+Probably we should reject it.
+
+## Implicit applicaiton of `[%imp]` by the optional parameters
+
+Omitting `[%imp]`.  Writing `[%imp]` is now boring, but vanilla 
+OCaml provides no way of omitting code... except the optional arguments!
 
 ```ocaml
-module Instance
-  include Instance (* for Int.show and Float.show *)
+let show (type a) ?x:imp = match imp with
+  | None -> assert false
+  | Some imp -> (imp : (a -> string) Show.__imp__ :> (a -> string) ) 
 
-  (* This is complex... We want to write module List = List ... *)
-  let list (type a) ~_d:(d: a show) : a list show =
-    let module A = (val d) in
-    (module List( (val d) ))
-end
+let () = assert (show ~x:[%imp3] 1 = "1")
 ```
 
-**This part can be likely changed in the future release.**
+We now introduce a rule:
 
-A functor of a constrained instance of module type 
+`?label:None`  where `None` has a type `X.Y.Z.__imp__`, 
+it is replaced by `[%imp3]`. Now `__imp__` becomes a special name.
 
 ```ocaml
-functor(A:X) -> Y
+let () = assert (show ?x:None 1 = "1")
+
+(*
+
+  This is equivalent with
+
+*)
+
+let () = assert (show 1 = "1")
 ```
-
-must be converted to a function of type
-
-```ocaml
-_d:(module X with type a = 'a) -> y
-```
-
-where `y` is the conversion for `Y`. The label for the argument `_d`
-is to inform ppx_typeclass that it is for type class constraint.
-
-## Limitations
-
-These are the limitations from the design and hard to resolve:
-
-* The use of optional arguments makes hard to provide non function overloading:
-  `one : ?_d:(module Num with type a = 'a) -> 'a`
-* This does not work with toplevel. Ppx only works against one compilation unit and it is each toplevel phrase in toplevel. Ppx has a framework to pass some states from one toplevel pharse to another, but it is very limited and almost impossible to carry type environments ppx_typeclass requires.
-* You have to write dispatching code explicitly as we have seen at `show_twice`.To make it implicit we require some changes in the type inference algorithm, which is too much for our ppx based simple hack approach.
-* You can explicitly apply None to dispatch labels and bust the code.  The automatic overloading resolution occurs when the dispatch label takes a *constant* `None`.  If you pass a non-constant `None` to the label, you can bust it: `show ?_d:(if true then None else None)`.
-
