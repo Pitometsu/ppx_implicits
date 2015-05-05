@@ -82,11 +82,7 @@ let rec get_candidates env lid mty =
       let lid = Ldot (lid, Ident.name id) in
       begin try
         let path, vdesc = Env.lookup_value lid env in
-        if check_admissivity env vdesc then (lid, path, vdesc) :: st
-        else begin
-          prerr_endline "This is not admissible";
-          st
-        end
+        (lid, path, vdesc) :: st
       with
         | e ->
             Format.eprintf "get_candidates: failed to find %a in the current env@." Pprintast.default#longident lid;
