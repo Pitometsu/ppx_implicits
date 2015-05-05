@@ -211,9 +211,9 @@ expanding the type alias.
 If `[%imp] : t X.__imp__`   where `X` is fa functor parameter, what happens?
 Probably we should reject it.
 
-## Implicit applicaiton of `[%imp]` by the optional parameters
+## Implicit applicaiton of `[%imp3]` by the optional parameters
 
-Omitting `[%imp]`.  Writing `[%imp]` is now boring, but vanilla 
+Omitting `[%imp3]`.  Writing `[%imp3]` is now boring, but vanilla 
 OCaml provides no way of omitting code... except the optional arguments!
 
 ```ocaml
