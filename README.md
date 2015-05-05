@@ -240,3 +240,7 @@ let () = assert (show ?x:None 1 = "1")
 
 let () = assert (show 1 = "1")
 ```
+
+## Type classes or modular implicits via value implicits
+
+To be written.
