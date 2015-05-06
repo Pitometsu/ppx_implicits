@@ -1,8 +1,8 @@
 open Types
 open Typedtree
 open Ppxx
-
-open Longident
+open Longident (* has flatten *)
+open List (* has flatten *)
 
 let errorf fmt =
   let open Format in
@@ -71,7 +71,7 @@ let rec get_candidates env lid mty =
         prerr_endline "get_candidates: scraping failed";
         raise e
   in
-  flip2 List.fold_right sg [] & fun sitem st -> match sitem with
+  flip2 fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) when id.name <> "__imp__" -> 
       let lid = Ldot (lid, Ident.name id) in
       begin try
@@ -98,15 +98,15 @@ let rec get_candidates env lid mty =
   | _ -> st
 
 let gen_vars ty =
-  flip List.filter (Ctype.free_variables ty) & fun ty ->
+  flip filter (Ctype.free_variables ty) & fun ty ->
     ty.level = Btype.generic_level
 
 let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
   | (trace,ty)::tr_tys ->
-      List.concat & flip List.map cands & fun (lid,path,vdesc) ->
+      concat & flip map cands & fun (lid,path,vdesc) ->
          match
-           try Some (List.assoc path trace) with _ -> None
+           try Some (assoc path trace) with _ -> None
          with
          | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
              (* recursive call and the type size is not strictly decreasing *)
@@ -121,17 +121,17 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
         
              let cs, ivty = extract_constraint_labels env ivty in
              Format.eprintf "Got:@.";
-             flip List.iter cs (fun (l,ty) ->
+             flip iter cs (fun (l,ty) ->
                Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
              Format.eprintf "  %a@." Printtyp.type_expr ivty;
-             let tr_tys = List.map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
+             let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
              with_snapshot & fun () ->
                try
                  Format.eprintf "Checking %a <> %a@."
                  Printtyp.type_expr ity
                  Printtyp.type_expr ivty;
                  ignore & Ctype.unify env ity ivty;
-                 flip List.map (resolve env cands tr_tys) & fun res ->
+                 flip map (resolve env cands tr_tys) & fun res ->
                    let rec app res cs = match res, cs with
                      | res, [] -> res, []
                      | r::res, (l,_)::cs ->
@@ -146,41 +146,27 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
           
 let is_imp e = 
   let open Parsetree in
+  let get_modules sitem = match sitem.pstr_desc with
+    | Pstr_eval (e, []) ->
+        let get_module e = match e.pexp_desc with
+          | Pexp_construct ({txt=lid}, None) -> lid
+          | _ -> assert false
+        in
+        begin match e.pexp_desc with
+        | Pexp_tuple es -> Some (map get_module es)
+        | _ -> Some [get_module e]
+        end
+    | _ -> assert false (* illegal imp *)
+  in
   let imps = 
     if e.exp_attributes <> [] then prerr_endline "!";
-    flip List.map e.exp_attributes (function 
-      | {txt="imp"}, PStr [sitem] ->
-        begin match sitem.pstr_desc with
-        | Pstr_eval (e, []) ->
-            let get_module e = match e.pexp_desc with
-              | Pexp_construct ({txt=lid}, None) -> 
-prerr_endline "FOUND!";
-                  lid
-              | _ -> assert false
-            in
-            begin match e.pexp_desc with
-            | Pexp_tuple es -> Some (`Imp1 (List.map get_module es))
-            | _ -> Some (`Imp1 [get_module e])
-            end
-        | _ -> assert false (* illegal imp *)
-        end
+    flip map e.exp_attributes (function 
+      | {txt="imp"}, PStr [sitem] -> 
+          Option.map (fun x -> `Imp1 x) & get_modules sitem
       | {txt="imp"}, _ -> assert false (* illegal imp *)
 
       | {txt="imp2"}, PStr [sitem] ->
-        begin match sitem.pstr_desc with
-        | Pstr_eval (e, []) ->
-            let get_module e = match e.pexp_desc with
-              | Pexp_construct ({txt=lid}, None) -> 
-prerr_endline "FOUND!";
-                  lid
-              | _ -> assert false
-            in
-            begin match e.pexp_desc with
-            | Pexp_tuple es -> Some (`Imp2 (List.map get_module es))
-            | _ -> Some (`Imp2 [get_module e])
-            end
-        | _ -> assert false (* illegal imp *)
-        end
+          Option.map (fun x -> `Imp2 x) & get_modules sitem
       | {txt="imp2"}, _ -> assert false (* illegal imp *)
 
       | {txt="imp3"}, PStr [] -> Some `Imp3
@@ -188,7 +174,7 @@ prerr_endline "FOUND!";
 
       | _ -> None)
   in
-  match flip List.filter imps & function
+  match flip filter imps & function
     | Some _ -> true
     | None -> false
   with
@@ -210,7 +196,7 @@ let rec get_opens = function
 
 let lids_in_open_path env lids = function
   | None -> 
-      flip Ppxx.List.filter_map lids (fun lid ->
+      flip filter_map lids (fun lid ->
         try
           let path = Env.lookup_module ~load:false (*?*) lid env in
           Format.eprintf "CURRENT %a@." Path.format path;
@@ -226,7 +212,7 @@ let lids_in_open_path env lids = function
       match Mtype.scrape env mdecl.md_type with
       | Mty_signature sg ->
           let env = Env.open_signature Asttypes.Fresh open_ sg env in
-          flip Ppxx.List.filter_map lids (fun lid ->
+          flip filter_map lids (fun lid ->
             try
               let p = Env.lookup_module ~load:false (*?*) lid env in
               Format.eprintf "%a %a@." Path.format open_ Path.format p;
@@ -236,14 +222,25 @@ let lids_in_open_path env lids = function
       | _ -> assert false
       
 let lids_in_open_paths env lids opens =
-  Ppxx.List.concat_map (lids_in_open_path env lids) opens
+  concat_map (lids_in_open_path env lids) opens
+
+let exclude_gen_vars loc ty =
+  if gen_vars ty <> [] then
+    errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty;
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
+  let resolve env cands ty loc = 
+    match resolve env cands [([],ty)] with
+    | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
+    | [[e]] -> e
+    | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty
+
   let forge3 env loc ty =
-    if gen_vars ty <> [] then
-      errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty;
+    exclude_gen_vars loc ty;
+
+    (* Get the M of type (...) ...M.name *)
     let n = match expand_repr_desc env ty with
       | Tconstr (p, _, _) ->
           begin match p with
@@ -257,11 +254,14 @@ module MapArg : TypedtreeMap.MapArgument = struct
           end
       | _ -> assert false
     in
+
     let opens = get_opens & Env.summary env in
-    flip List.iter opens (Format.eprintf "open %a@." Path.format);
-    let paths = List.sort_uniq compare & lids_in_open_paths env [Lident n] (None :: List.map (fun x -> Some x) opens) in
-    List.iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
-    let cands = List.flatten & flip List.map paths & fun path ->
+    flip iter opens (Format.eprintf "open %a@." Path.format);
+
+    let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
+    iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+
+    let cands = flatten & flip map paths & fun path ->
       match 
         try Some (Env.find_module path env) with _ -> None
       with
@@ -269,11 +269,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
           errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
       | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
     in
-    begin match resolve env cands [([],ty)] with
-    | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
-    | [[e]] -> e
-    | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty;
-    end
+    resolve env cands ty loc
 
   let resolve_arg loc env = function
     (* (l, None, Optional) means not applied *)
@@ -300,7 +296,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
   let app = function
     | ({ exp_desc= Texp_apply (f, args) } as e) ->
         { e with
-          exp_desc= Texp_apply (f, List.map (resolve_arg f.exp_loc e.exp_env) args) }
+          exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
     | e -> e
 
   let enter_expression e = match is_imp e with
@@ -308,10 +304,9 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
     | Some (`Imp1 lids) ->
         let ty = e.exp_type in
-        if gen_vars ty <> [] then
-          errorf "%a: overloaded value has a generalized type: %a" Location.print_loc e.exp_loc Printtyp.type_scheme ty;
         let env = e.exp_env in
-        let cands = List.flatten & flip List.map lids & fun lid ->
+        exclude_gen_vars e.exp_loc ty;
+        let cands = flatten & flip map lids & fun lid ->
           match 
             try Some (Env.lookup_module ~load:true lid env) with _ -> None
           with
@@ -325,22 +320,20 @@ module MapArg : TypedtreeMap.MapArgument = struct
                   errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
               | Some mdecl -> get_candidates e.exp_env lid mdecl.md_type
         in
-        begin match resolve e.exp_env cands [([],ty)] with
-        | [] -> errorf "%a: no instance found for %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
-        | [[e]] -> e
-        | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
-        end
+        resolve env cands ty e.exp_loc 
 
     | Some (`Imp2 lids) ->
         let ty = e.exp_type in
-        if gen_vars ty <> [] then
-          errorf "%a: overloaded value has a generalized type: %a" Location.print_loc e.exp_loc Printtyp.type_scheme ty;
         let env = e.exp_env in
+        exclude_gen_vars e.exp_loc ty;
+
         let opens = get_opens & Env.summary env in
-flip List.iter opens (Format.eprintf "open %a@." Path.format);
-        let paths = List.sort_uniq compare & lids_in_open_paths env lids (None :: List.map (fun x -> Some x) opens) in
-        List.iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
-        let cands = List.flatten & flip List.map paths & fun path ->
+        flip iter opens (Format.eprintf "open %a@." Path.format);
+
+        let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
+        iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+
+        let cands = flatten & flip map paths & fun path ->
           match 
             try Some (Env.find_module path env) with _ -> None
           with
@@ -348,11 +341,8 @@ flip List.iter opens (Format.eprintf "open %a@." Path.format);
               errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
           | Some mdecl -> get_candidates e.exp_env (Untypeast.lident_of_path path) mdecl.md_type
         in
-        begin match resolve e.exp_env cands [([],ty)] with
-        | [] -> errorf "%a: no instance found for %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
-        | [[e]] -> e
-        | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc e.exp_loc Printtyp.type_expr ty;
-        end
+
+        resolve env cands ty e.exp_loc 
 
     | Some `Imp3 ->
         forge3 e.exp_env e.exp_loc e.exp_type

@@ -82,10 +82,10 @@ let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
   
 module Show' = struct
   module Show = Show
-  let tuple imp1 imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
+  let tuple ~_d1:imp1 ~_d2:imp2 (x,y) = "(" ^ show imp1 x ^ ", " ^ show imp2 y ^ ")"
 end
 
-let () = assert (show_twice (Show'.tuple Show'.Show.int Show'.Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
+let () = assert (show_twice (Show'.tuple ~_d1:Show'.Show.int ~_d2:Show'.Show.float) (1,1.2) = "(1, 1.2)(1, 1.2)")
 let () = assert (show_twice [%imp Show'] (1,1.2) = "(1, 1.2)(1, 1.2)")
 
 
@@ -259,3 +259,4 @@ let () = assert (show ?x:None 1 = "1")
 *)
 
 let () = assert (show 1 = "1")
+

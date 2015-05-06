@@ -13,3 +13,5 @@ setup.log
 setup\.ml\.ba.*$
 test/test$
 ppx/ppx_test$
+test/out/.*$
+

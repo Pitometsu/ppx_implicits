@@ -1,0 +1,29 @@
+PPX=$(file ../ppx/ppx_typeclass$(EXE))
+.SCANNER: scan-ocaml-%: $(PPX)
+OCamlRequire($(PPX))
+
+# OCAMLINCLUDES += ../lib ../ocaml
+
+# FILES[] =
+#    ../lib/meta_conv
+#    ../ocaml/ocaml
+#    ../ocaml/ocaml_conv
+#    conv_test
+
+%.out.ml: %.ml $(PPX)
+  $(PPX) -debug $< > $@
+
+Test(name) =
+  $(name)$(EXE): $(name).ml $(PPX)
+    mkdir_if_not_exists(out)
+    $(PPX) -debug $(name).ml > out/$(name).ml
+    ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
+    ./$(name)$(EXE)
+  .DEFAULT: $(name)$(EXE)
+  export
+
+Test(imp)
+Test(imp1)
+Test(imp2)
+Test(imp3)
+Test(imp4)
