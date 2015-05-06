@@ -226,7 +226,19 @@ let lids_in_open_paths env lids opens =
 
 let exclude_gen_vars loc ty =
   if gen_vars ty <> [] then
-    errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty;
+    errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty
+
+let is_imp_option_type env ty = match is_option_type env ty with
+  | None -> None
+  | Some ty ->
+      match expand_repr_desc env ty with
+      | Tconstr (p, _, _) ->
+          begin match p with
+          | Pident {name = "__imp__"} -> Some ty
+          | Pdot (_, "__imp__", _) -> Some ty
+          | _ -> None
+          end
+      | _ -> None
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
@@ -276,18 +288,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | (l, Some e, Optional as a) when Btype.is_optional l ->
         begin match e.exp_desc with
         | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
-            begin match is_option_type env e.exp_type with
-            | None -> assert false
+            begin match is_imp_option_type env e.exp_type with
+            | None -> a
             | Some ty ->
-                match expand_repr_desc env ty with
-                | Tconstr (p, _, _) ->
-                    begin match p with
-                    | Pident {name = "__imp__"} -> assert false
-                    | Pdot (_, "__imp__", _) -> 
-                        (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
-                    | _ -> a
-                    end
-                | _ -> a
+                (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
             end
         | _ -> a
         end
@@ -299,6 +303,23 @@ module MapArg : TypedtreeMap.MapArgument = struct
           exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
     | e -> e
 
+  let generalized_imp_args = ref []
+
+  let enter_pattern p = 
+    begin match is_imp_option_type p.pat_env p.pat_type with
+    | None -> ()
+    | Some ty ->
+        generalized_imp_args := (p,ty) :: !generalized_imp_args
+    end;
+    p
+
+  let leave_pattern p = 
+    begin match !generalized_imp_args with
+    | (p',_) :: xs when p == p' -> generalized_imp_args := xs
+    | _ -> ()
+    end;
+    p
+   
   let enter_expression e = match is_imp e with
     | None -> app e
 
