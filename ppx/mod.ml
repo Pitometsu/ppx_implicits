@@ -97,10 +97,6 @@ let rec get_candidates env lid mty =
       get_candidates env lid moddecl.Types.md_type @ st
   | _ -> st
 
-let gen_vars ty =
-  flip filter (Ctype.free_variables ty) & fun ty ->
-    ty.level = Btype.generic_level
-
 let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
   | (trace,ty)::tr_tys ->
@@ -224,6 +220,24 @@ let lids_in_open_path env lids = function
 let lids_in_open_paths env lids opens =
   concat_map (lids_in_open_path env lids) opens
 
+let gen_vars ty =
+  flip filter (Ctype.free_variables ty) & fun ty ->
+    ty.level = Btype.generic_level
+
+(* Create a type which can be unified only with itself *)
+let create_uniq_type =
+  let cntr = ref 0 in
+  fun () -> 
+    incr cntr;
+    Ctype.( newty ( Tconstr ( Pident (Ident.create & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) ) )
+
+let close_gen_vars ty =
+  List.iter (fun gv ->
+    match repr_desc gv with
+    | Tvar _ -> Ctype.unify Env.empty gv (create_uniq_type ())
+    | Tunivar _ -> ()
+    | _ -> assert false) & gen_vars ty
+
 let exclude_gen_vars loc ty =
   if gen_vars ty <> [] then
     errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty
@@ -250,38 +264,39 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty
 
   let forge3 env loc ty =
-    exclude_gen_vars loc ty;
+    with_snapshot & fun () ->
+      close_gen_vars ty;
 
-    (* Get the M of type (...) ...M.name *)
-    let n = match expand_repr_desc env ty with
-      | Tconstr (p, _, _) ->
-          begin match p with
-          | Path.Pdot(p, _ (* __imp__ *), _) ->
-              begin match p with
-              | Pident id -> Ident.name id
-              | Pdot (_, n, _) -> n
-              | _ -> assert false
-              end
-          | _ -> assert false
-          end
-      | _ -> assert false
-    in
+      (* Get the M of type (...) ...M.name *)
+      let n = match expand_repr_desc env ty with
+        | Tconstr (p, _, _) ->
+            begin match p with
+            | Path.Pdot(p, _ (* __imp__ *), _) ->
+                begin match p with
+                | Pident id -> Ident.name id
+                | Pdot (_, n, _) -> n
+                | _ -> assert false
+                end
+            | _ -> assert false
+            end
+        | _ -> assert false
+      in
 
-    let opens = get_opens & Env.summary env in
-    flip iter opens (Format.eprintf "open %a@." Path.format);
-
-    let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
-    iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
-
-    let cands = flatten & flip map paths & fun path ->
-      match 
-        try Some (Env.find_module path env) with _ -> None
-      with
-      | None -> 
-          errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
-      | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
-    in
-    resolve env cands ty loc
+      let opens = get_opens & Env.summary env in
+      flip iter opens (Format.eprintf "open %a@." Path.format);
+  
+      let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
+      iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+  
+      let cands = flatten & flip map paths & fun path ->
+        match 
+          try Some (Env.find_module path env) with _ -> None
+        with
+        | None -> 
+            errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
+        | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
+      in
+      resolve env cands ty loc
 
   let resolve_arg loc env = function
     (* (l, None, Optional) means not applied *)
@@ -309,6 +324,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
     begin match is_imp_option_type p.pat_env p.pat_type with
     | None -> ()
     | Some ty ->
+       (* Trouble:
+            let f (x : a) = ... 
+              let f ?imp:(i : 'a Show.__imp__) ...
+        *)
         let tvars = Ctype.free_variables ty in
         let gtvars = filter (fun ty -> ty.level = Btype.generic_level) tvars in
         if tvars = gtvars then
