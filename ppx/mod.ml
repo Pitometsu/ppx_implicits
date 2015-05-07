@@ -309,7 +309,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
     begin match is_imp_option_type p.pat_env p.pat_type with
     | None -> ()
     | Some ty ->
-        generalized_imp_args := (p,ty) :: !generalized_imp_args
+        let tvars = Ctype.free_variables ty in
+        let gtvars = filter (fun ty -> ty.level = Btype.generic_level) tvars in
+        if tvars = gtvars then
+          generalized_imp_args := (p,ty) :: !generalized_imp_args
     end;
     p
 
