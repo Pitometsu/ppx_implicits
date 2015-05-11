@@ -1,34 +1,10 @@
+open Utils
+
 open Parsetree
 open Asttypes
 open Ast_mapper
 open Ast_helper
 open Location
-
-(* (@@) is too strong *)
-external ( & ) : ('a -> 'b) -> 'a -> 'b = "%apply"
-
-let (!!%) = Format.eprintf
-
-let flip f x y = f y x
-let flip2 f x y z = f z x y
-    
-module Option = struct
-  let map f = function
-    | None -> None
-    | Some v -> Some (f v)
-end
-
-module List = struct
-  include List
-
-  let rec filter_map f = function
-    | [] -> []
-    | x :: xs -> match f x with
-      | None -> filter_map f xs
-      | Some y -> y :: filter_map f xs
-
-  let concat_map f xs = concat (map f xs)
-end 
 
 let at ?loc txt = 
   let loc = match loc with 
@@ -54,6 +30,11 @@ module Name = struct
       let x = !cntr in
       incr cntr;
       n ^ "_" ^ string_of_int x
+end
+
+module Longident = struct
+  include Longident
+  let format = Pprintast.default#longident
 end
 
 module Ident = struct

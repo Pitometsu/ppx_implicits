@@ -4,6 +4,7 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
+    utils
     untypeast
     ppxx
     forge
