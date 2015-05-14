@@ -4,6 +4,11 @@ open Ppxx
 open Longident (* has flatten *)
 open List (* has flatten *)
 
+let warn f = 
+  Format.eprintf "@[<2>Warning:@ ";
+  f ();
+  Format.eprintf "@]@.";
+
 module Types = struct
   include Types
   open Btype
@@ -57,7 +62,7 @@ let rec extract_constraint_labels env ty =
       (l,ty1)::cs, ty
   | _ -> [], ty
 
-let rec get_candidates env lid mty =
+let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
   let sg = 
     try
       match Env.scrape_alias env @@ Mtype.scrape env mty with
@@ -69,31 +74,19 @@ let rec get_candidates env lid mty =
         raise e
   in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
-    | Sig_value (id, _vdesc) when id.name <> "__imp__" -> 
+    | Sig_value (id, vdesc) when id.name <> "__imp__" -> 
         let lid = Ldot (lid, Ident.name id) in
         begin try
-          let path, vdesc = Env.lookup_value lid env in
+          let path, _vdesc = Env.lookup_value lid env in
           (lid, path, vdesc) :: st
         with
-        | e ->
-            Format.eprintf "get_candidates: failed to find %a in the current env@." 
-              Longident.format lid;
-            raise e
+        | Not_found ->
+            warn (fun () -> 
+              Format.eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
+            st
         end
-    | Sig_module (id, _mty, _) -> 
+    | Sig_module (id, moddecl, _) -> 
         let lid = Ldot (lid, Ident.name id) in
-        let path = 
-          try Env.lookup_module ~load:true (*?*) lid env with e ->
-            Format.eprintf "get_candidates: failed to find %a in the current env@." 
-              Longident.format lid;
-            raise e
-        in
-        let moddecl = 
-          try Env.find_module path env with e ->
-            Format.eprintf "get_candidates: failed to find the module declaration of %a in the current env@." 
-              Path.format path;
-            raise e
-        in
         get_candidates env lid moddecl.Types.md_type @ st
     | _ -> st
 
@@ -116,21 +109,21 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
              let ivty = Ctype.instance env vdesc.val_type in
         
              let cs, ivty = extract_constraint_labels env ivty in
-(*
+
              Format.eprintf "Got:@.";
              flip iter cs (fun (l,ty) ->
                Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
              Format.eprintf "  %a@." Printtyp.type_expr ivty;
-*)
-             let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
+
              with_snapshot & fun () ->
                try
-(*
+
                  Format.eprintf "Checking %a <> %a@."
                  Printtyp.type_expr ity
                  Printtyp.type_expr ivty;
-*)
+
                  ignore & Ctype.unify env ity ivty;
+                 let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                  flip map (resolve env cands tr_tys) & fun res ->
                    let rec app res cs = match res, cs with
                      | res, [] -> res, []
@@ -265,6 +258,51 @@ let resolve env cands ty loc =
   | [[e]] -> e
   | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty
 
+let forge1 lids env loc ty =
+  exclude_gen_vars loc ty;
+  let cands = flatten & flip map lids & fun lid ->
+    match 
+      try Some (Env.lookup_module ~load:true lid env) with _ -> None
+    with
+    | None ->
+        errorf "%a: no module found: %a" Location.print_loc loc Longident.format lid
+    | Some path ->
+        match 
+          try Some (Env.find_module path env) with _ -> None
+        with
+        | None -> 
+            errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
+        | Some mdecl -> get_candidates env lid mdecl.md_type
+  in
+  resolve env cands ty loc
+
+let forge2 lids env loc ty =
+  exclude_gen_vars loc ty;
+
+  let opens = get_opens & Env.summary env in
+(*
+  flip iter opens (Format.eprintf "open %a@." Path.format);
+*)
+
+  let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
+
+Format.eprintf "forge2@.";
+(*
+  iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+*)
+
+  let cands = flatten & flip map paths & fun path ->
+    match 
+      try Some (Env.find_module path env) with _ -> None
+    with
+    | None -> 
+        errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
+    | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
+  in
+  iter (fun (_l,p,_vd) -> Format.eprintf "cand: %a@." Path.format p) cands;
+
+  resolve env cands ty loc
+
 let forge3 env loc ty = with_snapshot & fun () ->
   close_gen_vars ty;
 
@@ -354,50 +392,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | None -> app e
 
     | Some (`Imp1 lids) ->
-        let ty = e.exp_type in
-        let env = e.exp_env in
-        exclude_gen_vars e.exp_loc ty;
-        let cands = flatten & flip map lids & fun lid ->
-          match 
-            try Some (Env.lookup_module ~load:true lid env) with _ -> None
-          with
-          | None ->
-              errorf "%a: no module found: %a" Location.print_loc e.exp_loc Longident.format lid
-          | Some path ->
-              match 
-                try Some (Env.find_module path env) with _ -> None
-              with
-              | None -> 
-                  errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
-              | Some mdecl -> get_candidates e.exp_env lid mdecl.md_type
-        in
-        resolve env cands ty e.exp_loc 
+        forge1 lids e.exp_env e.exp_loc e.exp_type
 
     | Some (`Imp2 lids) ->
-        let ty = e.exp_type in
-        let env = e.exp_env in
-        exclude_gen_vars e.exp_loc ty;
-
-        let opens = get_opens & Env.summary env in
-(*
-        flip iter opens (Format.eprintf "open %a@." Path.format);
-*)
-
-        let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
-(*
-        iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
-*)
-
-        let cands = flatten & flip map paths & fun path ->
-          match 
-            try Some (Env.find_module path env) with _ -> None
-          with
-          | None -> 
-              errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
-          | Some mdecl -> get_candidates e.exp_env (Untypeast.lident_of_path path) mdecl.md_type
-        in
-
-        resolve env cands ty e.exp_loc 
+        forge2 lids e.exp_env e.exp_loc e.exp_type
 
     | Some `Imp3 ->
         forge3 e.exp_env e.exp_loc e.exp_type
