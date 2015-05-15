@@ -191,9 +191,7 @@ let () = assert (show (Z.Show.pack ~_d:X.Show.int) 1 = "1")
 open Z
 
 let () = assert ([%imp2 Show] 1 = "1")
-let () = 
-  let x = ([%imp2 Show] : (int -> string) Z.Show.__imp__) in
-  assert (show x 1 = "1")
+let () = assert (show [%imp2 Show] 1 = "1")
 
 (*
 

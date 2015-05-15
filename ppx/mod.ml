@@ -74,10 +74,14 @@ let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
         raise e
   in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
-    | Sig_value (id, vdesc) when id.name <> "__imp__" -> 
+    | Sig_value (id, _vdesc) when id.name <> "__imp__" -> 
+        (* CR jfuruse: 
+           I don't undrestand yet why the above _vdesc is not appropriate
+           and we must get vdesc like below.
+        *)
         let lid = Ldot (lid, Ident.name id) in
         begin try
-          let path, _vdesc = Env.lookup_value lid env in
+          let path, vdesc = Env.lookup_value lid env in
           (lid, path, vdesc) :: st
         with
         | Not_found ->
