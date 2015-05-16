@@ -13,12 +13,16 @@ OCamlRequire($(PPX))
 %.out.ml: %.ml $(PPX)
   $(PPX) -debug $< > $@
 
-Test(name) =
+Test_(name) =
   $(name)$(EXE): $(name).ml $(PPX)
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
     ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
     ./$(name)$(EXE)
+  export
+
+Test(name) =
+  Test_($(name))
   .DEFAULT: $(name)$(EXE)
   export
 
@@ -27,4 +31,5 @@ Test(imp1)
 Test(imp2)
 Test(imp3)
 Test(imp4)
-Test(inacc)
+Test_(inacc) # must fail
+
