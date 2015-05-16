@@ -76,10 +76,12 @@ let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
   in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
     | Sig_value (id, _vdesc) when id.name <> "__imp__" -> 
+        (* CR jfuruse: 
+           I don't undrestand yet why the above _vdesc is not appropriate
+           and we must get vdesc like below.
+        *)
         let lid = Ldot (lid, Ident.name id) in
         begin try
-          (* CR jfuruse: We MUST use this vdesc, not the above _vdesc.
-             I do not find why... *)
           let path, vdesc = Env.lookup_value lid env in
           (lid, path, vdesc) :: st
         with
@@ -112,36 +114,21 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
              let ivty = Ctype.instance env vdesc.val_type in
         
              let cs, ivty = extract_constraint_labels env ivty in
-<<<<<<< local
 (*
              eprintf "Got:@.";
-=======
-
-             Format.eprintf "Got:@.";
->>>>>>> other
              flip iter cs (fun (l,ty) ->
-<<<<<<< local
                eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
              eprintf "  %a@." Printtyp.type_expr ivty;
 *)
              let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
-=======
-               Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
-             Format.eprintf "  %a@." Printtyp.type_expr ivty;
-
->>>>>>> other
              with_snapshot & fun () ->
                try
-<<<<<<< local
 (*
                  eprintf "Checking %a <> %a@."
-=======
-
-                 Format.eprintf "Checking %a <> %a@."
->>>>>>> other
                  Printtyp.type_expr ity
                  Printtyp.type_expr ivty;
-
+*)
+                 
                  ignore & Ctype.unify env ity ivty;
                  let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                  flip map (resolve env cands tr_tys) & fun res ->
@@ -362,7 +349,9 @@ let forge3 env loc ty = with_snapshot & fun () ->
       let cands =
         cands
         (* CR jfuruse: pre screening required... *)
+(*
         @ imp_args
+*)
       in
       eprintf "Recipes: @.";
       iter (fun (_,p,_vdesc) -> eprintf "  %a@." Path.format p) cands;
@@ -370,7 +359,7 @@ let forge3 env loc ty = with_snapshot & fun () ->
 
   let enter_pattern p =
     begin match p.pat_desc with
-    | Tpat_var (id, {loc}) ->
+    | Tpat_var (id, {aloc}) ->
         begin match is_imp_option_type p.pat_env p.pat_type with
         | None -> ()
         | Some ty ->
@@ -382,6 +371,7 @@ let forge3 env loc ty = with_snapshot & fun () ->
             let gtvars = filter (fun ty -> ty.level = Btype.generic_level) tvars in
             if tvars = gtvars then begin
               eprintf "IMP OPT ARG %a : %a@." Ident.format id Printtyp.type_expr ty;
+(*
               let p = Path.Pident id in
               generalized_imp_args := (Untypeast.lident_of_path p, p,
                                        { val_type=ty;
@@ -389,6 +379,7 @@ let forge3 env loc ty = with_snapshot & fun () ->
                                          val_loc= loc;
                                          val_attributes= [] })
                                       :: !generalized_imp_args
+*)
             end
         end;
     | _ -> ()
@@ -418,49 +409,19 @@ let forge3 env loc ty = with_snapshot & fun () ->
             begin match is_imp_option_type env e.exp_type with
             | None -> a
             | Some ty ->
-                (l, Some (Forge.Exp.some (forge3 env loc ty & get_candidates_from_imp_args ())), Optional)
+                (l, Some (Forge.Exp.some (forge3 env loc ty (* & get_candidates_from_imp_args () *))), Optional)
             end
         | _ -> a
         end
     | a -> a
-=======
-  let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
-(*
-  iter (fun p -> eprintf "found %a@." Path.format p) paths;
-*)
-
-  let cands = flatten & flip map paths & fun path ->
-    match 
-      try Some (Env.find_module path env) with _ -> None
-    with
-    | None -> 
-        errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
-    | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
-  in
-  resolve env cands ty loc
-
-let resolve_arg loc env = function
-  (* (l, None, Optional) means not applied *)
-  | (l, Some e, Optional as a) when Btype.is_optional l ->
-      begin match e.exp_desc with
-      | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
-          begin match is_imp_option_type env e.exp_type with
-          | None -> a
-          | Some ty ->
-              (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
-          end
-      | _ -> a
-      end
-  | a -> a
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
->>>>>>> destination
 
   let extract_pattern_vars p =
     let res = ref [] in
     let rec f p =
-      match p with
+      match p.pat_desc with
       | Tpat_var (id, {loc}) -> res := (id, p) :: !res
       | d -> Typedtree.iter_pattern_desc f d
     in
@@ -470,6 +431,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
   let enter_expression e = match e.exp_desc with
     | Texp_apply (f, args) ->
         { e with exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
+(*
     | Texp_function (l, cases, partial) ->
         let scopes {c_lhs; c_guard; c_rhs} =
               
@@ -487,6 +449,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         { e with Texp_function (l, map map_case cases, partial) }
         scope_stack = !generalized_imp_args :: !scope_stack
 *)
+*)
           
     | _ -> match is_imp e with
 
@@ -495,38 +458,11 @@ module MapArg : TypedtreeMap.MapArgument = struct
         forge1 lids e.exp_env e.exp_loc e.exp_type
 
     | Some (`Imp2 lids) ->
-<<<<<<< local
-        let ty = e.exp_type in
-        let env = e.exp_env in
-        exclude_gen_vars e.exp_loc ty;
-
-        let opens = get_opens & Env.summary env in
-(*
-        flip iter opens (eprintf "open %a@." Path.format);
-*)
-
-        let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
-(*
-        iter (fun p -> eprintf "found %a@." Path.format p) paths;
-*)
-
-        let cands = flatten & flip map paths & fun path ->
-          match 
-            try Some (Env.find_module path env) with _ -> None
-          with
-          | None -> 
-              errorf "%a: no module desc found: %a" Location.print_loc e.exp_loc Path.format path
-          | Some mdecl -> get_candidates e.exp_env (Untypeast.lident_of_path path) mdecl.md_type
-        in
-
-        resolve env cands ty e.exp_loc 
-=======
         forge2 lids e.exp_env e.exp_loc e.exp_type
->>>>>>> other
 
     | Some `Imp3 ->
         forge3 e.exp_env e.exp_loc e.exp_type
-        & get_candidates_from_imp_args ()
+        (* & get_candidates_from_imp_args () *)
           
 end
 
