@@ -3,11 +3,12 @@ open Typedtree
 open Ppxx
 open Longident (* has flatten *)
 open List (* has flatten *)
+open Format
 
 let warn f = 
-  Format.eprintf "@[<2>Warning:@ ";
+  eprintf "@[<2>Warning:@ ";
   f ();
-  Format.eprintf "@]@.";
+  eprintf "@]@.";
 
 module Types = struct
   include Types
@@ -70,7 +71,7 @@ let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
       | _ -> assert false
     with
     | e -> 
-        Format.eprintf "scraping failed: %s" & Printexc.to_string e;
+        eprintf "scraping failed: %s" & Printexc.to_string e;
         raise e
   in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
@@ -86,7 +87,7 @@ let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
         with
         | Not_found ->
             warn (fun () -> 
-              Format.eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
+              eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
             st
         end
     | Sig_module (id, moddecl, _) -> 
@@ -103,7 +104,7 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
          with
          | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
              (* recursive call and the type size is not strictly decreasing *)
-             Format.eprintf "Non decreasing %%imp recursive dependency: %a : %a  =>  %a@." 
+             eprintf "Non decreasing %%imp recursive dependency: %a : %a  =>  %a@." 
                Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
              []
          | _ ->
@@ -114,15 +115,15 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
         
              let cs, ivty = extract_constraint_labels env ivty in
 
-             Format.eprintf "Got:@.";
+             eprintf "Got:@.";
              flip iter cs (fun (l,ty) ->
-               Format.eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
-             Format.eprintf "  %a@." Printtyp.type_expr ivty;
+               eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
+             eprintf "  %a@." Printtyp.type_expr ivty;
 
              with_snapshot & fun () ->
                try
 
-                 Format.eprintf "Checking %a <> %a@."
+                 eprintf "Checking %a <> %a@."
                  Printtyp.type_expr ity
                  Printtyp.type_expr ivty;
 
@@ -196,7 +197,7 @@ let lids_in_open_path env lids = function
         try
           let path = Env.lookup_module ~load:false (*?*) lid env in
 (*
-          Format.eprintf "CURRENT %a@." Path.format path;
+          eprintf "CURRENT %a@." Path.format path;
 *)
           Some path
         with
@@ -206,7 +207,7 @@ let lids_in_open_path env lids = function
       []
   | Some open_ ->
 (*
-      Format.eprintf "open %a@." Path.format open_;
+      eprintf "open %a@." Path.format open_;
 *)
       let mdecl = Env.find_module open_ env in (* It should succeed *)
       match Mtype.scrape env mdecl.md_type with
@@ -216,7 +217,7 @@ let lids_in_open_path env lids = function
             try
               let p = Env.lookup_module ~load:false (*?*) lid env in
 (*
-              Format.eprintf "%a %a@." Path.format open_ Path.format p;
+              eprintf "%a %a@." Path.format open_ Path.format p;
 *)
               Some p
             with
@@ -285,14 +286,14 @@ let forge2 lids env loc ty =
 
   let opens = get_opens & Env.summary env in
 (*
-  flip iter opens (Format.eprintf "open %a@." Path.format);
+  flip iter opens (eprintf "open %a@." Path.format);
 *)
 
   let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
 
-Format.eprintf "forge2@.";
+eprintf "forge2@.";
 (*
-  iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+  iter (fun p -> eprintf "found %a@." Path.format p) paths;
 *)
 
   let cands = flatten & flip map paths & fun path ->
@@ -303,7 +304,7 @@ Format.eprintf "forge2@.";
         errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
     | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
   in
-  iter (fun (_l,p,_vd) -> Format.eprintf "cand: %a@." Path.format p) cands;
+  iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
 
   resolve env cands ty loc
 
@@ -327,12 +328,12 @@ let forge3 env loc ty = with_snapshot & fun () ->
 
   let opens = get_opens & Env.summary env in
 (*
-  flip iter opens (Format.eprintf "open %a@." Path.format);
+  flip iter opens (eprintf "open %a@." Path.format);
 *)
 
   let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
 (*
-  iter (fun p -> Format.eprintf "found %a@." Path.format p) paths;
+  iter (fun p -> eprintf "found %a@." Path.format p) paths;
 *)
 
   let cands = flatten & flip map paths & fun path ->
