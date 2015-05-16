@@ -35,7 +35,7 @@ let () = assert (show 1 = "1")
 let show_twice ?imp x = show ?imp x ^ show ?imp x
 let () = assert (show_twice 1 = "11")
 
-let show_twice ?imp:(_ : 'a M.Show.__imp__ option) x = 
+let show_twice ?imp:(_imp : 'a M.Show.__imp__ option) x = 
   show ?imp:None x ^ show ?imp:None x
 let () = assert (show_twice 1 = "11")
 
