@@ -196,9 +196,9 @@ let lids_in_open_path env lids = function
       flip filter_map lids (fun lid ->
         try
           let path = Env.lookup_module ~load:false (*?*) lid env in
-(*
+          (*
           eprintf "CURRENT %a@." Path.format path;
-*)
+          *)
           Some path
         with
         | _ -> None)
@@ -206,9 +206,9 @@ let lids_in_open_path env lids = function
       (* We assume Pervasives has no instances *)
       []
   | Some open_ ->
-(*
+      (*
       eprintf "open %a@." Path.format open_;
-*)
+      *)
       let mdecl = Env.find_module open_ env in (* It should succeed *)
       match Mtype.scrape env mdecl.md_type with
       | Mty_signature sg ->
@@ -216,9 +216,9 @@ let lids_in_open_path env lids = function
           flip filter_map lids (fun lid ->
             try
               let p = Env.lookup_module ~load:false (*?*) lid env in
-(*
+              (*
               eprintf "%a %a@." Path.format open_ Path.format p;
-*)
+              *)
               Some p
             with
             | _ -> None)
@@ -285,16 +285,16 @@ let forge2 lids env loc ty =
   exclude_gen_vars loc ty;
 
   let opens = get_opens & Env.summary env in
-(*
+  (*
   flip iter opens (eprintf "open %a@." Path.format);
-*)
+  *)
 
   let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
 
-eprintf "forge2@.";
-(*
+  eprintf "forge2@.";
+  (*
   iter (fun p -> eprintf "found %a@." Path.format p) paths;
-*)
+  *)
 
   let cands = flatten & flip map paths & fun path ->
     match 
@@ -327,14 +327,14 @@ let forge3 env loc ty = with_snapshot & fun () ->
   in
 
   let opens = get_opens & Env.summary env in
-(*
+  (*
   flip iter opens (eprintf "open %a@." Path.format);
-*)
+  *)
 
   let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
-(*
+  (*
   iter (fun p -> eprintf "found %a@." Path.format p) paths;
-*)
+  *)
 
   let cands = flatten & flip map paths & fun path ->
     match 
