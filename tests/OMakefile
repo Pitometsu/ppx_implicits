@@ -31,7 +31,7 @@ Test(imp)
 Test(imp1)
 Test(imp2)
 Test(imp3)
+Test(imp31)
 Test(imp4)
 Test_(inacc) # must fail
-Test_(imp31) # must fail
 

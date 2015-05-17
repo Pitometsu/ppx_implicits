@@ -5,6 +5,9 @@ open Longident (* has flatten *)
 open List (* has flatten *)
 open Format
 
+let debug_resolve = !Ppxx.debug_resolve
+let debug_unif = !Ppxx.debug_unif
+
 let warn f = 
   eprintf "@[<2>Warning:@ ";
   f ();
@@ -125,22 +128,27 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
              with_snapshot & fun () ->
                try
 
-                 eprintf "Checking %a <> %a ..."
-                   Printtyp.type_expr ity
-                   Printtyp.type_expr ivty;
+                 if debug_unif then
+                   eprintf "Checking %a <> %a ..."
+                     Printtyp.type_expr ity
+                     Printtyp.type_expr ivty;
 
                  begin match protect & fun () -> Ctype.unify env ity ivty with
-                 | `Ok _ -> eprintf " ok: %a@." Printtyp.type_expr ity
+                 | `Ok _ ->
+                     if debug_unif then
+                       eprintf " ok: %a@." Printtyp.type_expr ity
                  | `Error (Ctype.Unify trace as e) ->
-                     eprintf " no@.";
-                     eprintf "  @[%a@]@."
-                       (fun ppf trace -> Printtyp.report_unification_error ppf
-                       env trace
-                       (fun ppf ->
-                         fprintf ppf "Hmmm ")
-                       (fun ppf ->
-                         fprintf ppf "with"))
-                       trace;
+                     if debug_unif then begin
+                       eprintf " no@.";
+                       eprintf "  @[%a@]@."
+                         (fun ppf trace -> Printtyp.report_unification_error ppf
+                           env trace
+                           (fun ppf ->
+                             fprintf ppf "Hmmm ")
+                           (fun ppf ->
+                             fprintf ppf "with"))
+                         trace;
+                     end;
                      raise e
                  | `Error e -> raise e
                  end;
@@ -279,8 +287,9 @@ let is_imp_option_type env ty = match is_option_type env ty with
       | _ -> None
 
 let resolve env cands ty loc =
-  iter (fun (_lid, path, vdesc) ->
-    eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
+  if debug_resolve then
+    iter (fun (_lid, path, vdesc) ->
+      eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
   match resolve env cands [([],ty)] with
   | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
   | [[e]] -> e
@@ -314,10 +323,10 @@ let forge2 lids env loc ty =
 
   let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
 
-  eprintf "forge2@.";
-  (*
-  iter (fun p -> eprintf "found %a@." Path.format p) paths;
-  *)
+  if debug_resolve then begin
+    eprintf "forge2@.";
+    iter (fun p -> eprintf "found %a@." Path.format p) paths;
+  end;
 
   let cands = flatten & flip map paths & fun path ->
     match 
@@ -327,12 +336,13 @@ let forge2 lids env loc ty =
         errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
     | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
   in
-  iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
+  if debug_resolve then
+    iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
 
   resolve env cands ty loc
 
 let forge3 env loc ty = with_snapshot & fun () ->
-  eprintf "FORGE3: %a@." Location.print_loc loc;
+  if debug_resolve then eprintf "@.FORGE3: %a@." Location.print_loc loc;
 
   (* Get the M of type (...) ...M.name *)
   let n = match expand_repr_desc env ty with
@@ -370,12 +380,6 @@ let forge3 env loc ty = with_snapshot & fun () ->
   close_gen_vars ty;
   resolve env cands ty loc
 
-let forge3 env loc ty =
-  eprintf "@.Forge3 enter: %a@." Printtyp.type_expr ty;
-  let res = protect (fun () -> forge3 env loc ty) in
-  eprintf "Forge3 exit : %a@." Printtyp.type_expr ty;
-  unprotect res
-  
   
 
 (* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 

@@ -11,8 +11,8 @@ end
 
 module M = struct
   module Show = struct
-    type 'a __imp__ = private 'a
-    external pack : _x:'a -> 'a __imp__ = "%identity"
+    type 'a __imp__ = private 'a Z.Show.t
+    external pack : _x:'a Z.Show.t-> 'a __imp__ = "%identity"
   end
 end
 
@@ -20,7 +20,7 @@ open M
   
 let show (type a) ?imp = match imp with
   | None -> assert false
-  | Some imp -> let module D = (val (imp : a Z.Show.t M.Show.__imp__ :> a Z.Show.t) ) in D.show
+  | Some imp -> let module D = (val (imp : a M.Show.__imp__ :> a Z.Show.t) ) in D.show
 
 module X = struct
   module Show = struct
@@ -61,4 +61,16 @@ let () = assert (show [[1]; [2;3]; [4;5;6]] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]"
 
 let show_twice ?imp x = show ?imp x ^ show ?imp x
 let () = assert (show_twice 1 = "11")
-  
+
+let show_twice ?imp:(i : 'a M.Show.__imp__ option) (x : 'a) =
+  let module P = struct
+    module Show = struct
+      let i = match i with
+        | None -> assert false
+        | Some i -> i
+    end
+  end in
+  let open P in
+  show x ^ show x
+let () = assert (show_twice 1 = "11")
+

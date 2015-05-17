@@ -122,12 +122,11 @@ let implementation ppf sourcefile ast outputprefix =
                   Printtyped.implementation_with_coercion
 
       (* HACK: typed mod *)
-      ++ (fun (str, mc) -> prerr_endline "hacking"; Mod.Map.map_structure str, mc)
+      ++ (fun (str, mc) -> Mod.Map.map_structure str, mc)
       (* HACK END *)
 
       (* HACK: untype + retype *)
       ++ (fun (str, _) -> 
-        prerr_endline "untype";
         (* Untype then save it as xxx.ml2 *)
         let ast =  Untypeast.untype_structure str in
 (*

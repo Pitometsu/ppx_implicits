@@ -162,12 +162,17 @@ let test mapper fname =
       Format.eprintf "%a@."  Location.report_exception e;
       exit 2
 
+let debug_resolve = ref false
+let debug_unif = ref false
+
 let run name mapper = 
   ppx_name := name;
   let debug = ref false in
   let rev_files = ref [] in 
   Arg.parse 
     [ "-debug", Arg.Set debug, "debug mode which can take .ml/.mli then print the result"
+    ; "-debug-resolve", Arg.Set debug_unif, "debug mode to print overload resolution"
+    ; "-debug-unif", Arg.Set debug_unif, "debug mode to print unification results"
     ]
     (fun s -> rev_files := s :: !rev_files) (* will be handled by [Ast_mapper.apply] *)
     name;
