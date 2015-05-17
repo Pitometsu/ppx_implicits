@@ -104,7 +104,7 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
          with
          | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
              (* recursive call and the type size is not strictly decreasing *)
-             eprintf "Non decreasing %%imp recursive dependency: %a : %a  =>  %a@." 
+             eprintf "@[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
                Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
              []
          | _ ->
@@ -115,19 +115,35 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
         
              let cs, ivty = extract_constraint_labels env ivty in
 
+(*
              eprintf "Got:@.";
              flip iter cs (fun (l,ty) ->
                eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
              eprintf "  %a@." Printtyp.type_expr ivty;
-
+*)
+             
              with_snapshot & fun () ->
                try
 
-                 eprintf "Checking %a <> %a@."
-                 Printtyp.type_expr ity
-                 Printtyp.type_expr ivty;
+                 eprintf "Checking %a <> %a ..."
+                   Printtyp.type_expr ity
+                   Printtyp.type_expr ivty;
 
-                 ignore & Ctype.unify env ity ivty;
+                 begin match protect & fun () -> Ctype.unify env ity ivty with
+                 | `Ok _ -> eprintf " ok: %a@." Printtyp.type_expr ity
+                 | `Error (Ctype.Unify trace as e) ->
+                     eprintf " no@.";
+                     eprintf "  @[%a@]@."
+                       (fun ppf trace -> Printtyp.report_unification_error ppf
+                       env trace
+                       (fun ppf ->
+                         fprintf ppf "Hmmm ")
+                       (fun ppf ->
+                         fprintf ppf "with"))
+                       trace;
+                     raise e
+                 | `Error e -> raise e
+                 end;
                  let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                  flip map (resolve env cands tr_tys) & fun res ->
                    let rec app res cs = match res, cs with
@@ -232,15 +248,20 @@ let create_uniq_type =
   let cntr = ref 0 in
   fun () -> 
     incr cntr;
-    Ctype.( newty ( Tconstr ( Pident (Ident.create & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) ) )
+    (* Ident.create is not good. Unifying this data type ident with
+       a tvar may cause "escaping the scope" errors
+    *)
+    Ctype.newty ( Tconstr ( Pident (Ident.create_persistent & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) )
 
 let close_gen_vars ty =
   List.iter (fun gv ->
     match repr_desc gv with
-    | Tvar _ -> Ctype.unify Env.empty gv (create_uniq_type ())
+    | Tvar _ ->
+        Ctype.unify Env.empty gv (create_uniq_type ());
+        eprintf "Closing %a@." Printtyp.type_expr gv
     | Tunivar _ -> ()
     | _ -> assert false) & gen_vars ty
-
+    
 let exclude_gen_vars loc ty =
   if gen_vars ty <> [] then
     errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty
@@ -257,7 +278,9 @@ let is_imp_option_type env ty = match is_option_type env ty with
           end
       | _ -> None
 
-let resolve env cands ty loc = 
+let resolve env cands ty loc =
+  iter (fun (_lid, path, vdesc) ->
+    eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
   match resolve env cands [([],ty)] with
   | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
   | [[e]] -> e
@@ -309,7 +332,7 @@ let forge2 lids env loc ty =
   resolve env cands ty loc
 
 let forge3 env loc ty = with_snapshot & fun () ->
-  close_gen_vars ty;
+  eprintf "FORGE3: %a@." Location.print_loc loc;
 
   (* Get the M of type (...) ...M.name *)
   let n = match expand_repr_desc env ty with
@@ -344,8 +367,18 @@ let forge3 env loc ty = with_snapshot & fun () ->
         errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
     | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
   in
+  close_gen_vars ty;
   resolve env cands ty loc
 
+let forge3 env loc ty =
+  eprintf "@.Forge3 enter: %a@." Printtyp.type_expr ty;
+  let res = protect (fun () -> forge3 env loc ty) in
+  eprintf "Forge3 exit : %a@." Printtyp.type_expr ty;
+  unprotect res
+  
+  
+
+(* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
 let resolve_arg loc env = function
   (* (l, None, Optional) means not applied *)
   | (l, Some e, Optional as a) when Btype.is_optional l ->
@@ -362,12 +395,6 @@ let resolve_arg loc env = function
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
-
-  let app = function
-    | ({ exp_desc= Texp_apply (f, args) } as e) ->
-        { e with
-          exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
-    | e -> e
 
   let generalized_imp_args = ref []
 
@@ -386,15 +413,24 @@ module MapArg : TypedtreeMap.MapArgument = struct
     end;
     p
 
-  let leave_pattern p = 
-    begin match !generalized_imp_args with
-    | (p',_) :: xs when p == p' -> generalized_imp_args := xs
-    | _ -> ()
-    end;
-    p
-   
-  let enter_expression e = match is_imp e with
-    | None -> app e
+  let enter_expression e = match e.exp_desc with
+    | Texp_apply (f, args) ->
+        { e with
+          exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
+
+(*
+    | Texp_function (_, cases, _) ->
+        
+        scopes := map (fun {c_lhs; c_guard; c_rhs} ->
+          let es = match c_guard with
+            | None -> [c_rhs]
+            | Some e -> [e; c_rhs]
+          in
+          Hashtbl.replace scopes e.exp_loc (e, c_lhs)
+*)
+          
+    | _ -> match is_imp e with
+    | None -> e
 
     | Some (`Imp1 lids) ->
         forge1 lids e.exp_env e.exp_loc e.exp_type

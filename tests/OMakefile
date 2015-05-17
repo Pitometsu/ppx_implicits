@@ -17,6 +17,7 @@ Test_(name) =
   $(name)$(EXE): $(name).ml $(PPX)
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
+    ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
     ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
     ./$(name)$(EXE)
   export
@@ -32,4 +33,5 @@ Test(imp2)
 Test(imp3)
 Test(imp4)
 Test_(inacc) # must fail
+Test_(imp31) # must fail
 
