@@ -1,0 +1,371 @@
+\documentclass{article}
+\usepackage{fullpage}
+% \usepackage{url}
+
+
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifxetex
+  \usepackage{fontspec,xltxtra,xunicode}
+  \defaultfontfeatures{Mapping=tex-text,Scale=MatchLowercase}
+%  \newcommand{\euro}{€}
+\else
+  \ifluatex
+    \usepackage{fontspec}
+    \defaultfontfeatures{Mapping=tex-text,Scale=MatchLowercase}
+%    \newcommand{\euro}{€}
+  \else
+    \usepackage[utf8]{inputenc}
+%    \usepackage{eurosym}
+  \fi
+\fi
+\usepackage{color}
+\usepackage{fancyvrb}
+\DefineShortVerb[commandchars=\\\{\}]{\|}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\newenvironment{Shaded}{}{}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.22,0.06}{\textbf{{#1}}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.28,0.06,0.00}{{#1}}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.12,0.30,0.22}{{#1}}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.12,0.30,0.22}{{#1}}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.12,0.30,0.22}{{#1}}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.12,0.22,0.30}{{#1}}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.12,0.22,0.30}{{#1}}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.19,0.30,0.30}{\textit{{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.22,0.06}{{#1}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.50,0.00,0.00}{\textbf{{#1}}}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.01,0.08,0.25}{{#1}}}
+\newcommand{\RegionMarkerTok}[1]{{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.50,0.00,0.00}{\textbf{{#1}}}}
+\newcommand{\NormalTok}[1]{{#1}}
+\ifxetex
+  \usepackage[setpagesize=false, % page size defined by xetex
+              unicode=false, % unicode breaks when used with xetex
+              xetex,
+              colorlinks=true,
+              linkcolor=blue]{hyperref}
+\else
+  \usepackage[unicode=true,
+              colorlinks=true,
+              linkcolor=blue]{hyperref}
+\fi
+\hypersetup{breaklinks=true, pdfborder={0 0 0}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\setcounter{secnumdepth}{0}
+ 
+% \EndDefineVerbatimEnvironment{Highlighting}
+
+
+
+
+\begin{document}
+\title{Typeful PPX and Value Implicits}
+\date{}
+\author{Jun Furuse}
+\maketitle
+
+\begin{abstract}\label{abstract}
+
+This talk presents Typeful PPX, a novel PPX preprocessing technique with
+types. Type dependent preprocessing is fairly easy once PPX is combined
+with the compiler type checker.
+
+\texttt{ppx\_implicits} is presented as a demonstration of Typeful PPX,
+which provides type dependent implicit values, combining it with the
+optional parameters and the first class module values of OCaml, it is
+easy for a PPX to have the same functionality as Modular Implicits and
+type classes.
+
+\end{abstract}
+
+\section{Typeful PPX}\label{typeful-ppx}
+
+\subsection{PPX + typing = Typeful PPX}\label{ppx-typing-typeful-ppx}
+
+CamlP4 and PPX are preprocessing frameworks of OCaml and they are now
+widely used to provide new functionalities to the language. For example,
+syntax extension (ex. \texttt{pa\_monad} and \texttt{ppx\_moandic}) and
+automatic code generation (ex. \texttt{deriving} and
+\texttt{type\_conv}).
+They are extremely useful in the real world programming, but untyped:
+both CamlP4 and PPX are preprocessors which work over
+\texttt{Parsetree}, not-yet-typed ASTs. Even if someone gets a tiny but
+nifty idea of type dependent program transformation, it was almost out
+of the scope of CamlP4 and PPX and it had to be implemented as a
+compiler modification. Compiler modification is a very subtle to be done
+correctly, especially if it involves with typing. Distributing and
+installing compiler modifications are also hard: even with the help of
+OPAM's \texttt{opam switch}, many OCaml users do not consider to invest
+their time to try your modifications.
+
+\emph{Typeful PPX} is a technique to overcome this difficulty of OCaml
+language enhancement with types. It does not preprocess the input,
+untyped AST of \texttt{Parsetree} directly, but type-check it firstly
+and works on the typed AST of \texttt{Typedtree} to make use of type
+annotations. Once the preprocessing of the typed AST is done, it untypes
+the result to an untyped AST as the final output. From the point of view
+of the host compiler which invokes a typeful PPX, it is just another
+ordinary but rather complicated PPX which transforms untyped ASTs.
+%
+% \subsection{Pros and Cons}\label{pros-and-cons}
+%
+Typeful PPX has the following benefits compared with the direct compiler
+modification:
+
+\begin{itemize}
+\item Safe. The output of Typeful PPX is again type checked by the compiler.
+Critical bugs in Typeful PPX should be found by this second type check.
+% In the direct compiler modification, bugs in the typing layer tend to
+% make the type system unsafe and they are hard to detect and fix. This
+% should also make users feel much easier to try new functionalities via
+% Typeful PPX than the compiler patching. If still unsure, users can
+% always print out the final output and verify what Typeful PPX actually
+% does.
+
+\item Easy to distribute, install and use. A Typeful PPX is just a PPX.
+Typeful PPXs are easily installable via the packaging system and users
+can use their functions with their vanilla OCaml compiler immediately.
+
+\item Easy future integration. Implemented as a transformer of
+\texttt{Typedtree}, future integration of Typeful PPXs into the real
+compiler modification can reuse the much of their code.
+\end{itemize}
+
+% \noindent
+% Unfortunately it has some drawbacks too:
+% 
+% \begin{itemize}
+% \item Up-to typing layer: this is a typeful program transformation and
+% therefore cannot change the lower details like code generation.
+% 
+% \item Not working with toplevel (REPL): PPX preprocessing works against each
+% compilation unit, which is one toplevel expression in OCaml toplevel.
+% Typeful PPX usually must keep various type informations across toplevel
+% expressions therefore does not work in OCaml toplevel.
+% \end{itemize}
+
+\subsection{Technical details}\label{technical-details}
+
+Typeful PPX requires to integrate the OCaml type checker to PPX
+but the necessary tools are already available as OCaml's compiler API
+library \texttt{compiler-libs}. Just slight modification of
+\texttt{driver/compiler.ml} is required to wire up the inputs and
+outputs of PPX, type checker and the typeful program transformation.
+For typeful program transformation, \texttt{compiler-libs} already
+includes \texttt{TypedtreeMap}, a module for an easy interface to build
+a mapper. 
+%Program transformation does not necessarily produce well-typed
+%AST as its result, since it is get untyped. 
+Untyping is also ready at
+\texttt{tools/untypeast.ml} of OCaml compiler source.
+
+\section{Ppx\_implicits}\label{ppxux5fimplicits}
+
+\texttt{Ppx\_implicits}\footnote{ \texttt{https://bitbucket.org/camlspotter/ppx\_implicits} } is an example of Typeful
+PPX, which provides type dependent \emph{implicit values}. It is also
+extended to have implicit parameters\cite{scalaimplicits}, Modular Implicits\cite{ocamlimplicits}
+and type class\cite{typeclass} like features as a PPX.
+
+% \subsection{Simple implicit values\texttt{{[}\%imp M{]}}}\label{simple-implicit-values-imp-m}
+
+The key feature of \texttt{ppx\_implicits} is type dependent
+implicit values \texttt{[\%imp M]}, which are auto-generated
+to match with the typing context by PPX, combining some recipe values 
+called ``instances'' defined in module \texttt{M}.
+% For example, an
+% annotated expression \texttt{{\it e}{[}@imp M{]}} is replaced with an
+% expression of the same type of \textit{e}, using the instances available
+% under module \texttt{M}. For example, here is a simple overloading of
+% plus operators:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+  \OtherTok{module} \NormalTok{Show = }\KeywordTok{struct}
+    \KeywordTok{let} \NormalTok{int}   \NormalTok{= Pervasives}\KeywordTok{.}\NormalTok{string_of_int}
+    \KeywordTok{let} \NormalTok{float = Pervasives}\KeywordTok{.}\NormalTok{string_of_float}
+    \KeywordTok{let} \NormalTok{list} \NormalTok{~_x:show xs = }\StringTok{"[ "} \NormalTok{^ String}\KeywordTok{.}\NormalTok{concat }\StringTok{"; "} \NormalTok{(List}\KeywordTok{.}\NormalTok{map show xs) ^ }\StringTok{" ]"}
+    \CommentTok{(* Label starts with '_' has a special meaning in instances:}
+  \CommentTok{     The arguments are generated recursively from the instance sets. *)}
+  \KeywordTok{end}
+  
+  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( }\NormalTok{[\%imp }\DataTypeTok{Plus}] \NormalTok{1 = }\StringTok{"1"} \NormalTok{)}       \CommentTok{(* replaced with Show.int *)}
+  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( }\NormalTok{[\%imp }\DataTypeTok{Plus}] \NormalTok{1.2 = }\StringTok{"1.2"} \NormalTok{)}   \CommentTok{(* replaced with Show.float *)}
+  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( [%imp }\DataTypeTok{Show}] \NormalTok{[1;2] = }\StringTok{"[ 1; 2 ]"} \NormalTok{)} \CommentTok{(* replaced with Show.(list ~_x:int )*)}
+\end{Highlighting}
+\end{Shaded}
+
+\texttt{Ppx\_implicits} overload resolution is based on simple type
+unification. It tries to unify the type of implicit values and the type
+of each instance. If the unification fails, the instance is discarded.
+If there is only one match, the matched instance is used for the
+replacement. Otherwise, if none, \texttt{ppx\_implicits} fails due to no
+possible instance. If there are multiple matches, it also fails due to
+the ambiguity.
+% \texttt{(assert false){[}@imp M{]}} is often used to generate a value
+% which matches with its typing context. Therefore,
+% \texttt{ppx\_implicits} has a sugar \texttt{{[}\%imp M{]}} for
+% \texttt{(assert false){[}@imp M{]}}.
+% Instances can be combined recursively.
+%
+%\begin{Shaded}
+%\begin{Highlighting}[]
+%  \OtherTok{module} \NormalTok{Show2 = }\KeywordTok{struct}
+%    \OtherTok{include} \NormalTok{Show}
+%    \KeywordTok{let} \NormalTok{list} \NormalTok{~_x:show xs = }\StringTok{"[ "} \NormalTok{^ String}\KeywordTok{.}\NormalTok{concat }\StringTok{"; "} \NormalTok{(List}\KeywordTok{.}\NormalTok{map show xs) ^ }\StringTok{" ]"}
+%    \CommentTok{(* Label starts with '_' has a special meaning in instances:}
+%  \CommentTok{     The arguments are generated recursively from the instance sets. *)}
+%  \KeywordTok{end}
+%  
+%  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( [%imp }\DataTypeTok{Show2}] \NormalTok{[1;2] = }\StringTok{"[ 1; 2 ]"} \NormalTok{)} \CommentTok{(* replaced with Show2.list ~_x:Show2.int *)}
+%\end{Highlighting}
+%\end{Shaded}
+%
+Instance dependency (or constraint using type class terminology) is
+expressed having a special label names start with \texttt{\_} to
+function arguments.
+
+We can define \texttt{show} function at this level but it still requires
+explicit dispatching of an implicit value:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+  \KeywordTok{let} \NormalTok{show (imp : 'a -> }\DataTypeTok{string}\NormalTok{) x = imp x}
+  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( show [%imp }\DataTypeTok{Show}] \NormalTok{[1; 2] = }\StringTok{"[ 1; 2 ]"} \NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Implicit argument using optional
+argument}\label{implicit-argument-using-optional-argument}
+
+To have the real overloading and write the above example as simply
+\texttt{show {[}1; 2{]}}, the dispatching arguments of implicit values
+should be omittable. We can make use of OCaml's optional arguments for
+this purpose:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+  \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function}
+    \NormalTok{| }\DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \CommentTok{(* called when overloadings are not resolved *)}
+    \NormalTok{| }\DataTypeTok{Some} \NormalTok{x -> x}
+  \KeywordTok{let} \NormalTok{show ?imp x = unpack imp x}
+  \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( show [1; 2] = }\StringTok{"[ 1; 2 ]"} \NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+The expression \texttt{show {[}1; 2{]}} is equivalent with
+\texttt{show ?imp:None {[}1; 2{]}}, and it must be transformed to
+\texttt{show \textasciitilde{}imp:{[}\%imp Show{]} {[}1; 2{]}} 
+%by \texttt{ppx\_implicits}. 
+But without omitting
+\texttt{{[}\%imp Show{]}}, how can we tell an optional argument is for
+the implicit value dispatch for some instances \texttt{Show}? It
+requires one more trick: we transfer the information to the type of the
+optional argument:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+  \OtherTok{module} \NormalTok{Show2 = }\KeywordTok{struct}
+    \KeywordTok{type} \NormalTok{'a __imp__ = }\DataTypeTok{Packed} \KeywordTok{of} \NormalTok{('a -> }\DataTypeTok{string}\NormalTok{)}
+    \KeywordTok{let} \NormalTok{pack ~_x = }\DataTypeTok{Some} \NormalTok{(}\DataTypeTok{Packed} \NormalTok{_x)}
+    \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function}
+      \NormalTok{| }\DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \CommentTok{(* overloading was not resolved *)}
+      \NormalTok{| }\DataTypeTok{Some} \NormalTok{(}\DataTypeTok{Packed} \NormalTok{x) -> x}
+    \OtherTok{include} \NormalTok{Show}
+  \KeywordTok{end}
+  
+  \CommentTok{(* val show : ?imp:'a Show2.__imp__ -> 'a -> string *)}
+  \KeywordTok{let} \NormalTok{show ?imp x = Show2}\KeywordTok{.}\NormalTok{unpack imp x}
+\end{Highlighting}
+\end{Shaded}
+
+Now \texttt{show} takes a value of \texttt{'a Show2.\_\_imp\_\_} as an
+optional argument. Adding \texttt{ppx\_implicits} another rule to
+transform function arguments of the form \texttt{?l:None} where
+\texttt{None} has type \texttt{\_ PATH.\_\_imp\_\_ option} to
+\texttt{?l:{[}\%imp PATH{]}}, \texttt{show {[}1; 2{]}} is properly
+transformed to the following expression:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+  \NormalTok{show ?imp:Show2.(pack ~_x:(}\NormalTok{list} \NormalTok{~_x:int)) [1; 2]}
+\end{Highlighting}
+\end{Shaded}
+
+% \subsection{Instance search space
+% configuration}\label{instance-search-space-configuration}
+% 
+% (This part is just roughly implemented in the current implementation.)
+% 
+% We have seen the simplest instance search policy of
+% \texttt{ppx\_implicits}: \texttt{{[}\%imp PATH{]}}, the values defined
+% inside a specific module path \texttt{PATH}. It can support other
+% instance search policies easily, since the implicit resolution algorithm
+% itself is almost orthogonal to the definitions of instance search
+% spaces.
+% 
+% For example, it is not difficult to use \texttt{open} directive to
+% accumulate instance space like Haskell's \texttt{import} and Modular
+% Implicits' \texttt{open implicit} declarations. For example,
+% \texttt{{[}\%imp "\textless{}opened\textgreater{}.Show"{]}} is to
+% instruct the PPX to gather instances from the sum-modules named
+% \texttt{Show} under modules opened by the \texttt{open} directive.
+% 
+% Another policy, which is not orthodox but probably very useful in the
+% current OCaml library structure, is a control based on the module names
+% occurring in implicit value types. For example, if an implicit
+% expression
+% \texttt{{[}\%imp "\textless{}related\textgreater{}.sexp\_of*"{]}} has a
+% type \texttt{PATH.t -\textgreater{} Sexplib.Sexp.t}, then instances are
+% the values whose paths match with \texttt{PATH.sexp\_of*} and
+% \texttt{Sexplib.Sexp.sexp\_of*}. Many library functions for data types
+% which take sub-functions for their parameter types can be easily
+% integrated by this algorithm.
+
+\subsection{To Modular Implicits and type
+classes}\label{to-modular-implicits-and-type-classes}
+
+Once the implicit arguments by optional arguments works, it is almost
+trivial to have the same functionalities of Modular Implicits and type
+classes in \texttt{ppx\_implicits}: it is to generate modules as first
+class values at the caller site, then to make it back to normal modules
+at the callee site.
+
+Details are omitted for this proposal but you can see some examples at
+\texttt{tests/typeclass.ml} of the source code.
+
+\section{Conclusion}\label{conclusion}
+
+Typeful PPX is a way to write type dependent extensions of OCaml. This
+can be used not only for a fast and safe prototyping of OCaml compiler
+modification but also for real use.
+
+ 
+% -------
+% 
+% 1. Mikael Rittri. Using types as search keys in function libraries. Journal of Functional Programming, 1(1):71--89, 1991.
+
+\begin{thebibliography}{9}
+
+% \bibitem{lamport94}
+%   Leslie Lamport,
+%   \emph{\LaTeX: a document preparation system}.
+%   Addison Wesley, Massachusetts,
+%   2nd edition,
+%   1994.
+
+\bibitem{scalaimplicits}
+  Oliveira, Bruno CdS, Adriaan Moors, and Martin Odersky. "Type classes as objects and implicits." ACM Sigplan Notices. Vol. 45. No. 10. ACM, 2010.
+
+\bibitem{ocamlimplicits}
+  Leo White, Fred\'eric Bour. "Modular implicits." ML Workshop, 2014.
+
+\bibitem{typeclass}
+  Wadler, Philip, and Stephen Blott. "How to make ad-hoc polymorphism less ad hoc." Proceedings of the 16th ACM SIGPLAN-SIGACT symposium on Principles of programming languages. ACM, 1989.
+
+\end{thebibliography}
+
+
+\end{document}

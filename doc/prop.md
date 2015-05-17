@@ -96,7 +96,7 @@ as a PPX.
 The simplest feature of `ppx_implicits` is type dependent implicit values,
 values which are constructed automatically by PPX combining some recipe values
 called "instances".
-For example, an annotated expression `e [@imp M]` is replaced by
+For example, an annotated expression `e [@imp M]` is replaced with
 an expression of the same type of `e`, using the instances available under
 module `M`. For example, here is a simple overloading of plus operators:
 
@@ -107,10 +107,10 @@ module Show = struct
 end
 
 let () = assert ( (assert false)[@imp Plus] 1 = "1" )
-                  (* replaced by Show.int *)
+                  (* replaced with Show.int *)
 
 let () = assert ( (assert false)[@imp Plus] 1.2 = "1.2" )
-                  (* replaced by Show.float *)
+                  (* replaced with Show.float *)
 ```
 
 `Ppx_implicits` overload resolution is based on simple type unification.
@@ -135,7 +135,7 @@ module Show2 = struct
 end
 
 let () = assert ( [%imp Show2] [1;2] = "[ 1; 2 ]" )
-                  (* replaced by Show2.list ~_x:Show2.int *)
+                  (* replaced with Show2.list ~_x:Show2.int *)
 ```
 
 Instance dependency (or constraint using type class terminology) is expressed
