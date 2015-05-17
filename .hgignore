@@ -16,3 +16,4 @@ ppx/ppx_test$
 ^tests/out/.*$
 \#.*
 a\.out$
+\.(aux|log|out|pdf)$
