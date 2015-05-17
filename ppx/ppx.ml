@@ -19,4 +19,4 @@ let mapper = {
     | _ -> Compile.interface Format.err_formatter "papa" sg "gaga"); 
 }
 
-let () = Ppxx.run "ppx_typeclass" mapper
+let () = Ppxx.run "ppx_implicits" mapper
