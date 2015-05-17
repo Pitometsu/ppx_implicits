@@ -11,7 +11,8 @@ setup.log
 ^\.\#
 .*\.auto\.mli
 setup\.ml\.ba.*$
-test/test$
+tests/test$
 ppx/ppx_test$
-test/out/.*$
-
+^tests/out/.*$
+\#.*
+a\.out$

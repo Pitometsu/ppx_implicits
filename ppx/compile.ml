@@ -85,13 +85,16 @@ let print_if ppf flag printer arg =
 
 let (++) x f = f x
 
+(* CR jfuruse: If ppx fails, then we want to know errors and 
+   annots and bin-annots *)
+
 let implementation ppf sourcefile ast outputprefix =
   Compmisc.init_path false;
   let modulename = module_of_filename ppf sourcefile outputprefix in
   Env.set_unit_name modulename;
   let env = Compmisc.initial_env() in
   begin
-(*
+(* We do not produce object files.
     let objfile = outputprefix ^ ".cmo" in
     let oc = open_out_bin objfile in
 *)

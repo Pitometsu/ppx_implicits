@@ -156,7 +156,11 @@ let test mapper fname =
     Format.fprintf Format.std_formatter "@."
   with
   | Syntaxerr.Error e ->
-      !!% "%a@." Syntaxerr.report_error e
+      !!% "%a@." Syntaxerr.report_error e;
+      exit 2
+  | e ->
+      Format.eprintf "%a@."  Location.report_exception e;
+      exit 2
 
 let run name mapper = 
   ppx_name := name;

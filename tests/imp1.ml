@@ -9,8 +9,8 @@ end
  *)
 
 (* If you cannot use [%imp Show], you can always replace it by (assert false) [@imp Show] *)
-let () = assert ( [%imp Show] 1 = "1" )
-let () = assert ( [%imp Show] 1.0 = "1." )
+let () = assert ( (assert false[@imp Show]) 1 = "1" )
+let () = assert ( (assert false[@imp Show]) 1.0 = "1." )
 
 module Show2 = struct
   (* Currently functions need explicit label start with '_'
