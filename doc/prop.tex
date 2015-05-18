@@ -112,11 +112,10 @@ ordinary but rather complicated PPX which transforms untyped ASTs.
 %
 % \subsection{Pros and Cons}\label{pros-and-cons}
 %
-Typeful PPX has the following benefits compared with the direct compiler
-modification:
+% Typeful PPX has the following benefits compared with the direct compiler
+% modification:
 
-\begin{itemize}
-\item Safe. The output of Typeful PPX is again type checked by the compiler.
+Typeful PPX is type-safe. Its output is again type checked by the compiler.
 Critical bugs in Typeful PPX should be found by this second type check.
 % In the direct compiler modification, bugs in the typing layer tend to
 % make the type system unsafe and they are hard to detect and fix. This
@@ -124,15 +123,14 @@ Critical bugs in Typeful PPX should be found by this second type check.
 % Typeful PPX than the compiler patching. If still unsure, users can
 % always print out the final output and verify what Typeful PPX actually
 % does.
-
-\item Easy to distribute, install and use. A Typeful PPX is just a PPX.
+It is easy to distribute, install and use. It is just a PPX.
 Typeful PPXs are easily installable via the packaging system and users
 can use their functions with their vanilla OCaml compiler immediately.
-
-\item Easy future integration. Implemented as a transformer of
-\texttt{Typedtree}, future integration of Typeful PPXs into the real
-compiler modification can reuse the much of their code.
-\end{itemize}
+% 
+% \item Easy future integration. Implemented as a transformer of
+% \texttt{Typedtree}, future integration of Typeful PPXs into the real
+% compiler modification can reuse the much of their code.
+% \end{itemize}
 
 % \noindent
 % Unfortunately it has some drawbacks too:
@@ -173,8 +171,8 @@ and type class\cite{typeclass} like features as a PPX.
 
 The key feature of \texttt{ppx\_implicits} is type dependent
 implicit values \texttt{[\%imp M]}, which are auto-generated
-to match with the typing context by PPX, combining some recipe values 
-called ``instances'' defined in module \texttt{M}.
+to match with the typing context by PPX, combining 
+``instances'' defined in module \texttt{M}:
 % For example, an
 % annotated expression \texttt{{\it e}{[}@imp M{]}} is replaced with an
 % expression of the same type of \textit{e}, using the instances available
@@ -197,13 +195,14 @@ called ``instances'' defined in module \texttt{M}.
 \end{Highlighting}
 \end{Shaded}
 
-\texttt{Ppx\_implicits} overload resolution is based on simple type
-unification. It tries to unify the type of implicit values and the type
-of each instance. If the unification fails, the instance is discarded.
-If there is only one match, the matched instance is used for the
-replacement. Otherwise, if none, \texttt{ppx\_implicits} fails due to no
-possible instance. If there are multiple matches, it also fails due to
-the ambiguity.
+\texttt{Ppx\_implicits} overload resolution is pretty normal: 
+it uses type unification with backtracking.
+% It tries to unify the type of implicit values and the type
+% of each instance. If the unification fails, the instance is discarded.
+% If there is only one match, the matched instance is used for the
+% replacement. Otherwise, if none, \texttt{ppx\_implicits} fails due to no
+% possible instance. If there are multiple matches, it also fails due to
+% the ambiguity.
 % \texttt{(assert false){[}@imp M{]}} is often used to generate a value
 % which matches with its typing context. Therefore,
 % \texttt{ppx\_implicits} has a sugar \texttt{{[}\%imp M{]}} for
@@ -223,9 +222,8 @@ the ambiguity.
 %\end{Highlighting}
 %\end{Shaded}
 %
-Instance dependency (or constraint using type class terminology) is
-expressed having a special label names start with \texttt{\_} to
-function arguments.
+Instance constraint is expressed having a special label names 
+start with \texttt{\_} to function arguments.
 
 We can define \texttt{show} function at this level but it still requires
 explicit dispatching of an implicit value:
@@ -237,19 +235,16 @@ explicit dispatching of an implicit value:
 \end{Highlighting}
 \end{Shaded}
 
-\subsection{Implicit argument using optional
-argument}\label{implicit-argument-using-optional-argument}
+\subsection{Implicit arguments as optional
+arguments}\label{implicit-argument-using-optional-argument}
 
-To have the real overloading and write the above example as simply
-\texttt{show {[}1; 2{]}}, the dispatching arguments of implicit values
-should be omittable. We can make use of OCaml's optional arguments for
-this purpose:
+The dispatching arguments of implicit values should be omittable
+in order to write the above code simply as \texttt{show {[}1; 2{]}}.
+We can make use of OCaml's optional arguments for this purpose:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-  \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function}
-    \NormalTok{| }\DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \CommentTok{(* called when overloadings are not resolved *)}
-    \NormalTok{| }\DataTypeTok{Some} \NormalTok{x -> x}
+  \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function} \DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \NormalTok{| }\DataTypeTok{Some} \NormalTok{x -> x}
   \KeywordTok{let} \NormalTok{show ?imp x = unpack imp x}
   \KeywordTok{let} \NormalTok{() = }\KeywordTok{assert} \NormalTok{( show [1; 2] = }\StringTok{"[ 1; 2 ]"} \NormalTok{)}
 \end{Highlighting}
@@ -270,9 +265,7 @@ optional argument:
   \OtherTok{module} \NormalTok{Show2 = }\KeywordTok{struct}
     \KeywordTok{type} \NormalTok{'a __imp__ = }\DataTypeTok{Packed} \KeywordTok{of} \NormalTok{('a -> }\DataTypeTok{string}\NormalTok{)}
     \KeywordTok{let} \NormalTok{pack ~_x = }\DataTypeTok{Some} \NormalTok{(}\DataTypeTok{Packed} \NormalTok{_x)}
-    \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function}
-      \NormalTok{| }\DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \CommentTok{(* overloading was not resolved *)}
-      \NormalTok{| }\DataTypeTok{Some} \NormalTok{(}\DataTypeTok{Packed} \NormalTok{x) -> x}
+    \KeywordTok{let} \NormalTok{unpack = }\KeywordTok{function} \DataTypeTok{None} \NormalTok{-> }\KeywordTok{assert} \KeywordTok{false} \NormalTok{| }\DataTypeTok{Some} \NormalTok{(}\DataTypeTok{Packed} \NormalTok{x) -> x}
     \OtherTok{include} \NormalTok{Show}
   \KeywordTok{end}
   
@@ -294,35 +287,34 @@ transformed to the following expression:
 \end{Highlighting}
 \end{Shaded}
 
-% \subsection{Instance search space
-% configuration}\label{instance-search-space-configuration}
-% 
-% (This part is just roughly implemented in the current implementation.)
-% 
-% We have seen the simplest instance search policy of
-% \texttt{ppx\_implicits}: \texttt{{[}\%imp PATH{]}}, the values defined
-% inside a specific module path \texttt{PATH}. It can support other
-% instance search policies easily, since the implicit resolution algorithm
-% itself is almost orthogonal to the definitions of instance search
-% spaces.
-% 
-% For example, it is not difficult to use \texttt{open} directive to
-% accumulate instance space like Haskell's \texttt{import} and Modular
-% Implicits' \texttt{open implicit} declarations. For example,
-% \texttt{{[}\%imp "\textless{}opened\textgreater{}.Show"{]}} is to
-% instruct the PPX to gather instances from the sum-modules named
-% \texttt{Show} under modules opened by the \texttt{open} directive.
-% 
-% Another policy, which is not orthodox but probably very useful in the
-% current OCaml library structure, is a control based on the module names
-% occurring in implicit value types. For example, if an implicit
-% expression
-% \texttt{{[}\%imp "\textless{}related\textgreater{}.sexp\_of*"{]}} has a
-% type \texttt{PATH.t -\textgreater{} Sexplib.Sexp.t}, then instances are
-% the values whose paths match with \texttt{PATH.sexp\_of*} and
-% \texttt{Sexplib.Sexp.sexp\_of*}. Many library functions for data types
-% which take sub-functions for their parameter types can be easily
-% integrated by this algorithm.
+\subsection{Instance search space configuration}\label{instance-search-space-configuration}
+
+(This part is just roughly implemented in the current implementation.)
+
+We have seen the simplest instance search policy of
+\texttt{ppx\_implicits}: \texttt{{[}\%imp PATH{]}}, the values defined
+inside a specific module path \texttt{PATH}. 
+\texttt{ppx\_implicits} can support other instance search policies,
+since the overload resolution itself is independent from 
+the instance search space definitions.
+
+For example, it is not difficult to use \texttt{open} directive to
+accumulate instance space like Haskell's \texttt{import} and Modular
+Implicits' \texttt{open implicit} declarations. For example,
+\texttt{{[}\%imp "\textless{}opened\textgreater{}.Show"{]}} is to
+instruct the PPX to gather instances from the sum-modules named
+\texttt{Show} under modules opened by the \texttt{open} directive.
+
+Another policy, which is not orthodox but probably very useful in the
+current OCaml library structure, is a control based on the module names
+occurring in implicit value types. For example, if an implicit
+expression
+\texttt{{[}\%imp "\textless{}related\textgreater{}.sexp\_of*"{]}} has a
+type \texttt{PATH.t -\textgreater{} Sexplib.Sexp.t}, then instances are
+the values whose paths match with \texttt{PATH.sexp\_of*} and
+\texttt{Sexplib.Sexp.sexp\_of*}. Many existing library functions 
+for data types which take sub-functions for their parameter types 
+can be easily integrated as overloaded functions by this policy.
 
 \subsection{To Modular Implicits and type
 classes}\label{to-modular-implicits-and-type-classes}
@@ -332,7 +324,6 @@ trivial to have the same functionalities of Modular Implicits and type
 classes in \texttt{ppx\_implicits}: it is to generate modules as first
 class values at the caller site, then to make it back to normal modules
 at the callee site.
-
 Details are omitted for this proposal but you can see some examples at
 \texttt{tests/typeclass.ml} of the source code.
 
