@@ -49,7 +49,7 @@ modification.
 Safe. The output of Typeful PPX is again type checked by the compiler.
 Critical bugs in Typeful PPX should be found by this second type check.
 In the direct compiler modification, bugs in the typing layer tend to
-make the type system unafe and they are hard to detect and fix.
+make the type system unsafe and they are hard to detect and fix.
 This should also make users feel much easier to try new functionalities
 via Typeful PPX than the compiler patching. If still unsure, users can always
 print out the final output and verify what Typeful PPX actually does. 
@@ -64,7 +64,7 @@ can reuse the much of their code.
 
 Unfortunately it has some drawbacks too:
 
-Upto typing layer: this is a typeful program transformation
+Up-to typing layer: this is a typeful program transformation
 and therefore cannot change the lower details like code generation.
 
 Not working with toplevel (REPL): PPX preprocessing works
@@ -80,7 +80,7 @@ but the necessary tools are already available as OCaml's compiler API library
 to wire up the inputs and outputs of PPX, type checker
 and the typeful program transformation.
 
-For typeful program transformation, `compiler-libs` alredy includes `TypedtreeMap`, a module for an easy interface to build a mapper.
+For typeful program transformation, `compiler-libs` already includes `TypedtreeMap`, a module for an easy interface to build a mapper.
 Program transformation does not necessarily produce well-typed AST as its result, since it is get untyped. Untyping is also ready at `tools/untypeast.ml` of OCaml compiler source.
 
 ## Ppx_implicits
@@ -88,7 +88,7 @@ Program transformation does not necessarily produce well-typed AST as its result
 `Ppx_implicits` (https://bitbucket.org/camlspotter/ppx_typeclass,
 it was initially called `ppx_typeclass`) is an example of Typeful PPX,
 which provides type dependent *implicit values*. It is also extended to
-have *impicit parameters*, *Modulear Implicits* and *type class* like features
+have *implicit parameters*, *Modular Implicits* and *type class* like features
 as a PPX.
 
 ### Simple implicit values `[%imp M]`
@@ -111,6 +111,13 @@ let () = assert ( (assert false)[@imp Plus] 1 = "1" )
 let () = assert ( (assert false)[@imp Plus] 1.2 = "1.2" )
                   (* replaced by Show.float *)
 ```
+
+`Ppx_implicits` overload resolution is based on simple type unification.
+It tries to unify the type of implicit values and the type of each recipe.
+If the unification fails, the recipe is discarded. If there is only one
+match, the matched recipe is used for the replacement. Otherwise,
+if none, `ppx_implicits` fails due to no possible instance. If there are
+multiple matches, it also fails due to the ambiguity.
 
 `(assert false)[@imp M]` is often used to generate a value which
 matches with its typing context. `ppx_implicits` has a sugar
@@ -156,10 +163,10 @@ let show ?imp x = unpack imp x
 let () = assert ( show [1; 2] = "[ 1; 2 ]" )
 ```
 
-The expression `show [1; 2]` is equilvalent with `show ?imp:None [1; 2]`,
+The expression `show [1; 2]` is equivalent with `show ?imp:None [1; 2]`,
 and it must be transformed to `show ~imp:[%imp Show2] [1; 2]`
 by `ppx_implicits`.  But without omitting `[%imp Show2]`, how can we tell
-an optional arguemnt is for the implicit value dispatch
+an optional argument is for the implicit value dispatch
 for some recipes `Show2`?
 It requires one more trick: we transfer the information to the type of
 the optional argument:
@@ -188,6 +195,32 @@ the following expression:
 show ?imp:Show3.(pack ~_x:(list ~_x:int)) [1; 2]
 ```
 
+### Recipe search space configuration
+
+(This part is just roughly implemented in the current implementation.)
+
+We have seen the simplest recipe search policy of `ppx_implicits`:
+`[%imp PATH]`, the values defined inside a specific module path `PATH`.
+It can support other recipe search policies easily,
+since the implicit resolution algorithm itself is almost orthogonal
+to the definitions of recipe search spaces.
+
+For example, it is not difficult to  use `open` directive
+to accumulate recipe space like Haskell's `import`
+and Modular Implicits' `open implicit` declarations.
+For example, `[%imp "<opened>.Show"]` is to instruct the PPX to gather
+recipes from the sum-modules named `Show` under modules opened
+by the `open` directive.
+
+Another policy, which is not orthodox but probably very useful
+in the current OCaml library structure, is a control based on
+the module names occurring in implicit value types.
+For example, if an implicit expression `[%imp "<related>.sexp_of*"]`
+has a type `PATH.t -> Sexplib.Sexp.t`, then recipes are the values
+whose paths match with  `PATH.sexp_of*` and `Sexplib.Sexp.sexp_of*`.
+Many library functions for data types which take sub-functions for
+their parameter types can be easily integrated by this algorithm.
+
 ### To Modular Implicits and type classes
 
 Once the implicit arguments by optional arguments works, it is almost
@@ -196,4 +229,12 @@ and type classes in `ppx_implicits`: it is to generate modules
 as first class values at the caller site, then to make it back
 to normal modules at the callee site.
 
-### Recipe space configuration
+Details are omitted for this proposal but you can see some examples
+at `tests/typeclass.ml` of the source code.
+
+## Conclusion
+
+Typeful PPX is a way to write type dependent extensions of OCaml.
+This can be used not only for a fast and safe prototyping of OCaml compiler
+modification but also for real use.
+
