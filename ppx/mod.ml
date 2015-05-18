@@ -8,11 +8,6 @@ open Format
 let debug_resolve = !Ppxx.debug_resolve
 let debug_unif = !Ppxx.debug_unif
 
-let warn f = 
-  eprintf "@[<2>Warning:@ ";
-  f ();
-  eprintf "@]@.";
-
 module Types = struct
   include Types
   open Btype
@@ -53,10 +48,6 @@ let is_implicit_path (p, lid) =
 let is_constraint_label l =
   let len = String.length l in
   len >= 2 && String.unsafe_get l 0 = '_'
-
-(* Oops, there is no good exposed API to compare a module type
-   and a packed module type. 
-*)
 
 let rec extract_constraint_labels env ty = 
   let ty = Ctype.expand_head env ty in

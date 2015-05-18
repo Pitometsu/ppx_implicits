@@ -41,3 +41,8 @@ let unprotect = function
   | `Ok v -> v
   | `Error e -> raise e
 
+let warn f = 
+  Format.eprintf "@[<2>Warning:@ ";
+  f ();
+  Format.eprintf "@]@.";
+
