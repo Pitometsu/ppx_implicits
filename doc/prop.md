@@ -85,7 +85,7 @@ Program transformation does not necessarily produce well-typed AST as its result
 
 ## Ppx_implicits
 
-`Ppx_implicits` (https://bitbucket.org/camlspotter/ppx_typeclass,
+`Ppx_implicits` ( https://bitbucket.org/camlspotter/ppx_typeclass ,
 it was initially called `ppx_typeclass`) is an example of Typeful PPX,
 which provides type dependent *implicit values*. It is also extended to
 have *implicit parameters*, *Modular Implicits* and *type class* like features
@@ -94,9 +94,10 @@ as a PPX.
 ### Simple implicit values `[%imp M]`
 
 The simplest feature of `ppx_implicits` is type dependent implicit values,
-values which are constructed automatically by PPX combining some recipe values.
+values which are constructed automatically by PPX combining some recipe values
+called "instances".
 For example, an annotated expression `e [@imp M]` is replaced by
-an expression of the same type of `e`, using the values (recipes) available under
+an expression of the same type of `e`, using the instances available under
 module `M`. For example, here is a simple overloading of plus operators:
 
 ```ocaml
@@ -113,31 +114,31 @@ let () = assert ( (assert false)[@imp Plus] 1.2 = "1.2" )
 ```
 
 `Ppx_implicits` overload resolution is based on simple type unification.
-It tries to unify the type of implicit values and the type of each recipe.
-If the unification fails, the recipe is discarded. If there is only one
-match, the matched recipe is used for the replacement. Otherwise,
+It tries to unify the type of implicit values and the type of each instance.
+If the unification fails, the instance is discarded. If there is only one
+match, the matched instance is used for the replacement. Otherwise,
 if none, `ppx_implicits` fails due to no possible instance. If there are
 multiple matches, it also fails due to the ambiguity.
 
 `(assert false)[@imp M]` is often used to generate a value which
-matches with its typing context. `ppx_implicits` has a sugar
+matches with its typing context. Therefore, `ppx_implicits` has a sugar
 `[%imp M]` for `(assert false)[@imp M]`.
 
-Recipes can be combined recursively:
+Instances can be combined recursively:
 
 ```ocaml
 module Show2 = struct
   include Show
   let list ~_x:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
-  (* Label starts with '_' has a special meaning in recipes:
-     The arguments are generated recursively from the recipe sets. *)
+  (* Label starts with '_' has a special meaning in instances:
+     The arguments are generated recursively from the instance sets. *)
 end
 
 let () = assert ( [%imp Show2] [1;2] = "[ 1; 2 ]" )
                   (* replaced by Show2.list ~_x:Show2.int *)
 ```
 
-Recipe dependency (or constraint using type class terminology) is expressed
+Instance dependency (or constraint using type class terminology) is expressed
 having a special label names start with `_` to function arguments.
 
 We can define `show` function at this level but it still requires explicit
@@ -167,7 +168,7 @@ The expression `show [1; 2]` is equivalent with `show ?imp:None [1; 2]`,
 and it must be transformed to `show ~imp:[%imp Show2] [1; 2]`
 by `ppx_implicits`.  But without omitting `[%imp Show2]`, how can we tell
 an optional argument is for the implicit value dispatch
-for some recipes `Show2`?
+for some instances `Show2`?
 It requires one more trick: we transfer the information to the type of
 the optional argument:
 
@@ -195,28 +196,28 @@ the following expression:
 show ?imp:Show3.(pack ~_x:(list ~_x:int)) [1; 2]
 ```
 
-### Recipe search space configuration
+### Instance search space configuration
 
 (This part is just roughly implemented in the current implementation.)
 
-We have seen the simplest recipe search policy of `ppx_implicits`:
+We have seen the simplest instance search policy of `ppx_implicits`:
 `[%imp PATH]`, the values defined inside a specific module path `PATH`.
-It can support other recipe search policies easily,
+It can support other instance search policies easily,
 since the implicit resolution algorithm itself is almost orthogonal
-to the definitions of recipe search spaces.
+to the definitions of instance search spaces.
 
 For example, it is not difficult to  use `open` directive
-to accumulate recipe space like Haskell's `import`
+to accumulate instance space like Haskell's `import`
 and Modular Implicits' `open implicit` declarations.
 For example, `[%imp "<opened>.Show"]` is to instruct the PPX to gather
-recipes from the sum-modules named `Show` under modules opened
+instances from the sum-modules named `Show` under modules opened
 by the `open` directive.
 
 Another policy, which is not orthodox but probably very useful
 in the current OCaml library structure, is a control based on
 the module names occurring in implicit value types.
 For example, if an implicit expression `[%imp "<related>.sexp_of*"]`
-has a type `PATH.t -> Sexplib.Sexp.t`, then recipes are the values
+has a type `PATH.t -> Sexplib.Sexp.t`, then instances are the values
 whose paths match with  `PATH.sexp_of*` and `Sexplib.Sexp.sexp_of*`.
 Many library functions for data types which take sub-functions for
 their parameter types can be easily integrated by this algorithm.
