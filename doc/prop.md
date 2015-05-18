@@ -187,7 +187,7 @@ let show ?imp x = Show3.unpack imp x
 
 Now `show` takes a value of `'a Show3.__imp__` as an optional argument.
 Adding `ppx_implicits` another rule to transform function arguments of
-the form `?l:None` where `None has type `_ PATH.__imp__ option` to
+the form `?l:None` where `None` has type `_ PATH.__imp__ option` to
 `?l:[%imp PATH]`, `show [1; 2]` is properly transformed to
 the following expression:
 
