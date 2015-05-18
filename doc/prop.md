@@ -85,7 +85,7 @@ Program transformation does not necessarily produce well-typed AST as its result
 
 ## Ppx_implicits
 
-`Ppx_implicits` ( https://bitbucket.org/camlspotter/ppx_typeclass ,
+`Ppx_implicits` ( [https://bitbucket.org/camlspotter/ppx_typeclass] ,
 it was initially called `ppx_typeclass`) is an example of Typeful PPX,
 which provides type dependent *implicit values*. It is also extended to
 have *implicit parameters*, *Modular Implicits* and *type class* like features
