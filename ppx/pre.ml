@@ -1,3 +1,9 @@
+(*
+
+  Pre-preprocessing for syntax sugars for [%imp] and [%%imp_policy].
+
+*)
+
 open Utils
 open Ppxx
 open Parsetree

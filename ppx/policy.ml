@@ -1,3 +1,9 @@
+(*
+
+  Instance search space specification DSL, magling to and back from
+  OCaml type definitions.
+
+*)
 open Utils
 open List
 open Parsetree

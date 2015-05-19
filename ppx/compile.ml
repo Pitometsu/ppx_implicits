@@ -1,3 +1,5 @@
+(* Patched driver/compiler.ml, the heart of Typeful PPX *)
+
 (***********************************************************************)
 (*                                                                     *)
 (*                                OCaml                                *)
@@ -27,6 +29,9 @@ let interface ppf sourcefile ast outputprefix =
   let modulename = module_of_filename ppf sourcefile outputprefix in
   Env.set_unit_name modulename;
   let initial_env = Compmisc.initial_env () in
+  (* PPX got AST from the host compiler
+  let ast = Pparse.parse_interface ~tool_name ppf sourcefile in
+  *)
   if !Clflags.dump_parsetree then fprintf ppf "%a@." Printast.interface ast;
   if !Clflags.dump_source then fprintf ppf "%a@." Pprintast.signature ast;
 
@@ -52,19 +57,20 @@ let interface ppf sourcefile ast outputprefix =
   ignore (Includemod.signatures initial_env sg sg);
   Typecore.force_delayed_checks ();
   Warnings.check_fatal ();
-      tsg, sg
-
-(*
+  (*
   if not !Clflags.print_types then begin
     let sg = Env.save_signature sg modulename (outputprefix ^ ".cmi") in
     Typemod.save_signature modulename tsg outputprefix sourcefile
       initial_env sg ;
   end
-*)
+  *)
+  tsg, sg
+
   in
 
-  (* HACK: typing + untype + retype *)
+  (* HACK: typing + mod + untype + retype *)
   let tsg, _sg = do_type ast in
+  let tsg = Mod.Map.map_signature tsg in
   (* Untype then save it as xxx.mli2 *)
   let ast = Untypeast.untype_signature tsg in
 (*
@@ -85,21 +91,34 @@ let print_if ppf flag printer arg =
 
 let (++) x f = f x
 
-(* CR jfuruse: If ppx fails, then we want to know errors and 
-   annots and bin-annots *)
-
 let implementation ppf sourcefile ast outputprefix =
   Compmisc.init_path false;
   let modulename = module_of_filename ppf sourcefile outputprefix in
   Env.set_unit_name modulename;
   let env = Compmisc.initial_env() in
-  begin
-(* We do not produce object files.
+  (*
+  if !Clflags.print_types then begin
+    let comp ast =
+      ast
+      ++ print_if ppf Clflags.dump_parsetree Printast.implementation
+      ++ print_if ppf Clflags.dump_source Pprintast.structure
+      ++ Typemod.type_implementation sourcefile outputprefix modulename env
+      ++ print_if ppf Clflags.dump_typedtree
+          Printtyped.implementation_with_coercion
+      ++ (fun _ -> ());
+      Warnings.check_fatal ();
+      Stypes.dump (Some (outputprefix ^ ".annot"))
+    in
+    try comp (Pparse.parse_implementation ~tool_name ppf sourcefile)
+    with x ->
+      Stypes.dump (Some (outputprefix ^ ".annot"));
+      raise x
+  end else *) begin
+    (* We do not produce object files.
     let objfile = outputprefix ^ ".cmo" in
     let oc = open_out_bin objfile in
-*)
+    *)
     let comp ast =
-     let ast = 
       ast
       ++ print_if ppf Clflags.dump_parsetree Printast.implementation
       ++ print_if ppf Clflags.dump_source Pprintast.structure
@@ -137,21 +156,30 @@ let implementation ppf sourcefile ast outputprefix =
         close_out oc2;
 *)
         ast)
-      in
+
+      (*
+      ++ Translmod.transl_implementation modulename
+      ++ print_if ppf Clflags.dump_rawlambda Printlambda.lambda
+      ++ Simplif.simplify_lambda
+      ++ print_if ppf Clflags.dump_lambda Printlambda.lambda
+      ++ Bytegen.compile_implementation modulename
+      ++ print_if ppf Clflags.dump_instr Printinstr.instrlist
+      ++ Emitcode.to_file oc modulename objfile;
       Warnings.check_fatal ();
-(*
       close_out oc;
       Stypes.dump (Some (outputprefix ^ ".annot"))
-*)
-     ast
+      *)
+      ++ fun ast -> 
+        Stypes.dump (Some (outputprefix ^ ".annot"));
+        ast
     in
-    (* try *)
-    comp ast
-(*
+    (* PPX takes AST from the host compiler *)
+    try comp ast (* (Pparse.parse_implementation ~tool_name ppf sourcefile) *)
     with x ->
+      (*
       close_out oc;
       remove_file objfile;
+      *)
       Stypes.dump (Some (outputprefix ^ ".annot"));
       raise x
-*)
   end
