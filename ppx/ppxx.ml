@@ -171,7 +171,7 @@ let run name mapper =
   let rev_files = ref [] in 
   Arg.parse 
     [ "-debug", Arg.Set debug, "debug mode which can take .ml/.mli then print the result"
-    ; "-debug-resolve", Arg.Set debug_unif, "debug mode to print overload resolution"
+    ; "-debug-resolve", Arg.Set debug_resolve, "debug mode to print overload resolution"
     ; "-debug-unif", Arg.Set debug_unif, "debug mode to print unification results"
     ]
     (fun s -> rev_files := s :: !rev_files) (* will be handled by [Ast_mapper.apply] *)
