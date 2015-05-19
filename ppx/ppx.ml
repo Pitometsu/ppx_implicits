@@ -5,6 +5,7 @@ external ( & ) : ('a -> 'b) -> 'a -> 'b = "%apply"
 
 let preconvert = Pre.extend default_mapper
 let preconvert_structure = preconvert.structure preconvert 
+let preconvert_signature = preconvert.signature preconvert 
   
 (* If the tool is ocamldep, we do not type-check *)
 let mapper = { 
@@ -18,7 +19,7 @@ let mapper = {
     Clflags.dont_write_files := true;
     match Ast_mapper.tool_name () with
     | "ocamldep" -> default_mapper.signature x sg
-    | _ -> Compile.interface Format.err_formatter "papa" sg "gaga"); 
+    | _ -> Compile.interface Format.err_formatter "papa" (preconvert_signature sg) "gaga"); 
 }
 
 let () = Ppxx.run "ppx_implicits" mapper
