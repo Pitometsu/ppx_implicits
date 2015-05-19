@@ -20,6 +20,8 @@ Test_(name) =
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
     ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
     ./$(name)$(EXE)
+  clean:
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
 
 Test(name) =
