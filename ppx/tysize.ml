@@ -1,4 +1,5 @@
-(* size of type *)
+(* Size of type *)
+
 open Utils
 
 open Types

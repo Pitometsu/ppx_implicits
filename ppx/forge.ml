@@ -2,7 +2,7 @@
 
    This is *not* to create a well-typed Typedtree.
    This is only to forge a Typedtree AST which will be untypeast'ed 
-   to Parsetree.
+   to Parsetree immediately.
 *)
 
 module Dummy = struct

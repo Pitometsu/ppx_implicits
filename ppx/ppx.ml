@@ -1,7 +1,7 @@
-open Ast_mapper
+(* Main *)
 
-(* (&) is too strong *)
-external ( & ) : ('a -> 'b) -> 'a -> 'b = "%apply"
+open Utils
+open Ast_mapper
 
 let preconvert = Pre.extend default_mapper
 let preconvert_structure = preconvert.structure preconvert 

@@ -1,3 +1,5 @@
+(* Patched driver/compiler.ml, the heart of Typeful PPX *)
+
 (***********************************************************************)
 (*                                                                     *)
 (*                                OCaml                                *)
