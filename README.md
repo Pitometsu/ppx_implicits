@@ -31,7 +31,7 @@ module Show = struct
 end
 ```
 
-They work as follows. Pretty normal.
+They work as follows. Pretty normal:
 
 
 ```ocaml
@@ -39,7 +39,6 @@ let () = assert (Show.int 1 = "1")
 let () = assert (Show.float 1.0 = "1.")
 let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
 ```
-
 
 Let the compiler to create show functions for given type contexts by composing
 values defined in Show.  This is the idea of the value implicits.
@@ -64,7 +63,7 @@ let show_twice imp x = imp x ^ imp x
 let () = assert (show_twice Show.(list ~_d:int) [1;2] = "[ 1; 2 ][ 1; 2 ]")
 ```
 
-`[%imp Show]` can compose `Show.(list int)`:
+`[%imp Show]` can compose `Show.(list ~_d:int)`:
 
 ```ocaml
 let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
