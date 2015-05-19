@@ -1,4 +1,4 @@
-PPX=$(file ../ppx/ppx_typeclass$(EXE))
+PPX=$(file ../ppx/ppx_implicits$(EXE))
 .SCANNER: scan-ocaml-%: $(PPX)
 OCamlRequire($(PPX))
 

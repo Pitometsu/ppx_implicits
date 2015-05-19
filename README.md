@@ -1,8 +1,13 @@
-# Value Implicits, or resurrection of Extensional Polymorphism
+# Value Implicits
 
 To say short this is an implementation of type class or modular implicits
 for OCaml via PPX preprocessor framework, built over value implicits,
 automatic value construction from types.
+
+## How to build
+
+$ cp OMakeroot.in OMakeroot
+$ omake
 
 ## Implicit values `[%imp M]`
 
