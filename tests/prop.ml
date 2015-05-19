@@ -1,3 +1,5 @@
+(* Demonstration of [%%imp_policy], instance search space policy control. *) 
+
 module Show = struct
   let int = string_of_int
   let float = string_of_float
@@ -8,8 +10,15 @@ module Show2 = struct
 end
   
 module ShowImp = struct
-  [%%imp_policy ShowImp]
   type 'a __imp__ = Packed of ('a -> string)
+
+  [%%imp_policy ShowImp]
+  (* [%%imp_policy] instructs how to collect the instances for [t __imp__].
+
+     [%%imp_policy ShowImp] means the values defined under a module accessible
+     as ShowImp are used.
+  *)
+
   let pack ~_x = Some (Packed _x)
   let unpack = function
     | None -> assert false (* overloading was not resolved *)

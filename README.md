@@ -6,8 +6,17 @@ automatic value construction from types.
 
 ## How to build
 
+Sorry, `ppx_implicits` is not yet OPAM available.
+
+```shell
+$ opam install omake ppx_tools
+$ hg clone https://bitbucket.org/camlspotter/ppx_implicits  # You need Mercurial
+$ cd ppx_implicits
 $ cp OMakeroot.in OMakeroot
 $ omake
+```
+
+`omake` should build `ppx/ppx_implicits` then test files under `tests/`.
 
 ## Implicit values `[%imp M]`
 

@@ -8,7 +8,12 @@ module Show = struct
   let int = string_of_int
   let float = string_of_float
   let list ~_d:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
-  (* currently a label starts with '_' is required to express recipe dependencies *)
+  (* Currently a label starts with '_' is required to express instance
+     constraints. It is like => arrow of Haskell.
+
+     This special label may not be required, but we need to check 
+     whether there would no regression around the resolution or not.
+   *)
 end
 
 (*
@@ -48,7 +53,7 @@ let () = assert (show_twice Show.(list ~_d:int) [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
 
-  [%imp Show] can compose Show.(list int):
+  [%imp Show] can compose Show.(list ~d:int):
 
 *)
 
@@ -56,20 +61,22 @@ let () = assert (show_twice [%imp Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
 
-  If we put this idea of higher order functions taking implicit values 
+  If we put this idea of higher order functions for implicit values 
   back to the first show example, we get:
 
 *)
   
 let show (f : 'a -> string) = f  
-(* 'a -> string  is the most general anti-unifier of the recipes *)
+(* ['a -> string]  is the most general anti-unifier of the instances *)
 
 let () = assert (show [%imp Show] 1 = "1")
 let () = assert (show [%imp Show] 1.0 = "1.")
 let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
 
 (*
-  it looks like overloading with explicit dispatch.
+
+  it looks like overloading... but still with explicit dispatch.
+
 *)
 
 (*
