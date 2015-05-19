@@ -5,9 +5,6 @@ open Longident (* has flatten *)
 open List (* has flatten *)
 open Format
 
-let debug_resolve = !Ppxx.debug_resolve
-let debug_unif = !Ppxx.debug_unif
-
 module Types = struct
   include Types
   open Btype
@@ -98,8 +95,9 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
          with
          | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
              (* recursive call and the type size is not strictly decreasing *)
-             eprintf "@[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
-               Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+             if !Ppxx.debug_resolve then 
+               eprintf "@[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
+                 Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
              []
          | _ ->
              let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding is no longer useful. Replace instead of add? *)
@@ -119,17 +117,17 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
              with_snapshot & fun () ->
                try
 
-                 if debug_unif then
+                 if !Ppxx.debug_unif then
                    eprintf "Checking %a <> %a ..."
                      Printtyp.type_expr ity
                      Printtyp.type_expr ivty;
 
                  begin match protect & fun () -> Ctype.unify env ity ivty with
                  | `Ok _ ->
-                     if debug_unif then
+                     if !Ppxx.debug_unif then
                        eprintf " ok: %a@." Printtyp.type_expr ity
                  | `Error (Ctype.Unify trace as e) ->
-                     if debug_unif then begin
+                     if !Ppxx.debug_unif then begin
                        eprintf " no@.";
                        eprintf "  @[%a@]@."
                          (fun ppf trace -> Printtyp.report_unification_error ppf
@@ -257,7 +255,7 @@ let close_gen_vars ty =
     match repr_desc gv with
     | Tvar _ ->
         Ctype.unify Env.empty gv (create_uniq_type ());
-        eprintf "Closing %a@." Printtyp.type_expr gv
+        (* eprintf "Closing %a@." Printtyp.type_expr gv *)
     | Tunivar _ -> ()
     | _ -> assert false) & gen_vars ty
     
@@ -278,7 +276,7 @@ let is_imp_option_type env ty = match is_option_type env ty with
       | _ -> None
 
 let resolve env cands ty loc =
-  if debug_resolve then
+  if !Ppxx.debug_resolve then
     iter (fun (_lid, path, vdesc) ->
       eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
   match resolve env cands [([],ty)] with
@@ -314,7 +312,7 @@ let forge2 lids env loc ty =
 
   let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
 
-  if debug_resolve then begin
+  if !Ppxx.debug_resolve then begin
     eprintf "forge2@.";
     iter (fun p -> eprintf "found %a@." Path.format p) paths;
   end;
@@ -327,13 +325,13 @@ let forge2 lids env loc ty =
         errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
     | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
   in
-  if debug_resolve then
+  if !Ppxx.debug_resolve then
     iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
 
   resolve env cands ty loc
 
 let forge3 env loc ty = with_snapshot & fun () ->
-  if debug_resolve then eprintf "@.FORGE3: %a@." Location.print_loc loc;
+  if !Ppxx.debug_resolve then eprintf "@.FORGE3: %a@." Location.print_loc loc;
 
   (* Get the M of type (...) ...M.name *)
   let n = match expand_repr_desc env ty with
@@ -372,6 +370,17 @@ let forge3 env loc ty = with_snapshot & fun () ->
   resolve env cands ty loc
 
   
+let forge4 policy env loc ty = with_snapshot & fun () ->
+  if !Ppxx.debug_resolve then eprintf "@.FORGE4: %a@." Location.print_loc loc;
+  let cands = Policy.candidates loc env policy in
+  if !Ppxx.debug_resolve then begin
+prerr_endline "candidates:";
+    iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
+  end;
+  close_gen_vars ty;
+  resolve env cands ty loc
+
+  
 
 (* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
 let resolve_arg loc env = function
@@ -382,7 +391,20 @@ let resolve_arg loc env = function
           begin match is_imp_option_type env e.exp_type with
           | None -> a
           | Some ty ->
-              (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
+              match expand_repr_desc env ty with
+              | Tconstr (p, _, _) ->
+                  begin match p with
+                  | Pdot (mp, _, _) ->
+                      let md = Env.find_module mp env in (* CR jfuruse: Error *)
+                      begin match Policy.from_module_type env md.md_type with
+                      | None -> 
+                          (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
+                      | Some policy -> (l, Some (forge4 policy env loc e.exp_type), Optional)
+                      end
+                  | _ -> assert false
+                  end
+              | _ -> assert false (* CR jfuruse: better error handling *)
+
           end
       | _ -> a
       end

@@ -8,6 +8,7 @@ module Show2 = struct
 end
   
 module ShowImp = struct
+  [%%imp_policy ShowImp]
   type 'a __imp__ = Packed of ('a -> string)
   let pack ~_x = Some (Packed _x)
   let unpack = function
@@ -20,3 +21,4 @@ end
 let show ?imp x = ShowImp.unpack imp x
 
 let () = assert ( show 1 = "1" )
+
