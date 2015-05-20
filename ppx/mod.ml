@@ -129,7 +129,7 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                  | `Error (Ctype.Unify trace as e) ->
                      if !Ppxx.debug_unif then begin
                        eprintf " no@.";
-                       eprintf "  @[%a@]@."
+                       eprintf "   Reason: @[%a@]@."
                          (fun ppf trace -> Printtyp.report_unification_error ppf
                            env trace
                            (fun ppf ->
@@ -254,15 +254,10 @@ let is_imp_option_type env ty = match is_option_type env ty with
 let resolve policy env loc ty = with_snapshot & fun () ->
   if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.print_loc loc;
   let cands = Policy.candidates loc env policy in
-  if !Ppxx.debug_resolve then begin
-prerr_endline "candidates:";
-    iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
-  end;
   close_gen_vars ty;
-
   if !Ppxx.debug_resolve then
     iter (fun (_lid, path, vdesc) ->
-      eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
+      eprintf "candidate @[<2>%a@ : %a@]@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
   match resolve env cands [([],ty)] with
   | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty;
   | [[e]] -> e
