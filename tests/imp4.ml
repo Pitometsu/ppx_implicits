@@ -64,16 +64,13 @@ let () = assert (show [[1]; [2;3]; [4;5;6]] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]"
 let show_twice ?imp x = show ?imp x ^ show ?imp x
 let () = assert (show_twice 1 = "11")
 
-(*
 let show_twice ?imp:(i : 'a M.Show.__imp__ option) (x : 'a) =
   let module P = struct
     module Show = struct
-      let i = match i with
-        | None -> assert false
-        | Some i -> i
+      let i = i
     end
   end in
   let open P in
   show x ^ show x
+
 let () = assert (show_twice 1 = "11")
-*)
