@@ -18,9 +18,7 @@ Test_(name) =
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    rm -f $(name)$(EXE) # make sure we do not test old execs
-    ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
-    ./$(name)$(EXE)
+    ./build_and_go.sh $(name)
   clean:
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
