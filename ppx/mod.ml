@@ -33,15 +33,6 @@ end
 
 open Types
 
-(* XXX.IMP.t *)
-let is_implicit_path (p, lid) = 
-  let open Path in 
-  let open Longident in 
-  match p, lid with      
-  | Pdot (p, "__imp__", _), Lident "__imp__" -> Some (p, None)
-  | Pdot (p, "__imp__", _), Ldot (l, "__imp__") -> Some (p, Some l)
-  | _ -> None
-
 let is_constraint_label l =
   let len = String.length l in
   len >= 2 && String.unsafe_get l 0 = '_'
@@ -54,37 +45,49 @@ let rec extract_constraint_labels env ty =
       (l,ty1)::cs, ty
   | _ -> [], ty
 
-let rec get_candidates env lid (* scan module lid *) mty (* scan module mty *) =
-  let sg = 
-    try
-      match Env.scrape_alias env @@ Mtype.scrape env mty with
-      | Mty_signature sg -> sg
-      | _ -> assert false
-    with
-    | e -> 
-        eprintf "scraping failed: %s" & Printexc.to_string e;
-        raise e
+let is_imp e = 
+  let imps = 
+    flip map e.exp_attributes (function 
+      | {txt="imp"}, payload -> Some (Policy.from_payload payload)
+      | _ -> None)
   in
-  flip2 fold_right sg [] & fun sitem st -> match sitem with
-    | Sig_value (id, _vdesc) when id.name <> "__imp__" -> 
-        (* CR jfuruse: 
-           I don't undrestand yet why the above _vdesc is not appropriate
-           and we must get vdesc like below.
-        *)
-        let lid = Ldot (lid, Ident.name id) in
-        begin try
-          let path, vdesc = Env.lookup_value lid env in
-          (lid, path, vdesc) :: st
-        with
-        | Not_found ->
-            warn (fun () -> 
-              eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
-            st
-        end
-    | Sig_module (id, moddecl, _) -> 
-        let lid = Ldot (lid, Ident.name id) in
-        get_candidates env lid moddecl.Types.md_type @ st
-    | _ -> st
+  match flip filter imps & function Some _ -> true | None -> false with
+  | [] -> None
+  | [Some x] -> Some x
+  | _ -> assert false (* multiple *)
+  
+(* Create a type which can be unified only with itself *)
+let create_uniq_type =
+  let cntr = ref 0 in
+  fun () -> 
+    incr cntr;
+    (* Ident.create is not good. Unifying this data type ident with
+       a tvar may cause "escaping the scope" errors
+    *)
+    Ctype.newty ( Tconstr ( Pident (Ident.create_persistent & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) )
+
+let close_gen_vars ty =
+  List.iter (fun gv ->
+    match repr_desc gv with
+    | Tvar _ ->
+        Ctype.unify Env.empty gv (create_uniq_type ());
+        (* eprintf "Closing %a@." Printtyp.type_expr gv *)
+    | Tunivar _ -> ()
+    | _ -> assert false) & gen_vars ty
+    
+let is_imp_type env ty = 
+  match expand_repr_desc env ty with
+  | Tconstr (p, _, _) ->
+      begin match p with
+      | Pident {name = "__imp__"} -> Some (None, ty)
+      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
+      | _ -> None
+      end
+  | _ -> None
+
+let is_imp_option_type env ty = match is_option_type env ty with
+  | None -> None
+  | Some ty -> is_imp_type env ty
 
 let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
@@ -155,102 +158,6 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                with
                | _ -> []
           
-let is_imp e = 
-  let imps = 
-    flip map e.exp_attributes (function 
-      | {txt="imp"}, payload -> Some (Policy.from_payload payload)
-      | _ -> None)
-  in
-  match flip filter imps & function Some _ -> true | None -> false with
-  | [] -> None
-  | [Some x] -> Some x
-  | _ -> assert false (* multiple *)
-  
-let rec get_opens = function
-  | Env.Env_empty -> []
-  | Env_value (s, _, _)
-  | Env_type (s, _, _)
-  | Env_extension (s, _, _)
-  | Env_module (s, _, _)
-  | Env_modtype (s, _, _)
-  | Env_class (s, _, _)
-  | Env_cltype (s, _, _)
-  | Env_functor_arg (s, _) -> get_opens s
-  | Env_open (s, path) -> path :: get_opens s
-
-let lids_in_open_path env lids = function
-  | None -> 
-      flip filter_map lids (fun lid ->
-        try
-          let path = Env.lookup_module ~load:false (*?*) lid env in
-          (*
-          eprintf "CURRENT %a@." Path.format path;
-          *)
-          Some path
-        with
-        | _ -> None)
-  | Some (Path.Pident id) when Ident.name id = "Pervasives" && Ident.persistent id  -> 
-      (* We assume Pervasives has no instances *)
-      []
-  | Some open_ ->
-      (*
-      eprintf "open %a@." Path.format open_;
-      *)
-      let mdecl = Env.find_module open_ env in (* It should succeed *)
-      match Mtype.scrape env mdecl.md_type with
-      | Mty_signature sg ->
-          let env = Env.open_signature Asttypes.Fresh open_ sg env in
-          flip filter_map lids (fun lid ->
-            try
-              let p = Env.lookup_module ~load:false (*?*) lid env in
-              (*
-              eprintf "%a %a@." Path.format open_ Path.format p;
-              *)
-              Some p
-            with
-            | _ -> None)
-      | _ -> assert false
-      
-let lids_in_open_paths env lids opens =
-  concat_map (lids_in_open_path env lids) opens
-
-(* Create a type which can be unified only with itself *)
-let create_uniq_type =
-  let cntr = ref 0 in
-  fun () -> 
-    incr cntr;
-    (* Ident.create is not good. Unifying this data type ident with
-       a tvar may cause "escaping the scope" errors
-    *)
-    Ctype.newty ( Tconstr ( Pident (Ident.create_persistent & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) )
-
-let close_gen_vars ty =
-  List.iter (fun gv ->
-    match repr_desc gv with
-    | Tvar _ ->
-        Ctype.unify Env.empty gv (create_uniq_type ());
-        (* eprintf "Closing %a@." Printtyp.type_expr gv *)
-    | Tunivar _ -> ()
-    | _ -> assert false) & gen_vars ty
-    
-let exclude_gen_vars loc ty =
-  if gen_vars ty <> [] then
-    errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty
-
-let is_imp_type env ty = 
-  match expand_repr_desc env ty with
-  | Tconstr (p, _, _) ->
-      begin match p with
-      | Pident {name = "__imp__"} -> Some (None, ty)
-      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
-      | _ -> None
-      end
-  | _ -> None
-
-let is_imp_option_type env ty = match is_option_type env ty with
-  | None -> None
-  | Some ty -> is_imp_type env ty
-
 let resolve policy env loc ty = with_snapshot & fun () ->
   if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.print_loc loc;
   let cands = Policy.candidates loc env policy in
@@ -269,13 +176,7 @@ let resolve_imp policy env loc ty =
     | Policy.Type ->
         begin match is_imp_type env ty with
         | None -> assert false
-        | Some (Some mp, _ty) ->
-            (* CR jfuruse: dupe at resolve_arg *)
-            let md = Env.find_module mp env in (* CR jfuruse: Error *)
-            begin match Policy.from_module_type env md.md_type with
-            | None -> assert false (* error *)
-            | Some policy -> policy
-            end
+        | Some (Some mp, _ty) -> Policy.from_module_path env mp
         | Some _ -> assert false
         end
     | _ -> policy
@@ -291,13 +192,8 @@ let resolve_arg loc env = function
           begin match is_imp_option_type env e.exp_type with
           | None -> a
           | Some (Some mp, _ty) ->
-              let md = Env.find_module mp env in (* CR jfuruse: Error *)
-              begin match Policy.from_module_type env md.md_type with
-              | None -> 
-                  eprintf "policy not found in %a@." Printtyp.modtype md.md_type;
-                  assert false (* error *)
-              | Some policy -> (l, Some (resolve policy env loc e.exp_type), Optional)
-              end
+              let policy = Policy.from_module_path env mp in
+              (l, Some (resolve policy env loc e.exp_type), Optional)
           | _ -> assert false (* error *)
           end
       | _ -> a

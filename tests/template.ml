@@ -16,7 +16,7 @@ end) = struct
   let unpack_opt = function
     | None -> assert false
     | Some (Packed x) -> x
-  let f ?imp = unpack_opt imp
+  let f ?imp = unpack_opt imp (* we can ignore the warning 16 *)
 end
 
 module ShowClass = struct

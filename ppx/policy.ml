@@ -165,6 +165,14 @@ eprintf "from_module_type: @[%a@]@." Printtyp.modtype mty;
   | [_] -> assert false (* CR jfuruse: better error handling *)
   | _ -> assert false
 
+let from_module_path env mp =
+  let md = Env.find_module mp env in (* CR jfuruse: Error *)
+  match from_module_type env md.md_type with
+  | None -> 
+      eprintf "policy not found in %a@." Printtyp.modtype md.md_type;
+      assert false (* error *)
+  | Some policy -> policy
+
 let check_module loc env lid =
   match 
     (* CR jfuruse: what is load parameter? *)  
