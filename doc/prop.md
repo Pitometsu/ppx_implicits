@@ -85,7 +85,7 @@ Program transformation does not necessarily produce well-typed AST as its result
 
 ## Ppx_implicits
 
-`Ppx_implicits` ([source](https://bitbucket.org/camlspotter/ppx_typeclass)) ,
+`Ppx_implicits` ([source](https://bitbucket.org/camlspotter/ppx_typeclass) ,
 it was initially called `ppx_typeclass`) is an example of Typeful PPX,
 which provides type dependent *implicit values*. It is also extended to
 have *implicit parameters*, *Modular Implicits* and *type class* like features
@@ -186,7 +186,8 @@ end
 let show ?imp x = Show3.unpack imp x
 ```
 
-Now `show` takes a value of `'a Show3.__imp__` as an optional argument.
+Now `show` takes a value of `'a Show3.__imp__`, the dispatch data type
+for `Show3`, as an optional argument.
 Adding `ppx_implicits` another rule to transform function arguments of
 the form `?l:None` where `None` has type `_ PATH.__imp__ option` to
 `?l:[%imp PATH]`, `show [1; 2]` is properly transformed to
@@ -221,6 +222,10 @@ has a type `PATH.t -> Sexplib.Sexp.t`, then instances are the values
 whose paths match with  `PATH.sexp_of*` and `Sexplib.Sexp.sexp_of*`.
 Many library functions for data types which take sub-functions for
 their parameter types can be easily integrated by this algorithm.
+
+The only remained task is how to translate these policy information
+to the type algebra. Name mangling the diapatch types like
+`__imp__opened_Show` is one simple but ugly solution.
 
 ### To Modular Implicits and type classes
 
