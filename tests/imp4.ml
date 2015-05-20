@@ -12,7 +12,9 @@ end
 module M = struct
   module Show = struct
     type 'a __imp__ = private 'a Z.Show.t
-    external pack : _x:'a Z.Show.t-> 'a __imp__ = "%identity"
+    [%%imp_policy opened Show]
+    external pack' : 'a Z.Show.t -> 'a __imp__ = "%identity"
+    let pack ~_x = Some (pack' _x)
   end
 end
 
@@ -65,12 +67,10 @@ let () = assert (show_twice 1 = "11")
 let show_twice ?imp:(i : 'a M.Show.__imp__ option) (x : 'a) =
   let module P = struct
     module Show = struct
-      let i = match i with
-        | None -> assert false
-        | Some i -> i
+      let i = i
     end
   end in
   let open P in
   show x ^ show x
-let () = assert (show_twice 1 = "11")
 
+let () = assert (show_twice 1 = "11")

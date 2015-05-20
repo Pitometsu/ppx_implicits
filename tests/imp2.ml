@@ -12,9 +12,9 @@ open X
    Therefore we cannot write (fun _ -> assert false) [@imp2 Show] 
  *)
 
-(* If you cannot use [%imp2 Show], you can always replace it by (assert false) [@imp2 Show] *)
-let () = assert ( [%imp2 Show] 1 = "1" )
-let () = assert ( [%imp2 Show] 1.0 = "1." )
+(* If you cannot use [%imp opened Show], you can always replace it by (assert false) [@imp2 Show] *)
+let () = assert ( [%imp opened Show] 1 = "1" )
+let () = assert ( [%imp opened Show] 1.0 = "1." )
 
 module Y = struct
   module Show = struct
@@ -24,9 +24,9 @@ end
 
 open Y
 
-let () = assert ( [%imp2 Show] [1;2] = "[ 1; 2 ]" )
+let () = assert ( [%imp opened Show] [1;2] = "[ 1; 2 ]" )
 
 (* derived *)
   
 let show_twice imp x = imp x ^ imp x
-let () = assert ( show_twice [%imp2 Show] [1;2] = "[ 1; 2 ][ 1; 2 ]" )
+let () = assert ( show_twice [%imp opened Show] [1;2] = "[ 1; 2 ][ 1; 2 ]" )

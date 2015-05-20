@@ -18,7 +18,7 @@ open Location
 let extend super =
   let expr self e =
     match e.pexp_desc with
-    | Pexp_extension ( ({txt=("imp" | "imp2" | "imp3")} as strloc), x) ->
+    | Pexp_extension ( ({txt="imp"} as strloc), x) ->
         { (Exp.assert_false ()) with
           pexp_loc = e.pexp_loc;
           pexp_attributes = [ (strloc, x) ] }
@@ -47,6 +47,7 @@ let extend super =
     match sitem.pstr_desc with
     | Pstr_extension (({txt="imp_policy"; loc}, pld), _) ->
         let policy, policy_loc = Policy.from_payload pld in
+        if policy = Policy.Type then assert false; (* impossible for policy *)
         { sitem with pstr_desc = Pstr_type [ forge loc policy policy_loc ] }
     | _ -> super.structure_item self sitem
   in
@@ -54,6 +55,7 @@ let extend super =
     match sitem.psig_desc with
     | Psig_extension (({txt="imp_policy"; loc}, pld), _) ->
         let policy, policy_loc = Policy.from_payload pld in
+        if policy = Policy.Type then assert false; (* impossible for policy *)
         { sitem with psig_desc = Psig_type [ forge loc policy policy_loc ] }
     | _ -> super.signature_item self sitem
   in

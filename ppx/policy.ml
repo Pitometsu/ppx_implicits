@@ -13,6 +13,7 @@ open Longident
 
 type t = 
   | Or of t2 list
+  | Type
 
 and t2 = 
   | Opened of t3
@@ -25,15 +26,16 @@ and t3 =
 let to_string = 
   let open Format in
   let rec t = function
+    | Type -> ""
     | Or [] -> assert false
     | Or [x] -> t2 x
     | Or xs -> String.concat ", " (map t2 xs)
   and t2 = function
     | Direct x -> t3 x
-    | Opened x -> Printf.sprintf "Opened (%s)" (t3 x)
+    | Opened x -> Printf.sprintf "opened (%s)" (t3 x)
   and t3 = function
     | In lid -> ksprintf (fun x -> x) "%a" Pprintast.default#longident lid
-    | Just lid -> ksprintf (fun x -> x) "Just %a" Pprintast.default#longident lid
+    | Just lid -> ksprintf (fun x -> x) "just %a" Pprintast.default#longident lid
   in
   t 
 
@@ -101,17 +103,14 @@ let from_expression e =
     | Pexp_tuple xs -> Or (map t2 xs)
     | _ -> Or [t2 e]
   and t2 e = match e.pexp_desc with
-    | Pexp_construct ({txt=Lident "Opened"}, Some e) -> Opened (t3 e)
+    | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
+                  ["", e] ) -> Opened (t3 e)
     | _ -> Direct (t3 e)
   and t3 e = match e.pexp_desc with
-    | Pexp_construct ({txt=Lident "Just"}, Some e) ->
+    | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
+                  ["", e] ) -> 
         begin match get_lid e with
         | Some lid -> Just lid
-        | None -> assert false (* error *)
-        end
-    | Pexp_construct ({txt=Lident "In"}, Some e) ->
-        begin match get_lid e with
-        | Some lid -> In lid
         | None -> assert false (* error *)
         end
     | Pexp_construct ({txt=lid}, None) -> In lid
@@ -121,7 +120,7 @@ let from_expression e =
 
 let from_structure str =
   match str with
-  | [] -> failwith "implicit policy is empty"
+  | [] -> Type, Location.none
   | _::_::_ -> failwith "multiple implicit policies are not allowed"
   | [sitem] ->
       match sitem.pstr_desc with
@@ -261,7 +260,8 @@ let module_lids_in_open_paths env lids opens =
 
 let candidates loc env = 
   let rec t = function
-    | Or ts ->  concat & map t2 ts
+    | Type -> assert false (* This should not happen *)
+    | Or ts -> concat & map t2 ts
   and t2 = function
     | Opened x -> 
         let lid = match x with

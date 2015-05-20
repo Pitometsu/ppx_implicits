@@ -129,7 +129,7 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                  | `Error (Ctype.Unify trace as e) ->
                      if !Ppxx.debug_unif then begin
                        eprintf " no@.";
-                       eprintf "  @[%a@]@."
+                       eprintf "   Reason: @[%a@]@."
                          (fun ppf trace -> Printtyp.report_unification_error ppf
                            env trace
                            (fun ppf ->
@@ -156,38 +156,12 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                | _ -> []
           
 let is_imp e = 
-  let open Parsetree in
-  let get_modules sitem = match sitem.pstr_desc with
-    | Pstr_eval (e, []) ->
-        let get_module e = match e.pexp_desc with
-          | Pexp_construct ({txt=lid}, None) -> lid
-          | _ -> assert false
-        in
-        begin match e.pexp_desc with
-        | Pexp_tuple es -> Some (map get_module es)
-        | _ -> Some [get_module e]
-        end
-    | _ -> assert false (* illegal imp *)
-  in
   let imps = 
     flip map e.exp_attributes (function 
-      | {txt="imp"}, PStr [sitem] -> 
-          Option.map (fun x -> `Imp1 x) & get_modules sitem
-      | {txt="imp"}, _ -> assert false (* illegal imp *)
-
-      | {txt="imp2"}, PStr [sitem] ->
-          Option.map (fun x -> `Imp2 x) & get_modules sitem
-      | {txt="imp2"}, _ -> assert false (* illegal imp *)
-
-      | {txt="imp3"}, PStr [] -> Some `Imp3
-      | {txt="imp3"}, _ -> assert false (* illegal imp *)
-
+      | {txt="imp"}, payload -> Some (Policy.from_payload payload)
       | _ -> None)
   in
-  match flip filter imps & function
-    | Some _ -> true
-    | None -> false
-  with
+  match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
   | [Some x] -> Some x
   | _ -> assert false (* multiple *)
@@ -263,124 +237,50 @@ let exclude_gen_vars loc ty =
   if gen_vars ty <> [] then
     errorf "%a: overloaded value has a generalized type: %a" Location.print_loc loc Printtyp.type_scheme ty
 
+let is_imp_type env ty = 
+  match expand_repr_desc env ty with
+  | Tconstr (p, _, _) ->
+      begin match p with
+      | Pident {name = "__imp__"} -> Some (None, ty)
+      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
+      | _ -> None
+      end
+  | _ -> None
+
 let is_imp_option_type env ty = match is_option_type env ty with
   | None -> None
-  | Some ty ->
-      match expand_repr_desc env ty with
-      | Tconstr (p, _, _) ->
-          begin match p with
-          | Pident {name = "__imp__"} -> Some ty
-          | Pdot (_, "__imp__", _) -> Some ty
-          | _ -> None
-          end
-      | _ -> None
+  | Some ty -> is_imp_type env ty
 
-let resolve env cands ty loc =
+let resolve policy env loc ty = with_snapshot & fun () ->
+  if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.print_loc loc;
+  let cands = Policy.candidates loc env policy in
+  close_gen_vars ty;
   if !Ppxx.debug_resolve then
     iter (fun (_lid, path, vdesc) ->
-      eprintf "candidate %a : %a@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
+      eprintf "candidate @[<2>%a@ : %a@]@." Path.format path Printtyp.type_scheme vdesc.val_type) cands;
   match resolve env cands [([],ty)] with
-  | [] -> errorf "%a: no instance found for %a" Location.print_loc loc Printtyp.type_expr ty;
+  | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty;
   | [[e]] -> e
-  | _ -> errorf  "%a: overloaded type has a too ambiguous type: %a" Location.print_loc loc Printtyp.type_expr ty
+  | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty
 
-let forge1 lids env loc ty =
-  exclude_gen_vars loc ty;
-  let cands = flatten & flip map lids & fun lid ->
-    match 
-      try Some (Env.lookup_module ~load:true lid env) with _ -> None
-    with
-    | None ->
-        errorf "%a: no module found: %a" Location.print_loc loc Longident.format lid
-    | Some path ->
-        match 
-          try Some (Env.find_module path env) with _ -> None
-        with
-        | None -> 
-            errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
-        | Some mdecl -> get_candidates env lid mdecl.md_type
-  in
-  resolve env cands ty loc
-
-let forge2 lids env loc ty =
-  exclude_gen_vars loc ty;
-
-  let opens = get_opens & Env.summary env in
-  (*
-  flip iter opens (eprintf "open %a@." Path.format);
-  *)
-
-  let paths = sort_uniq compare & lids_in_open_paths env lids (None :: map (fun x -> Some x) opens) in
-
-  if !Ppxx.debug_resolve then begin
-    eprintf "forge2@.";
-    iter (fun p -> eprintf "found %a@." Path.format p) paths;
-  end;
-
-  let cands = flatten & flip map paths & fun path ->
-    match 
-      try Some (Env.find_module path env) with _ -> None
-    with
-    | None -> 
-        errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
-    | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
-  in
-  if !Ppxx.debug_resolve then
-    iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
-
-  resolve env cands ty loc
-
-let forge3 env loc ty = with_snapshot & fun () ->
-  if !Ppxx.debug_resolve then eprintf "@.FORGE3: %a@." Location.print_loc loc;
-
-  (* Get the M of type (...) ...M.name *)
-  let n = match expand_repr_desc env ty with
-    | Tconstr (p, _, _) ->
-        begin match p with
-        | Path.Pdot(p, _ (* __imp__ *), _) ->
-            begin match p with
-            | Pident id -> Ident.name id
-            | Pdot (_, n, _) -> n
-            | _ -> assert false
+let resolve_imp policy env loc ty =
+  (* fix the policy if ty = __imp__ *)
+  let policy = match policy with
+    | Policy.Type ->
+        begin match is_imp_type env ty with
+        | None -> assert false
+        | Some (Some mp, _ty) ->
+            (* CR jfuruse: dupe at resolve_arg *)
+            let md = Env.find_module mp env in (* CR jfuruse: Error *)
+            begin match Policy.from_module_type env md.md_type with
+            | None -> assert false (* error *)
+            | Some policy -> policy
             end
-        | _ -> assert false
+        | Some _ -> assert false
         end
-    | _ -> assert false
+    | _ -> policy
   in
-
-  let opens = get_opens & Env.summary env in
-  (*
-  flip iter opens (eprintf "open %a@." Path.format);
-  *)
-
-  let paths = sort_uniq compare & lids_in_open_paths env [Lident n] (None :: map (fun x -> Some x) opens) in
-  (*
-  iter (fun p -> eprintf "found %a@." Path.format p) paths;
-  *)
-
-  let cands = flatten & flip map paths & fun path ->
-    match 
-      try Some (Env.find_module path env) with _ -> None
-    with
-    | None -> 
-        errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
-    | Some mdecl -> get_candidates env (Untypeast.lident_of_path path) mdecl.md_type
-  in
-  close_gen_vars ty;
-  resolve env cands ty loc
-
-  
-let forge4 policy env loc ty = with_snapshot & fun () ->
-  if !Ppxx.debug_resolve then eprintf "@.FORGE4: %a@." Location.print_loc loc;
-  let cands = Policy.candidates loc env policy in
-  if !Ppxx.debug_resolve then begin
-prerr_endline "candidates:";
-    iter (fun (_l,p,_vd) -> eprintf "cand: %a@." Path.format p) cands;
-  end;
-  close_gen_vars ty;
-  resolve env cands ty loc
-
-  
+  resolve policy env loc ty
 
 (* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
 let resolve_arg loc env = function
@@ -390,21 +290,15 @@ let resolve_arg loc env = function
       | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
           begin match is_imp_option_type env e.exp_type with
           | None -> a
-          | Some ty ->
-              match expand_repr_desc env ty with
-              | Tconstr (p, _, _) ->
-                  begin match p with
-                  | Pdot (mp, _, _) ->
-                      let md = Env.find_module mp env in (* CR jfuruse: Error *)
-                      begin match Policy.from_module_type env md.md_type with
-                      | None -> 
-                          (l, Some (Forge.Exp.some (forge3 env loc ty)), Optional)
-                      | Some policy -> (l, Some (forge4 policy env loc e.exp_type), Optional)
-                      end
-                  | _ -> assert false
-                  end
-              | _ -> assert false (* CR jfuruse: better error handling *)
-
+          | Some (Some mp, _ty) ->
+              let md = Env.find_module mp env in (* CR jfuruse: Error *)
+              begin match Policy.from_module_type env md.md_type with
+              | None -> 
+                  eprintf "policy not found in %a@." Printtyp.modtype md.md_type;
+                  assert false (* error *)
+              | Some policy -> (l, Some (resolve policy env loc e.exp_type), Optional)
+              end
+          | _ -> assert false (* error *)
           end
       | _ -> a
       end
@@ -418,7 +312,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
   let enter_pattern p = 
     begin match is_imp_option_type p.pat_env p.pat_type with
     | None -> ()
-    | Some ty ->
+    | Some (_, ty) ->
        (* Trouble:
             let f (x : a) = ... 
               let f ?imp:(i : 'a Show.__imp__) ...
@@ -449,14 +343,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | _ -> match is_imp e with
     | None -> e
 
-    | Some (`Imp1 lids) ->
-        forge1 lids e.exp_env e.exp_loc e.exp_type
-
-    | Some (`Imp2 lids) ->
-        forge2 lids e.exp_env e.exp_loc e.exp_type
-
-    | Some `Imp3 ->
-        forge3 e.exp_env e.exp_loc e.exp_type
+    | Some (policy, _loc) -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
 end
 
 module Map = TypedtreeMap.MakeMap(MapArg)
