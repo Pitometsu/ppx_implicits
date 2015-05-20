@@ -18,14 +18,18 @@ Test_(name) =
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ./build_and_go.sh $(name)
+    ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
+  out/$(name).out: $(name)$(EXE)
+    stdout = $(fopen out/$(name).out, w)
+    stderr = stdout
+    ./$(name)$(EXE)
   clean:
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
 
 Test(name) =
   Test_($(name))
-  .DEFAULT: $(name)$(EXE)
+  .DEFAULT: out/$(name).out
   export
 
 Test(imp)
@@ -38,3 +42,4 @@ Test_(inacc) # must fail
 Test(prop)
 Test(typeclass)
 Test(just)
+Test(opened)
