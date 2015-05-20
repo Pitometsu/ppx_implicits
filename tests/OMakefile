@@ -39,4 +39,4 @@ Test(imp4)
 Test_(inacc) # must fail
 Test(prop)
 Test(typeclass)
-
+Test(just)
