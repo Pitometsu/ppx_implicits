@@ -1,7 +1,9 @@
 module M = struct
   module Show = struct
     type 'a __imp__ = private 'a -> string
+    [%%imp_policy opened Show]
     external pack : _x:('a -> string) -> 'a __imp__ = "%identity"
+    let pack_opt ~_x = Some (pack ~_x)
   end
 end
     
@@ -18,15 +20,15 @@ end
 open M
 open X
 
-let () = assert (show [%imp2 Show] 1 = "1")
-let () = assert (show [%imp3] 1 = "1")
+let () = assert (show [%imp opened Show] 1 = "1")
+let () = assert (show [%imp] 1 = "1")
 
 
 let show (type a) ?imp = match imp with
   | None -> assert false
   | Some imp -> (imp : a M.Show.__imp__ :> a -> string)
 
-let () = assert (show ?imp:(Some [%imp3]) 1 = "1")
+let () = assert (show ?imp:(Some [%imp]) 1 = "1")
 let () = assert (show ?imp:None 1 = "1")
 let () = assert (show 1 = "1")
 
@@ -35,6 +37,7 @@ let () = assert (show 1 = "1")
 let show_twice ?imp x = show ?imp x ^ show ?imp x
 let () = assert (show_twice 1 = "11")
 
+(*
 (* derived auto *)
 let show_twice ?imp:(imp : 'a M.Show.__imp__ option) (x : 'a) =
   let module Z = struct
@@ -49,3 +52,4 @@ let show_twice ?imp:(imp : 'a M.Show.__imp__ option) (x : 'a) =
     
 let () = assert (show_twice 1 = "11")
   
+*)

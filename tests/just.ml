@@ -3,7 +3,7 @@ module Show = struct
   (* This takes only the direct members as instances.
      Values inside sub-modules are ignored.
   *)
-  [%%imp_policy Just Show] 
+  [%%imp_policy just Show] 
   let pack ~_x = Some (Packed _x)
   let unpack = function
     | None -> assert false

@@ -117,10 +117,10 @@ let () = assert (show_twice [%imp Show, Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
   and listing more modules is bit boring. Any good idea to facilitate this?
 
   Haskell uses module import to define the search space for type class instances
-  and we can borrow the idea: make use of open M.  [%imp2 Show]  
+  and we can borrow the idea: make use of open M.  [%imp Opened Show]  
   (or some better syntax) seek child module Show defined in explicitly 
   opened modules in the current context: if we have open X and X.Show exists,
-  X.Show is searched for [%imp2 Show].
+  X.Show is searched for [%imp Opened Show].
 
 *)
 
@@ -135,7 +135,7 @@ end
 open X
 open Y
 
-let () = assert (show_twice [%imp2 Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
+let () = assert (show_twice [%imp opened Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
 
@@ -154,10 +154,10 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
   ...
   end 
   
-  [%imp2 Show]
+  [%imp Opened Show]
 
-  Now X.Show is not accessible at the position of [%imp2 Show]. 
-  ppx is a source based solution.  If a recipe module N.M for [%imp2 M] is 
+  Now X.Show is not accessible at the position of [%imp Opened Show]. 
+  ppx is a source based solution.  If a recipe module N.M for [%imp Opened M] is 
   shadowed, it must warn or reject such shadowing.
 
 *)
@@ -167,7 +167,7 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
   Open extension:
 
-  show and show_twice normally use [%imp Show] or [%imp2 Show], so writing 
+  show and show_twice normally use [%imp Show] or [%imp Opened Show], so writing 
   Show everytime is boring. It would be better if we can omit writing Show like:
 
   show [%imp] 1
@@ -182,8 +182,10 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 module Z = struct
   module Show = struct
     type 'a __imp__ = private 'a
+    [%%imp_policy opened Show]        
     external pack : _d:'a -> 'a __imp__ = "%identity"
     (* private alias and %identity assure this wrapping is cost 0 *)
+    let pack_opt ~_d = Some (pack _d)
   end
 end
     
@@ -197,21 +199,21 @@ let () = assert (show (Z.Show.pack ~_d:X.Show.int) 1 = "1")
 
 open Z
 
-let () = assert ([%imp2 Show] 1 = "1")
-let () = assert (show [%imp2 Show] 1 = "1")
+let () = assert ([%imp opened Show] 1 = "1")
+let () = assert (show [%imp opened Show] 1 = "1")
 
 (*
 
-  We want to replace this [%imp2 Show] by [%imp3].
+  We want to replace this [%imp opened Show] by [%imp3].
 
   We introduce a conversion from [%imp3] of type (t1, .., tn) X.Y.Z.t
-  to                             [%imp2 Y]
+  to                             [%imp opened Y]
 
 *)
   
-let () = assert (show [%imp3] 1 = "1")
+let () = assert (show [%imp] 1 = "1")
 let x_show_twice imp x = show imp x ^ show imp x
-let () = assert (x_show_twice [%imp3] 1 = "11")
+let () = assert (x_show_twice [%imp] 1 = "11")
 
 (*
 
@@ -225,7 +227,7 @@ module W = struct
 
   (*
     
-    In this case, [%imp] : t Wohs.__imp__  is expanded to [%imp2 Show],
+    In this case, [%imp] : t Wohs.__imp__  is expanded to [%imp opened Show],
     expanding the type alias.
 
     If [%imp] : t X.__imp__   where X is fa functor parameter, what happens?
@@ -247,7 +249,7 @@ let show (type a) ?x:imp = match imp with
   | None -> assert false
   | Some imp -> (imp : (a -> string) Show.__imp__ :> (a -> string) ) 
 
-let () = assert (show ~x:[%imp3] 1 = "1")
+let () = assert (show ~x:[%imp] 1 = "1")
 
 (*
    

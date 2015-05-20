@@ -1,7 +1,9 @@
 module M = struct
   module Show = struct
     type 'a __imp__ = private 'a -> string
+    [%%imp_policy opened Show]
     external pack : _x:('a -> string) -> 'a __imp__ = "%identity"
+    let pack_opt _x = Some (pack _x)
   end
 end
     
@@ -20,6 +22,7 @@ end
 open M
 open X
 
+(*
 let show' ?imp:(i : 'a M.Show.__imp__ option) (x : 'a)  =
   let module Z = struct
     module Show = struct
@@ -32,3 +35,4 @@ let show' ?imp:(i : 'a M.Show.__imp__ option) (x : 'a)  =
   show ?imp:None x
 
 let () = assert (show' 1 = "1")
+*)
