@@ -13,7 +13,7 @@ open Longident
 
 type t = 
   | Or of t2 list
-  | Type
+  | Type (** [%imp].  No allowed in [%%imp_policy] *)
 
 and t2 = 
   | Opened of t3
