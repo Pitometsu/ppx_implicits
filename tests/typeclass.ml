@@ -96,6 +96,7 @@ open Show
 open Int
 open List'
 open Twin
+open Triple
  
 let () = assert (Show.show [1;2] = "[ 1; 2 ]")
 let () = assert (Show.show (1,2) = "( 1, 2 )")
