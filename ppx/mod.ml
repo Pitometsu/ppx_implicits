@@ -33,6 +33,20 @@ end
 
 open Types
 
+let is_imp_type env ty = 
+  match expand_repr_desc env ty with
+  | Tconstr (p, _, _) ->
+      begin match p with
+      | Pident {name = "__imp__"} -> Some (None, ty)
+      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
+      | _ -> None
+      end
+  | _ -> None
+
+let is_imp_option_type env ty = match is_option_type env ty with
+  | None -> None
+  | Some ty -> is_imp_type env ty
+
 let is_constraint_label l =
   let len = String.length l in
   len >= 2 && String.unsafe_get l 0 = '_'
@@ -41,6 +55,9 @@ let rec extract_constraint_labels env ty =
   let ty = Ctype.expand_head env ty in
   match repr_desc ty with
   | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
+      let cs, ty = extract_constraint_labels env ty2 in
+      (l,ty1)::cs, ty
+  | Tarrow(l, ty1, ty2, _) when Btype.is_optional l && is_imp_option_type env ty1 <> None ->
       let cs, ty = extract_constraint_labels env ty2 in
       (l,ty1)::cs, ty
   | _ -> [], ty
@@ -75,20 +92,6 @@ let close_gen_vars ty =
     | Tunivar _ -> ()
     | _ -> assert false) & gen_vars ty
     
-let is_imp_type env ty = 
-  match expand_repr_desc env ty with
-  | Tconstr (p, _, _) ->
-      begin match p with
-      | Pident {name = "__imp__"} -> Some (None, ty)
-      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
-      | _ -> None
-      end
-  | _ -> None
-
-let is_imp_option_type env ty = match is_option_type env ty with
-  | None -> None
-  | Some ty -> is_imp_type env ty
-
 let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
   | (trace,ty)::tr_tys ->
@@ -110,13 +113,6 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
         
              let cs, ivty = extract_constraint_labels env ivty in
 
-(*
-             eprintf "Got:@.";
-             flip iter cs (fun (l,ty) ->
-               eprintf "  %s:%a ->@." l Printtyp.type_expr ty);
-             eprintf "  %a@." Printtyp.type_expr ivty;
-*)
-             
              with_snapshot & fun () ->
                try
 
