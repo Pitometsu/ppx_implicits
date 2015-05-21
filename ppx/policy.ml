@@ -202,6 +202,7 @@ let scrape_sg env mdecl =
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
     | Mty_signature sg -> sg
+    | Mty_functor _ -> [] (* We do not scan the internals of functors *)
     | _ -> assert false
   with
   | e -> 
