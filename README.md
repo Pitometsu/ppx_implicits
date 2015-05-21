@@ -1,8 +1,9 @@
 # Value Implicits
 
-To say short this is an OCaml PPX preprocessor
-of type class or modular implicits built over value implicits,
-automatic value construction from types.
+`ppx_implicits` is an OCaml PPX preprocessor 
+for implicit values, implicit parameters, modular implicits and type classes.
+
+You can enjoy overloading with your official OCaml compiler (4.02.1), today!!
 
 ## How to build
 
@@ -18,26 +19,145 @@ $ omake
 
 `omake` should build `ppx/ppx_implicits` then test files under `tests/`.
 
-## Implicit values `[%imp M]`
+## Implicit values `[%imp POLICY]`
 
-Let's start to have functions to show various data types in one module Show.
+Special expression `[%imp POLICY]` is for *implicit values*, whose definitions are
+dependent on the context type of the expression and automatically composed from 
+the values specified by `POLICY`.
+
+For example, the expression `[%imp Show]` is expaneded using the values defined
+under module `Show`:
 
 ```ocaml
 module Show = struct
   let int = string_of_int
   let float = string_of_float
+end
+
+let () = assert ([%imp Show] 1 = "1")   
+(* [%imp Show] is expanded to Show.int *)
+
+let () = assert ([%imp Show] 1.0 = "1.")
+(* [%imp Show] is expanded to Show.float *)
+```
+
+The values for the composition are called *instances*. Instances can be combined recursively:
+
+```ocaml
+module Show2 = struct
+  include Show
+
   let list ~_d:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
   (* currently a label starts with '_' is required to express instance dependencies *)
 end
+
+let () = assert ([%imp Show] [ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]")
+(* [%imp Show] is expanded to Show2.(list ~_d:(list ~_d: int)) *)
 ```
 
-They work as follows. Pretty normal:
+The special label which starts with `_` attached to the argument of `Show2.list`
+denotes that the value is actually a higher order instance: `list` depends on another `instance`.
+
+
+## Instance search policies
+
+The policy is not a simple module path but forms a small DSL. For example, 
+you can list policies by `,` to accumulate instances:
 
 ```ocaml
-let () = assert (Show.int 1 = "1")
-let () = assert (Show.float 1.0 = "1.")
-let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
+module Show3 = struct
+  let list = Show2.list
+end
+
+let () = assert ([%imp Show, Show3] [ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]")
+(* [%imp Show] is expanded to Show3.list ~_d:(Show3.list ~_d: Show.int) *)
 ```
+
+You can also write `opened PATH` to specify multiple modules with name `PATH` 
+which exist just under the opened module paths. 
+This is like Haskell's `import` to specify class instances:
+
+```ocaml
+module MInt = struct
+  module Show = struct
+    let int = string_of_int
+  end
+end
+
+module MFloat = struct
+  module Show = struct
+    let float = string_of_float
+  end
+end
+
+module MList = struct
+  module Show = struct
+    let list ~_d:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
+  end
+end
+
+open MInt
+open MFloat
+open MList
+     
+let () = assert ([%imp opened Show] [ 1 ] = "[ 1 ]")
+(* Here, [%imp opened Show] is equivalent with [%imp MInt.Show, MFloat.Show, MList.Show] *)
+```
+
+## Implicit parameters for overloading
+
+We can define `show` function which takes an implicit value:
+
+```ocaml
+let show imp x = imp x
+
+let () = assert (show [%imp opened Show] 1.2 = "1.2")
+let () = assert (show [%imp opened Show] [ 1 ] = "[ 1 ]")
+```
+
+`show` works like an overloaded function... but it requires explicit application
+of an impliciti value.  For the real overloading, we want to omit this *dispatch* code.
+We can use OCaml's optional arguments:
+
+```ocaml
+let show ?imp x = match imp with
+  | None -> assert false
+  | Some imp -> imp x
+
+let () = assert (show 1.2 = "1.2")    (* it does not work! *)
+```
+
+Now we can omit the implicit value argument but it does not work lacking 
+the way to specify the default.  The optional parameter's default value:
+`?(imp=v)` does not help here since it is not type dependent.
+In addition, by omitting `[%imp POLICY]` argument, we have no information about
+which instance search policy  should be used for `show`. 
+Here we need to transfer the policy information from `[%imp POLICY]` to 
+the type world and associate `show` with it somehow:
+
+We first introduce a special type name `__imp__`
+
+
+-------
+
+
+```ocaml
+module ShowClass = struct
+  type 'a __imp__ = Packed of 'a -> string
+  [%%imp_policy opened Show]   (* specifies the policy for ?l:PATH.__imp__ *)
+
+  module Show = struct
+    let pack ~_d = Packed _d
+    let pack_opt ~_d = Some (Packed _d)
+  end
+
+  let unpack_opt = function None -> assert false | Some imp -> imp
+
+  let show ?imp = unpack_opt imp
+end
+```
+
+
 
 Let the compiler to create show functions for given type contexts by composing
 values defined in Show.  This is the idea of the value implicits.
