@@ -115,6 +115,8 @@ let () = assert (show [%imp opened Show] 1.2 = "1.2")
 let () = assert (show [%imp opened Show] [ 1 ] = "[ 1 ]")
 ```
 
+### Optional for Implicit
+
 `show` works like an overloaded function... but it requires explicit application
 of an impliciti value.  For the real overloading, we want to omit this *dispatch* code.
 We can use OCaml's optional arguments:
@@ -133,49 +135,95 @@ the way to specify the default.  The optional parameter's default value:
 In addition, by omitting `[%imp POLICY]` argument, we have no information about
 which instance search policy  should be used for `show`. 
 Here we need to transfer the policy information from `[%imp POLICY]` to 
-the type world and associate `show` with it somehow:
+the type world and associate `show` with it somehow.
 
-We first introduce a special type name `__imp__`
+### Instance search policy by type
 
+We first introduce a special type name `__imp__`. 
+We introduce a special expansion rule when an optional argument of type
 
--------
+```ocaml
+?l: t PATH.__imp__ ->
+```
 
+is omitted at applications: the omitted argument is replaced by 
+an explicit application of `~l:[%imp]`.
+
+`[%imp]`'s instance search policy is dependent on its type.  If `[%imp]`
+has a type `t PATH.__imp__`, then its policy is expected to be declared in
+module `PATH` using `[%%imp_policy POLICY]` declaration 
+(otherwise it is handled as an error). For example, if we have:
 
 ```ocaml
 module ShowClass = struct
-  type 'a __imp__ = Packed of 'a -> string
-  [%%imp_policy opened Show]   (* specifies the policy for ?l:PATH.__imp__ *)
-
-  module Show = struct
-    let pack ~_d = Packed _d
-    let pack_opt ~_d = Some (Packed _d)
-  end
-
-  let unpack_opt = function None -> assert false | Some imp -> imp
-
-  let show ?imp = unpack_opt imp
+  type 'a __imp__ = ...
+  [%%imp_policy opened ShowInstance]
+  ...
 end
 ```
 
+then `[%imp] : t ShowClass.__imp__` is equivalent with `[%imp opened Show]`.
 
+### Implicit parameters by optional parameter + poilcy by type
 
-Let the compiler to create show functions for given type contexts by composing
-values defined in Show.  This is the idea of the value implicits.
-
-`[%imp M]` means to create a value which matches with the current typing context
-composing the values defined in `M`.
+Combining the above two ideas, now we have:
 
 ```ocaml
-(* They are equilvalent with the above 3 lines *)
-let () = assert ([%imp Show] 1 = "1")
-let () = assert ([%imp Show] 1.0 = "1.")
-let () = assert ([%imp Show] [1;2] = "[ 1; 2 ]")
+module Show = struct
+  type 'a __imp__ = Packed of 'a
+  [%%imp_policy opened ShowInstance]
+
+  let unpack = function None -> assert false | Some (Packed x) -> x  
+  let show ?imp x = unpack imp x
+end
+
+module ShowBase = struct
+  module ShowInstance = struct
+    let pack ~_d = Show.Packed _d
+  end
+end
+
+module Int = struct
+  module ShowInstance = struct
+    let int = string_of_int
+  end
+end
+
+open ShowBase (* to make use of ShowBase.ShowInstance.pack as an instance *)
+open Int      (* to make use of Int.ShowInstance.int as an instance *)
 ```
 
-We call the candidates specified by `[%imp Show]` *instances*.
-
-### Deriving value implicits
+With this settings, `Show.show 1` now properly works getting a proper instance value
+for its implicit parameter:
+ 
+```
+let ()  = assert (Show.show 1 = "1")
+(* is a sugar of              Show.show ?imp:None 1
+   is replaced by             Show.show ~imp:[%imp] 1
+   which is equivalent with   Show.show ~imp:[%imp opened ShowInstance] 1
+   which is equivalent with   Show.show ~imp:[%imp ShowBase.ShowInstance, Int.ShowInstance] 1
+   and is finally expanded to Show.show ~imp:(ShowBase.ShowInstance.pack ~_d:Int.ShowInstance.int) 1
+*)
   
+```
+
+The type `'a __imp__` is almost equilvalent with `'a` but uses a variant 
+in order to prevent `t __imp__` from being expanded to `t`. 
+Otherwise, the type dependent policy management would not work correctly.
+Packing of instance value to `__imp__` type is done by `ShowBase.ShowInstance.pack`.
+Interestingly, this function can be used as an instance and the overload resolution
+automatically selects it to provide `__imp__` values.
+
+
+## Deriving value implicits
+  
+You can define type dependent values using other implicit values.
+The above overloaded value `show` is already sucn an example.
+
+
+
+
+
 Deriving value implicits.  You can defined higher order functions which take
 implicit values from the outer scope:
 
