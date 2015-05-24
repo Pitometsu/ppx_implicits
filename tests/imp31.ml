@@ -7,7 +7,7 @@ module M = struct
   end
 end
     
-let show (type a) ?imp = match imp with
+let show (type a) ?_imp = match _imp with
   | None -> assert false
   | Some imp -> (imp : a M.Show.__imp__ :> a -> string)
 
@@ -22,14 +22,14 @@ end
 open M
 open X
 
-let show' ?imp:(i : 'a M.Show.__imp__ option) (x : 'a)  =
+let show' ?_imp:(i : 'a M.Show.__imp__ option) (x : 'a)  =
   let module Z = struct
     module Show = struct
       let i = i
     end
   end in
   let open Z in
-  show ?imp:None x
+  show ?_imp:None x
 
 let () = assert (show' 1 = "1")
 

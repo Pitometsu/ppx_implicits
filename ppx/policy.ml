@@ -137,6 +137,13 @@ let from_payload = function
 
 open Types
 
+let from_type_decl = function
+  | { type_params = []
+    ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = _loc} ]
+    ; type_manifest = None } ->
+      Some (from_expression & from_string & unmangle id.Ident.name)
+  | _ -> None
+
 let from_module_type env mty =
 (*
 eprintf "from_module_type: @[%a@]@." Printtyp.modtype mty;
@@ -158,11 +165,7 @@ eprintf "from_module_type: @[%a@]@." Printtyp.modtype mty;
       | _ -> None
   with
   | [] -> None
-  | [ { type_params = []
-      ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = _loc} ]
-      ; type_manifest = None } ] ->
-      Some (from_expression & from_string & unmangle id.Ident.name)
-  | [_] -> assert false (* CR jfuruse: better error handling *)
+  | [td] -> from_type_decl td
   | _ -> assert false
 
 let from_module_path env mp =
