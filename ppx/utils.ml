@@ -30,6 +30,11 @@ module List = struct
   let concat_map f xs = concat (map f xs)
 end 
 
+module String = struct
+  include String
+  let is_prefix p s = try sub s 0 (length p) = p with _ -> false
+end
+
 module Format = struct
   include Format
 
@@ -51,4 +56,3 @@ let warn f =
   Format.eprintf "@[<2>Warning:@ ";
   f ();
   Format.eprintf "@]@.";
-

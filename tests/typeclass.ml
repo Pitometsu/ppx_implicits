@@ -20,7 +20,7 @@ module Show = struct
     let pack_opt ~_x = Some (IMP.Packed _x)
   end
 
-  let show (type a) ?imp = let module M = (val (IMP.unpack_opt imp : a t)) in M.show
+  let show (type a) ?_imp = let module M = (val (IMP.unpack_opt _imp : a t)) in M.show
 end
 
 
@@ -57,10 +57,10 @@ module Twin = struct
   module ShowInstance = struct
 
     let tuple (type b) ~_x:(_x : b Show.t) : (b * b) Show.t = 
-      let imp = Show.ShowInstance.pack ~_x in 
+      let _imp = Show.ShowInstance.pack ~_x in 
       let module M = struct
         type a = b * b
-        let show (x,y) = "( " ^ Show.show ~imp x ^ ", " ^ Show.show ~imp y ^ " )"
+        let show (x,y) = "( " ^ Show.show ~_imp x ^ ", " ^ Show.show ~_imp y ^ " )"
       end in
       (module M)
 
@@ -74,13 +74,6 @@ module Triple = struct
     open Show (* for Show.ShowInstance *)
 
     let tuple (type b) ~_x:(_x : b Show.t) : (b * b * b) Show.t = 
-
-      let module Z = struct
-        module ShowInstance = struct
-          let _x = _x
-        end
-      end in
-      let open Z in
 
       let module M = struct
         type a = b * b * b

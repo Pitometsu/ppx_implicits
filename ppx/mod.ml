@@ -33,31 +33,16 @@ end
 
 open Types
 
-let is_imp_type env ty = 
-  match expand_repr_desc env ty with
-  | Tconstr (p, _, _) ->
-      begin match p with
-      | Pident {name = "__imp__"} -> Some (None, ty)
-      | Pdot (p, "__imp__", _) -> Some (Some p, ty)
-      | _ -> None
-      end
-  | _ -> None
-
-let is_imp_option_type env ty = match is_option_type env ty with
-  | None -> None
-  | Some ty -> is_imp_type env ty
-
 let is_constraint_label l =
   let len = String.length l in
-  len >= 2 && String.unsafe_get l 0 = '_'
+  if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
+  else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
+  else None
 
 let rec extract_constraint_labels env ty = 
   let ty = Ctype.expand_head env ty in
   match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) when is_constraint_label l ->
-      let cs, ty = extract_constraint_labels env ty2 in
-      (l,ty1)::cs, ty
-  | Tarrow(l, ty1, ty2, _) when Btype.is_optional l && is_imp_option_type env ty1 <> None ->
+  | Tarrow(l, ty1, ty2, _) when is_constraint_label l <> None ->
       let cs, ty = extract_constraint_labels env ty2 in
       (l,ty1)::cs, ty
   | _ -> [], ty
@@ -105,6 +90,7 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                eprintf "@[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
                  Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
              []
+
          | _ ->
              let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding is no longer useful. Replace instead of add? *)
 
@@ -153,10 +139,14 @@ let rec resolve env cands : ((Path.t * type_expr) list * type_expr) list -> expr
                    Forge.Exp.(app (ident lid path) args) :: res
                with
                | _ -> []
+
+(* derived candidates *)
+let derived_candidates = ref []
           
 let resolve policy env loc ty = with_snapshot & fun () ->
   if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.print_loc loc;
   let cands = Policy.candidates loc env policy in
+  let cands = cands @ map snd !derived_candidates in
   close_gen_vars ty;
   if !Ppxx.debug_resolve then
     iter (fun (_lid, path, vdesc) ->
@@ -166,76 +156,118 @@ let resolve policy env loc ty = with_snapshot & fun () ->
   | [[e]] -> e
   | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty
 
+let imp_type_policy env ty =
+  match expand_repr_desc env ty with
+  | Tconstr (p, _, _) -> 
+      begin match p with
+      | Pident _ ->
+          (* __imp_policy__ must exit *)
+          let p, td = Env.lookup_type (Lident "__imp_policy__") env in
+          begin match p with
+          | Pident _ -> Policy.from_type_decl td
+          | _ -> (* found but defined in another module and opened *)
+              None
+          end
+      | Pdot (mp, _, _) -> 
+          (* mp.__imp_policy__ must exist *)
+          Some (Policy.from_module_path env mp)
+      | _ -> None
+      end
+  | _ -> None
+
+    
 let resolve_imp policy env loc ty =
   (* fix the policy if ty = __imp__ *)
   let policy = match policy with
     | Policy.Type ->
-        begin match is_imp_type env ty with
-        | None -> assert false
-        | Some (Some mp, _ty) -> Policy.from_module_path env mp
-        | Some _ -> assert false
+        begin match imp_type_policy env ty with
+        | None -> assert false (* must handle error *)
+        | Some p -> p
         end
     | _ -> policy
   in
   resolve policy env loc ty
 
 (* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
-let resolve_arg loc env = function
+let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
-  | (l, Some e, Optional as a) when Btype.is_optional l ->
+  | (l, Some e, Optional) when is_constraint_label l = Some `Optional ->
       begin match e.exp_desc with
       | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
-          begin match is_imp_option_type env e.exp_type with
-          | None -> a
-          | Some (Some mp, _ty) ->
-              let policy = Policy.from_module_path env mp in
-              (l, Some (resolve policy env loc e.exp_type), Optional)
-          | _ -> assert false (* error *)
+          begin match is_option_type env e.exp_type with
+          | None -> assert false
+          | Some ty ->
+              begin match imp_type_policy env ty with
+              | None -> a (* Think abount derived! *)
+              | Some policy ->
+                  (l, 
+                   Some begin try
+                      (* Try just [%imp] first *)
+                      resolve policy env loc e.exp_type
+                     with
+                     | _ ->
+                       (* If above failed, try Some [%imp] *)
+                       Forge.Exp.some & resolve policy env loc ty
+                   end,
+                   Optional)
+              end
           end
       | _ -> a
       end
-  | a -> a
+  | _ -> a
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
-  let generalized_imp_args = ref []
+  let create_function_id = 
+    let x = ref 0 in
+    fun () -> incr x; "__imp__function__" ^ string_of_int !x
 
-  let enter_pattern p = 
-    begin match is_imp_option_type p.pat_env p.pat_type with
-    | None -> ()
-    | Some (_, ty) ->
-       (* Trouble:
-            let f (x : a) = ... 
-              let f ?imp:(i : 'a Show.__imp__) ...
-        *)
-        let tvars = Ctype.free_variables ty in
-        let gtvars = filter (fun ty -> ty.level = Btype.generic_level) tvars in
-        if tvars = gtvars then
-          generalized_imp_args := (p,ty) :: !generalized_imp_args
-    end;
-    p
+  let is_function_id = String.is_prefix "__imp__function__"
 
   let enter_expression e = match e.exp_desc with
     | Texp_apply (f, args) ->
         { e with
           exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
 
-(*
-    | Texp_function (_, cases, _) ->
-        
-        scopes := map (fun {c_lhs; c_guard; c_rhs} ->
-          let es = match c_guard with
-            | None -> [c_rhs]
-            | Some e -> [e; c_rhs]
-          in
-          Hashtbl.replace scopes e.exp_loc (e, c_lhs)
-*)
-          
+    | Texp_function (l, _::_::_, _) when l <> "" ->
+        (* Eeek, label with multiple cases? *)
+        warn (fun () ->
+          eprintf "%a: Unexpected label with multiple function cases"
+            Location.print_loc e.exp_loc);
+        e
+           
+    | Texp_function (l, [case], e') when is_constraint_label l <> None ->
+        (* If a pattern has a form l:x where [is_constraint_label l],
+           then the value can be used as an instance of the same type.
+
+           Here, the problem is that [leave_expression] does not take the same expression
+           as here. Therefore we need small imperative trick. Attributes should be kept as they are...
+        *)
+        let fid = create_function_id () in
+        let id = Ident.create fid in
+        derived_candidates := (fid, (Longident.Lident fid, Path.Pident id, 
+                                     { val_type = case.c_lhs.pat_type;
+                                       val_kind = Val_reg;
+                                       val_loc = case.c_lhs.pat_loc; (* CR jfuruse: make it ghost *)
+                                       val_attributes = [] })) :: !derived_candidates;
+        let case = { case with c_lhs = Forge.Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc=case.c_lhs.pat_loc})) } in (* CR jfuruse: make the loc ghost *)
+        { e with exp_desc = Texp_function (l, [case], e');
+                 exp_attributes = ({txt=fid; loc=e.exp_loc}, PStr []) :: e.exp_attributes }
+
     | _ -> match is_imp e with
     | None -> e
 
     | Some (policy, _loc) -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
+
+  let leave_expression e = 
+    let ids, others = partition (function ({Location.txt}, Parsetree.PStr[]) -> is_function_id txt | _ -> false) e.exp_attributes in
+    match ids with
+    | [] -> e
+    | _::_::_ -> assert false 
+    | [({txt},_)] -> 
+        derived_candidates := List.filter (fun (fid, _) -> fid <> txt) !derived_candidates;
+        { e with exp_attributes = others }
 end
 
 module Map = TypedtreeMap.MakeMap(MapArg)
