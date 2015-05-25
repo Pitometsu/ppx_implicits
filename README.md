@@ -1,8 +1,10 @@
-# Value Implicits
+# NOTE
 
-NOTE: The basic tools of `ppx_implicits` are done, but their compositions are still updating.
+The basic tools of `ppx_implicits` are done, but their compositions are still updating.
 This document can change often and can be obsolete. Check files under `tests` directory which are
 sure to be working and up-to-date.
+
+# Value Implicits
 
 `ppx_implicits` is an OCaml PPX preprocessor 
 for implicit values, implicit parameters, modular implicits and type classes.
@@ -23,6 +25,14 @@ $ omake
 ```
 
 `omake` should build `ppx/ppx_implicits` then test files under `tests/`.
+
+## Oh it does not work with `ocaml`.
+
+`ppx_implicits` does not work with `ocaml` toplevel. Please use `ocamlc` or `ocamlopt`.
+This is due to the limitation of PPX framework, which cannot pass big information from
+preprocessing of one compilation unit to another. In the toplevel, the compilation unit
+is each toplevel expression and `ppx_implicits` cannot share important typing information
+between toplevel expressions. 
 
 ## Implicit values `[%imp POLICY]`
 
