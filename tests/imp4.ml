@@ -39,12 +39,6 @@ module X = struct
       end in (module Float)
     
     let list (type a) ~_d:(_d: a Z.Show.t) : a list Z.Show.t =
-      let module Y = struct
-        module Show = struct
-          let _d = _d
-        end
-      end in
-      let open Y in
       let module List = struct
         type a' = a list
         type a = a'
@@ -65,12 +59,6 @@ let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
 let () = assert (show_twice 1 = "11")
 
 let show_twice ?_imp:(i : 'a M.Show.__imp__ option) (x : 'a) =
-  let module P = struct
-    module Show = struct
-      let i = i
-    end
-  end in
-  let open P in
   show x ^ show x
 
 let () = assert (show_twice 1 = "11")

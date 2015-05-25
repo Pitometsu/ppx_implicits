@@ -23,12 +23,6 @@ open M
 open X
 
 let show' ?_imp:(i : 'a M.Show.__imp__ option) (x : 'a)  =
-  let module Z = struct
-    module Show = struct
-      let i = i
-    end
-  end in
-  let open Z in
   show ?_imp:None x
 
 let () = assert (show' 1 = "1")

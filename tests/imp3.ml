@@ -39,12 +39,6 @@ let () = assert (show_twice 1 = "11")
 
 (* derived auto *)
 let show_twice ?_imp:(imp : 'a M.Show.__imp__ option) (x : 'a) =
-  let module Z = struct
-    module Show = struct
-      let imp = imp
-    end
-  end in
-  let open Z in
   show x ^ show x
     
 let () = assert (show_twice 1 = "11")

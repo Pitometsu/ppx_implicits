@@ -75,13 +75,6 @@ module Triple = struct
 
     let tuple (type b) ~_x:(_x : b Show.t) : (b * b * b) Show.t = 
 
-      let module Z = struct
-        module ShowInstance = struct
-          let _x = _x
-        end
-      end in
-      let open Z in
-
       let module M = struct
         type a = b * b * b
         (* Tricky. We need (b * b * b) or the types of x, y and z become unrelated with b *)            
