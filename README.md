@@ -56,8 +56,8 @@ let () = assert ([%imp Show2] [ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ] = "[ [ 1 ]; [ 2; 
 (* [%imp Show] is expanded to Show2.(list ~_d:(list ~_d: int)) *)
 ```
 
-The special label which starts with `_` attached to the argument of `Show2.list`
-denotes that the value is actually a higher order instance: `list` depends on another `instance`.
+The special label which starts with `_` attached to the argument of `Show2.list` denotes that the value is 
+actually a higher order instance. It corresponds with Haskell's `=>` type.
 
 
 ## Instance search policies
@@ -132,7 +132,7 @@ let () = assert (show 1.2 = "1.2")    (* it does not work! *)
 
 Now we can omit the implicit value argument but it does not work lacking 
 the way to specify the default.  The optional parameter's default value:
-`?(imp=v)` does not help here since it is not type dependent.
+`?(_imp=v)` does not help here since it is not type dependent.
 In addition, by omitting `[%imp POLICY]` argument, we have no information about
 which instance search policy  should be used for `show`. 
 Here we need to transfer the policy information from `[%imp POLICY]` to 
@@ -140,80 +140,103 @@ the type world and associate `show` with it somehow.
 
 ### Instance search policy by type
 
-We first introduce a special type name `__imp__`. 
-We introduce a special expansion rule when an optional argument of type
+We introduce `[%imp]`, whose instance search policy is type-dependent:
+`[%imp]`'s type must be `(t1,..,tn) PATH.name` or `(t1,...,tn) PATH.name option`, or their alias.
+The module `PATH` provides the policy for it: it must have a special declaration 
+`[%%imp_policy POLICY]`.
+
+For example, if we have
 
 ```ocaml
-?l: t PATH.__imp__ ->
-```
-
-is omitted at applications: the omitted argument is replaced by 
-an explicit application of `?l:[%imp]`.
-
-`[%imp]`'s instance search policy is dependent on its type.  If `[%imp]`
-has a type `t PATH.__imp__`, then its policy is expected to be declared in
-module `PATH` using `[%%imp_policy POLICY]` declaration 
-(otherwise it is handled as an error). For example, if we have:
-
-```ocaml
-module ShowClass = struct
-  type 'a __imp__ = ...
-  [%%imp_policy opened ShowInstance]
-  ...
+module M = struct
+  type 'a t = ...
+  [%%imp_policy POLICY]
 end
 ```
 
-then `[%imp] : t ShowClass.__imp__` is equivalent with `[%imp opened Show]`.
+and `[%imp]` whose type is `int M.t` is equivalent with `[%imp POLICY]`.
+
+Let's use this `[%imp]` in an actual example:
+
+```ocaml
+module M = struct
+  type 'a t = Packed of 'a -> string
+  [%%imp_policy opened Show]
+end
+
+let show (M.Packed x) = x
+
+(* We use modules defined above *)
+open MInt
+open MFloat
+open MList
+     
+let () = assert (show [%imp] [ 1 ] = "[ 1 ]") (* [%imp] is expanded to [%imp opened Show] *)
+```
+
+We cannot define the type `M.t` simply as `type 'a t = 'a -> string`, since `M.t` must not be
+an alias. This is essential to associate data types and policies together.
+
+The form of the type of `[%imp]` is not only `(t1,...,tn) PATH.name` but also 
+can be `(t1,...,tn) PATH.name option`. This is for efficient handling implicit parameters.
 
 ### Implicit parameters by optional parameter + poilcy by type
 
-Combining the above two ideas, now we have:
+For optional arguments, we introduce a new expansion rule: 
+if an optional argument of label `?_LABEL` is omitted at application,
+it is expanded to `?_LABEL:[%imp]`. For example, if we have
 
 ```ocaml
-module Show = struct
-  type 'a __imp__ = Packed of 'a
-  [%%imp_policy opened ShowInstance]
+let show ?_imp x = match imp with
+  | Some imp -> imp x
+  | None -> assert fasle
+```
+
+then `show 1` which is a sugar of `show ?_imp:None 1` is expanded to `show ?_imp:[%imp] 1`.
+
+Combining this and `[%imp]`'s type depednent policy, now we have:
+
+```ocaml
+module ShowClass = struct
+  type 'a t = Packed of 'a -> string
+  [%%imp_policy opened Show]
 
   let unpack = function None -> assert false | Some (Packed x) -> x  
-  let show ?imp x = unpack imp x
 end
 
+let show ?_imp x = ShowClass.unpack _imp x
+
 module ShowBase = struct
-  module ShowInstance = struct
+  module Show = struct
     let pack ~_d = Show.Packed _d
     let pack_opt ~_d = Some (Show.Packed _d)
   end
 end
 
-module Int = struct
-  module ShowInstance = struct
-    let int = string_of_int
-  end
-end
-
 open ShowBase (* to make use of ShowBase.ShowInstance.pack as an instance *)
-open Int      (* to make use of Int.ShowInstance.int as an instance *)
+
+(* We use modules defined above *)
+open MInt
+open MFloat
+open MList
 ```
 
 With this settings, `Show.show 1` now properly works getting a proper instance value
 for its implicit parameter:
  
 ```
-let ()  = assert (Show.show 1 = "1")
-(* is a sugar of              Show.show ?imp:None 1
-   is replaced by             Show.show ?imp:[%imp] 1
-   which is equivalent with   Show.show ?imp:[%imp opened ShowInstance] 1
-   which is equivalent with   Show.show ?imp:[%imp ShowBase.ShowInstance, Int.ShowInstance] 1
-   and is finally expanded to Show.show ?imp:(ShowBase.ShowInstance.pack_opt ~_d:Int.ShowInstance.int) 1
+let ()  = assert (Show.show [ 1 ] = "[ 1 ]")
+(* is a sugar of              Show.show ?_imp:None [ 1 ]
+   is replaced by             Show.show ?_imp:[%imp] [ 1 ]
+   which is equivalent with   Show.show ?_imp:[%imp opened Show] [ 1 ]
+   which is equivalent with   Show.show ?_imp:[%imp ShowBase.Show, MInt.Show, MFloat.Show, MList.Show] [ 1 ]
+   and is finally expanded to Show.show ?_imp:(ShowBase.Show.pack_opt ~_d:(MList.Show.list ~_d:MInt.Show.int)) [ 1 ]
 *)
 ```
 
-The type `'a __imp__` is almost equilvalent with `'a` but uses a variant 
-in order to prevent `t __imp__` from being expanded to `t`. 
-Otherwise, the type dependent policy management would not work correctly.
-Packing of instance value to `__imp__` type is done by `ShowBase.ShowInstance.pack_opt`.
-Interestingly, this function can be used as an instance and the overload resolution
-automatically selects it to provide `__imp__` values.
+Thing to do: `open ShowBase` is always required to create a `t Show.t option` value from other instances. 
+We should have a way to omit this `open`.
+
 
 
 ## Deriving value implicits
@@ -221,10 +244,29 @@ automatically selects it to provide `__imp__` values.
 You can define type dependent values from other type dependent values:
 
 ```ocaml
-let show_twice ?imp x = Show.show ?imp x ^ Show.show ?imp x
+let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
 
 let () = assert (show_twice 1 = "11")
 ```
+
+`show_twice` function takes an implicit paramter `_imp` and delivers it to its internal uses of `show`.
+
+This is classic but requires explicit code of implicit value dispatch.  Actually you can let 
+`ppx_implicits` to wire up this dispatch code:
+
+```ocaml
+let show_twice ?_imp x = show x ^ show x
+```
+
+Function arguments start with `?_` or `_` are accumulated to implicit value instace space 
+inside their scope. This code is expanded to:
+
+```ocaml
+let show_twice ?_imp x = show ?_imp:None x ^ show ?_imp:None x (* sugar *)
+let show_twice ?_imp x = show ?_imp:[%imp] x ^ show ?_imp:[%imp] x (* by the rule for ?_LABEL:None *)
+let show_twice ?_imp x = show ?_imp:_imp x ^ show ?_imp:_imp x (* Since _imp is an instance for 'a ShowClass.t *)
+```
+
 
 
 ## Type classes or modular implicits via value implicits
