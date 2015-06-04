@@ -55,7 +55,7 @@ let is_imp e =
   in
   match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
-  | [Some x] -> Some x
+  | [Some x] -> Some (Policy.from_ok e.exp_loc x)
   | _ -> assert false (* multiple *)
   
 (* Create a type which can be unified only with itself *)
@@ -156,33 +156,34 @@ let resolve policy env loc ty = with_snapshot & fun () ->
   | [[e]] -> e
   | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty
 
-let imp_type_policy env ty =
+let imp_type_policy env loc ty =
   match expand_repr_desc env ty with
   | Tconstr (p, _, _) -> 
       begin match p with
       | Pident _ ->
           (* __imp_policy__ must exit *)
-          let p, td = Env.lookup_type (Lident "__imp_policy__") env in
-          begin match p with
-          | Pident _ -> Policy.from_type_decl td
-          | _ -> (* found but defined in another module and opened *)
-              None
-          end
+          let _p, td = 
+            try Env.lookup_type (Lident "__imp_policy__") env with
+            | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.print_loc loc
+          in
+          `Ok (Policy.from_type_decl td.type_loc td)
       | Pdot (mp, _, _) -> 
           (* mp.__imp_policy__ must exist *)
-          Some (Policy.from_module_path env mp)
-      | _ -> None
+          `Ok (Policy.from_module_path env mp)
+      | _ -> assert false (* F(X) *)
       end
-  | _ -> None
-
+  | _ -> `Error `Strange_type
     
 let resolve_imp policy env loc ty =
   (* fix the policy if ty = __imp__ *)
   let policy = match policy with
     | Policy.Type ->
-        begin match imp_type_policy env ty with
-        | None -> assert false (* must handle error *)
-        | Some p -> p
+        begin match imp_type_policy env loc ty with
+        | `Error `Strange_type ->
+            errorf "%a: [%%%%imp] has a bad type: %a" 
+              Location.print_loc loc
+              Printtyp.type_expr ty
+        | `Ok p -> p
         end
     | _ -> policy
   in
@@ -197,9 +198,9 @@ let resolve_arg loc env a = match a with
           begin match is_option_type env e.exp_type with
           | None -> assert false
           | Some ty ->
-              begin match imp_type_policy env ty with
-              | None -> a (* Think abount derived! *)
-              | Some policy ->
+              begin match imp_type_policy env loc ty with
+              | `Error `Strange_type -> a (* Think abount derived! *)
+              | `Ok policy ->
                   (l, 
                    Some begin try
                       (* Try just [%imp] first *)
@@ -258,7 +259,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | _ -> match is_imp e with
     | None -> e
 
-    | Some (policy, _loc) -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
+    | Some policy -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
 
   let leave_expression e = 
     let ids, others = partition (function ({Location.txt}, Parsetree.PStr[]) -> is_function_id txt | _ -> false) e.exp_attributes in
