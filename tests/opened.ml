@@ -21,7 +21,7 @@ module ShowClass = struct
   let unpack = function
     | None -> assert false
     | Some (Packed f) -> f
-  let show ?imp = unpack imp
+  let show ?_imp = unpack _imp
 end
 
 open X

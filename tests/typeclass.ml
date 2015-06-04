@@ -1,77 +1,96 @@
-module Z = struct
-  module Show = struct
-    module type Show = sig
-      type a
-      val show : a -> string
-    end
-  
-    type 'a t = (module Show with type a = 'a)
+module Show = struct
+
+  module type S = sig
+    type a
+    val show : a -> string
   end
+
+  type 'a t = (module S with type a = 'a)
+
+  module IMP = struct
+    type 'a __imp__ = Packed of (module S with type a = 'a)
+    [%%imp_policy opened ShowInstance]
+    let unpack (Packed x) = x
+    let unpack_opt = function None -> assert false | Some (Packed x) -> x
+  end
+
+  (* This forces users to open Show... This is not good. *)
+  module ShowInstance = struct
+    let pack ~_x = IMP.Packed _x
+    let pack_opt ~_x = Some (IMP.Packed _x)
+  end
+
+  let show (type a) ?_imp = let module M = (val (IMP.unpack_opt _imp : a t)) in M.show
 end
 
-module M = struct
-  module Show = struct
-    type 'a __imp__ = private 'a Z.Show.t
-      [%%imp_policy opened Show]
-    external pack' : 'a Z.Show.t-> 'a __imp__ = "%identity"
-    let pack ~_x = Some (pack' _x)
-  end
-end
 
-open M
-  
-let show (type a) ?imp = match imp with
-  | None -> assert false
-  | Some imp -> let module D = (val (imp : a M.Show.__imp__ :> a Z.Show.t) ) in D.show
+module Int = struct
+  module ShowInstance = struct
 
-module X = struct
-  module Show = struct
-    let int : int Z.Show.t =
-      let module Int = struct
+    let int : int Show.t = 
+      let module M = struct
         type a = int
-        let show = string_of_int
-      end in (module Int)
-    
-    let float : float Z.Show.t = 
-      let module Float = struct
-        type a = float
-        let show = string_of_float
-      end in (module Float)
-    
-    let list (type a) ~_d:(_d: a Z.Show.t) : a list Z.Show.t =
-      let module Y = struct
-        module Show = struct
-          let _d = _d
-        end
+        let show  = string_of_int
       end in
-      let open Y in
-      let module List = struct
-        type a' = a list
-        type a = a'
-        (* Need type constraint so that the internal use of Show.show can be resovled *)
-        let show (xs : a) = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
-      end in (module List)
+      (module M)
+
   end
 end
 
-open X
+(* Example of explicit dispatch code *)
+module List' = struct
+  module ShowInstance = struct
 
-let () = assert (show 1 = "1")
-let () = assert (show 1.0 = "1.")
-let () = assert (show [1;2;3] = "[ 1; 2; 3 ]") 
-let () = assert (show [[1]; [2;3]; [4;5;6]] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]")
+    let list (type a) ~_x:(_x : a Show.t) : a list Show.t = 
+      let module M(X : Show.S) = struct
+        type a = X.a list
+        let show xs = "[ " ^ String.concat "; " (List.map X.show xs) ^ " ]"
+      end in
+      let module Y = M( (val _x) ) in
+      (module Y)
 
-let show_twice ?imp x = show ?imp x ^ show ?imp x
-let () = assert (show_twice 1 = "11")
+  end
+end
 
-let show_twice ?imp:(i : 'a M.Show.__imp__ option) (x : 'a) =
-  let module P = struct
-    module Show = struct
-      let i = i
-    end
-  end in
-  let open P in
-  show x ^ show x
+(* Slightly simple version w/o a functor *)
+module Twin = struct
+  module ShowInstance = struct
 
-let () = assert (show_twice 1 = "11")
+    let tuple (type b) ~_x:(_x : b Show.t) : (b * b) Show.t = 
+      let _imp = Show.ShowInstance.pack ~_x in 
+      let module M = struct
+        type a = b * b
+        let show (x,y) = "( " ^ Show.show ~_imp x ^ ", " ^ Show.show ~_imp y ^ " )"
+      end in
+      (module M)
 
+  end
+end
+
+(* Let ppx_implicits wire the dispatch code automatically *)
+module Triple = struct
+  module ShowInstance = struct
+
+    open Show (* for Show.ShowInstance *)
+
+    let tuple (type b) ~_x:(_x : b Show.t) : (b * b * b) Show.t = 
+
+      let module M = struct
+        type a = b * b * b
+        (* Tricky. We need (b * b * b) or the types of x, y and z become unrelated with b *)            
+        let show (x,y,z : b * b * b) = "( " ^ Show.show x ^ ", " ^ Show.show y ^ ", " ^ Show.show z ^ " )"
+      end in
+      (module M)
+
+  end
+end
+
+open Show
+open Int
+open List'
+open Twin
+open Triple
+ 
+let () = assert (Show.show [1;2] = "[ 1; 2 ]")
+let () = assert (Show.show (1,2) = "( 1, 2 )")
+let () = assert (Show.show (1,2,3) = "( 1, 2, 3 )")

@@ -13,7 +13,7 @@ open Longident
 
 type t = 
   | Or of t2 list
-  | Type
+  | Type (** [%imp].  No allowed in [%%imp_policy] *)
 
 and t2 = 
   | Opened of t3
@@ -40,6 +40,7 @@ let to_string =
   t 
 
 let prefix = "Policy_"
+let prefix_len = String.length prefix
 
 (* convert an arbitrary string to Lexer.identchar's
    '_' is a special char. 
@@ -61,95 +62,120 @@ let mangle s =
 
 (* CR jfuruse: need tests *)
 let unmangle s = 
-  let prefix_len = String.length prefix in
-  assert (String.sub s 0 prefix_len = prefix); (* better error handling *)
-  let s = String.sub s prefix_len (String.length s - prefix_len) in
-  let len = String.length s in
-  let b = Buffer.create len in
-  let rec f i = 
-    if i = len then ()
-    else begin
-      let c = String.unsafe_get s i in
-      match c with
-      | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c; f & i+1
-      | '_' -> 
-          begin match s.[i+1] with
-          | '_' -> Buffer.add_char b '_'; f & i+2
-          | _ ->
-              let hex = String.sub s (i+1) 2 in
-              let c = Char.chr & int_of_string & "0x" ^ hex in
-              Buffer.add_char b c;
-              f & i+3
-      end
-      | _ -> assert false (* CR jfuruse: need error handling *)
-    end
-  in
-  f 0;
-  Buffer.contents b
+  try
+    if not & String.is_prefix prefix s then raise Exit
+    else
+      let s = String.sub s prefix_len (String.length s - prefix_len) in
+      let len = String.length s in
+      let b = Buffer.create len in
+      let rec f i = 
+        if i = len then ()
+        else begin
+          let c = String.unsafe_get s i in
+          match c with
+          | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c; f & i+1
+          | '_' -> 
+              begin match s.[i+1] with
+              | '_' -> Buffer.add_char b '_'; f & i+2
+              | _ ->
+                  let hex = String.sub s (i+1) 2 in
+                  let c = Char.chr & int_of_string & "0x" ^ hex in
+                  Buffer.add_char b c;
+                  f & i+3
+              end
+          | _ -> raise Exit
+        end
+      in
+      f 0;
+      `Ok (Buffer.contents b)
+  with
+  | Failure s -> `Error (`Failed_unmangle s)
 
 let from_string s = 
   let lexbuf = Lexing.from_string s in
-  try Parser.parse_expression Lexer.token lexbuf with
-  | e -> 
-      eprintf "policy parse error at: %S@." s;
-      raise e
+  try `Ok (Parser.parse_expression Lexer.token lexbuf) with
+  | _ -> `Error (`Parse s)
 
 let from_expression e = 
-  let get_lid e = match e.pexp_desc with
-    | Pexp_construct ({txt=lid}, None) -> Some lid
-    | _ -> None
-  in
-  let rec t e = match e.pexp_desc with
-    | Pexp_tuple xs -> Or (map t2 xs)
-    | _ -> Or [t2 e]
-  and t2 e = match e.pexp_desc with
-    | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
-                  ["", e] ) -> Opened (t3 e)
-    | _ -> Direct (t3 e)
-  and t3 e = match e.pexp_desc with
-    | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
-                  ["", e] ) -> 
-        begin match get_lid e with
-        | Some lid -> Just lid
-        | None -> assert false (* error *)
-        end
-    | Pexp_construct ({txt=lid}, None) -> In lid
-    | _ -> failwith "illegal policy expression"
-  in
-  t e
+  try
+    let get_lid e = match e.pexp_desc with
+      | Pexp_construct ({txt=lid}, None) -> Some lid
+      | _ -> None
+    in
+    let rec t e = match e.pexp_desc with
+      | Pexp_tuple xs -> Or (map t2 xs)
+      | _ -> Or [t2 e]
+    and t2 e = match e.pexp_desc with
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
+                    ["", e] ) -> Opened (t3 e)
+      | _ -> Direct (t3 e)
+    and t3 e = match e.pexp_desc with
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
+                    ["", e] ) -> 
+          begin match get_lid e with
+          | Some lid -> Just lid
+          | None -> failwith "just requires an argument"
+          end
+      | Pexp_construct ({txt=lid}, None) -> In lid
+      | _ -> failwith "illegal policy expression"
+    in
+    `Ok (t e)
+  with
+  | Failure s -> `Error (`ParseExp (e, s))
 
 let from_structure str =
   match str with
-  | [] -> Type, Location.none
-  | _::_::_ -> failwith "multiple implicit policies are not allowed"
+  | [] -> `Ok Type
+  | _::_::_ -> 
+      `Error (`String "multiple implicit policies are not allowed")
   | [sitem] ->
       match sitem.pstr_desc with
       | Pstr_eval (e, _) ->
-          from_expression e, e.pexp_loc
+          from_expression e
       | _ ->
-          failwith "policy must be an OCaml expression"
+          `Error (`String "policy must be an OCaml expression")
+
+let from_ok loc = function
+  | `Ok v -> v
+  | `Error (`String s) -> errorf "%a: %s" Location.print_loc loc s
+  | `Error (`Failed_unmangle s) -> 
+      errorf "%a: Illegal policy encoding: %S" Location.print_loc loc s
+  | `Error (`Parse s) ->
+      errorf "%a: Policy parse failed: %S" Location.print_loc loc s
+  | `Error (`ParseExp (_, s)) ->
+      errorf "%a: Policy parse failed: %s" Location.print_loc loc s
 
 let from_payload = function
   | PStr s -> from_structure s
-  | _ -> assert false (* CR jfuruse: better error handling *)
+  | _ -> `Error (`String "policy must be an OCaml expression")
 
 (* typed world *)
 
 open Types
 
-let from_module_type env mty =
-(*
-eprintf "from_module_type: @[%a@]@." Printtyp.modtype mty;
-*)
+let from_type_decl loc = function
+  | { type_params = []
+    ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
+    ; type_manifest = None } ->
+      let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
+      from_ok loc & 
+        unmangle id.Ident.name >>= fun x -> 
+        from_string x >>= fun x ->
+        from_expression x
+  | _ -> 
+      errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.print_loc loc
+
+let from_module_type env mp loc mty =
   let sg = 
     try
       match Env.scrape_alias env @@ Mtype.scrape env mty with
       | Mty_signature sg -> sg
       | _ -> assert false
     with
-    | e -> 
-        eprintf "scraping failed: %s" & Printexc.to_string e;
-        raise e
+    | _ -> 
+        errorf "%a: Scraping failure of module %a"
+          Location.print_loc loc
+          Path.format mp
   in
   match 
     flip filter_map sg & function
@@ -158,19 +184,16 @@ eprintf "from_module_type: @[%a@]@." Printtyp.modtype mty;
       | _ -> None
   with
   | [] -> None
-  | [ { type_params = []
-      ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = _loc} ]
-      ; type_manifest = None } ] ->
-      Some (from_expression & from_string & unmangle id.Ident.name)
-  | [_] -> assert false (* CR jfuruse: better error handling *)
+  | [td] -> Some (from_type_decl loc td)
   | _ -> assert false
 
 let from_module_path env mp =
   let md = Env.find_module mp env in (* CR jfuruse: Error *)
-  match from_module_type env md.md_type with
+  match from_module_type env mp md.md_loc md.md_type with
   | None -> 
-      eprintf "policy not found in %a@." Printtyp.modtype md.md_type;
-      assert false (* error *)
+      errorf "%a: Module %a has no implicit policy declaration [%%%%imp_policy POLICY]@." 
+        Location.print_loc md.md_loc
+        Path.format mp
   | Some policy -> policy
 
 let check_module loc env lid =
@@ -202,6 +225,7 @@ let scrape_sg env mdecl =
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
     | Mty_signature sg -> sg
+    | Mty_functor _ -> [] (* We do not scan the internals of functors *)
     | _ -> assert false
   with
   | e -> 

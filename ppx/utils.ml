@@ -30,6 +30,11 @@ module List = struct
   let concat_map f xs = concat (map f xs)
 end 
 
+module String = struct
+  include String
+  let is_prefix p s = try sub s 0 (length p) = p with _ -> false
+end
+
 module Format = struct
   include Format
 
@@ -39,8 +44,7 @@ module Format = struct
     kfprintf (fun ppf -> pp_print_flush ppf (); f (Buffer.contents buf)) ppf fmt
 end
 
-let errorf fmt =
-  Format.ksprintf (fun s -> prerr_endline s; exit 1) fmt
+let errorf fmt = Format.ksprintf (fun s -> prerr_endline s; exit 1) fmt
 
 let protect f = try `Ok (f ()) with e -> `Error e
 let unprotect = function
@@ -51,4 +55,3 @@ let warn f =
   Format.eprintf "@[<2>Warning:@ ";
   f ();
   Format.eprintf "@]@.";
-

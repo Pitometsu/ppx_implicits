@@ -8,7 +8,7 @@ module Show = struct
   let unpack = function
     | None -> assert false
     | Some (Packed x) -> x
-  let show ?imp = unpack imp
+  let show ?_imp = unpack _imp
   module Sub = struct
     let int (x:int) = "hello" (* this should not be chosen *)
   end

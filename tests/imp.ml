@@ -245,11 +245,11 @@ end
 
 *)
 
-let show (type a) ?x:imp = match imp with
+let show (type a) ?_x:imp = match imp with
   | None -> assert false
   | Some imp -> (imp : (a -> string) Show.__imp__ :> (a -> string) ) 
 
-let () = assert (show ~x:[%imp] 1 = "1")
+let () = assert (show ~_x:[%imp] 1 = "1")
 
 (*
    
@@ -260,7 +260,7 @@ let () = assert (show ~x:[%imp] 1 = "1")
 
 *)
 
-let () = assert (show ?x:None 1 = "1")
+let () = assert (show ?_x:None 1 = "1")
 
 (*
 

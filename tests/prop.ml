@@ -27,7 +27,7 @@ module ShowImp = struct
   include Show2
 end
 
-let show ?imp x = ShowImp.unpack imp x
+let show ?_imp x = ShowImp.unpack _imp x
 
 let () = assert ( show 1 = "1" )
 

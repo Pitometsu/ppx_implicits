@@ -24,27 +24,21 @@ let () = assert (show [%imp opened Show] 1 = "1")
 let () = assert (show [%imp] 1 = "1")
 
 
-let show (type a) ?imp = match imp with
+let show (type a) ?_imp = match _imp with
   | None -> assert false
   | Some imp -> (imp : a M.Show.__imp__ :> a -> string)
 
-let () = assert (show ?imp:(Some [%imp]) 1 = "1")
-let () = assert (show ?imp:None 1 = "1")
+let () = assert (show ?_imp:(Some [%imp]) 1 = "1")
+let () = assert (show ?_imp:None 1 = "1")
 let () = assert (show 1 = "1")
 
 (* derived *)
   
-let show_twice ?imp x = show ?imp x ^ show ?imp x
+let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
 let () = assert (show_twice 1 = "11")
 
 (* derived auto *)
-let show_twice ?imp:(imp : 'a M.Show.__imp__ option) (x : 'a) =
-  let module Z = struct
-    module Show = struct
-      let imp = imp
-    end
-  end in
-  let open Z in
+let show_twice ?_imp:(imp : 'a M.Show.__imp__ option) (x : 'a) =
   show x ^ show x
     
 let () = assert (show_twice 1 = "11")
