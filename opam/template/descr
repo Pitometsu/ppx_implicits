@@ -1,4 +1,4 @@
-ppx_implicits: ppx extension for implicits: type dependent values for overloading.
+ppx_implicits: ppx extension for implicits, overloading and type classes.
 ppx_implicits
 =================================
 
