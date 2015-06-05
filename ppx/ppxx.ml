@@ -47,11 +47,18 @@ end
 module Path = struct
   include Path
 
+  let rec format_verbose ppf =
+    let open Format in
+    function
+      | Pident id -> Ident.format ppf id
+      | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format_verbose p name n
+      | Papply (p1, p2) -> fprintf ppf "%a(%a)" format_verbose p1 format_verbose p2
+
   let rec format ppf =
     let open Format in
     function
       | Pident id -> Ident.format ppf id
-      | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format p name n
+      | Pdot (p, name, _n) -> fprintf ppf "%a.%s" format p name
       | Papply (p1, p2) -> fprintf ppf "%a(%a)" format p1 format p2
 end
   
