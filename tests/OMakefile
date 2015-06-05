@@ -35,6 +35,7 @@ Test_(name) =
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
 
+# omake test_ocamlfind tests things using installed ppx_implicits
 .PHONY: test_ocamlfind
 
 Test(name) =
