@@ -23,13 +23,24 @@ Test_(name) =
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
     ./$(name)$(EXE)
+
+  $(name)_test_ocamlfind$(EXE): $(name).ml
+    mkdir_if_not_exists(out)
+    ocamlfind ocamlc -package ppx_implicits -o $(name)_test_ocamlfind$(EXE) $(name).ml
+  out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(EXE)
+    stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
+    stderr = stdout
+    ./$(name)$(EXE)
   clean:
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
 
+.PHONY: test_ocamlfind
+
 Test(name) =
   Test_($(name))
   .DEFAULT: out/$(name).out
+  test_ocamlfind: out/$(name)_test_ocamlfind.out
   export
 
 Test(imp)
