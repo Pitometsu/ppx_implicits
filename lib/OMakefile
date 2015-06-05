@@ -8,6 +8,11 @@ FILES[] =
 
 LIB = ppx_implicits
 
+MyOCamlPackageExtras[] =
+    ../ppx/ppx_implicits.run
+    ../ppx/ppx_implicits.opt
+    ../ppx/ppx_implicits$(EXE)
+
 MyOCamlPackage($(LIB), $(FILES), $(EMPTY), $(EMPTY))
 
 WithMerlin()
