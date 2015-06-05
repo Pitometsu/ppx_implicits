@@ -1,0 +1,6 @@
+depends: [
+  "ocamlfind"
+  "omake"
+  "ppx_tools"
+]
+ocaml-version: [= "4.02.1"]

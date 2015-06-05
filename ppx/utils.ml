@@ -44,8 +44,7 @@ module Format = struct
     kfprintf (fun ppf -> pp_print_flush ppf (); f (Buffer.contents buf)) ppf fmt
 end
 
-let errorf fmt =
-  Format.ksprintf (fun s -> prerr_endline s; exit 1) fmt
+let errorf fmt = Format.ksprintf (fun s -> prerr_endline s; exit 1) fmt
 
 let protect f = try `Ok (f ()) with e -> `Error e
 let unprotect = function
