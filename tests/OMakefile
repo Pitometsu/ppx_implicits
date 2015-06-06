@@ -30,9 +30,9 @@ Test_(name) =
   out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(EXE)
     stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
     stderr = stdout
-    ./$(name)$(EXE)
+    ./$(name)_test_ocamlfind$(EXE)
   clean:
-    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE) $(name)_test_ocamlfind$(EXE)
   export
 
 # omake test_ocamlfind tests things using installed ppx_implicits
