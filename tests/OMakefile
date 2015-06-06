@@ -14,11 +14,11 @@ OCamlRequire($(PPX))
   $(PPX) -debug $< > $@
 
 Test_(name) =
-  $(name)$(EXE): $(name).ml $(PPX)
+  $(name)$(EXE): $(name).ml $(PPX) ../lib/ppx_implicits.cmo
     mkdir_if_not_exists(out)
-    $(PPX) -debug $(name).ml > out/$(name).ml
-    ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
+    $(PPX) -debug $(name).ml -I ../lib > out/$(name).ml
+    ocamlc -ppx $(PPX) -I ../lib -i $(name).ml > out/$(name).mli
+    ocamlc -ppx $(PPX) -I ../lib ../lib/ppx_implicits.cmo -o $(name)$(EXE) $(name).ml
   out/$(name).out: $(name)$(EXE)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
