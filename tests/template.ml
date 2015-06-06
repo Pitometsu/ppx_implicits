@@ -3,7 +3,7 @@
 *)
 
 module Show = struct
-  include Ppx_implicits.Implicits.Make(struct  type 'a t = 'a -> string end)
+  include Ppx_implicits.Implicits.Make(struct type 'a t = 'a -> string end)
   [%%imp_policy Show.Instance, opened ShowInstance]
 end
 
