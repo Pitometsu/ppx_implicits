@@ -33,23 +33,31 @@ end
 
 open Types
 
-let is_constraint_label aggressive l =
-  if aggressive then
-    Some (if Btype.is_optional l then `Optional else `Normal)
-  else
-    let len = String.length l in
-    if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
-    else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
-    else None
+let is_constraint_label l =
+  let len = String.length l in
+  if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
+  else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
+  else None
 
-let rec extract_constraint_labels env aggressive ty = 
+(* Constraint labels must precede the other arguments *)
+let rec extract_constraint_labels env ty = 
   let ty = Ctype.expand_head env ty in
   match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) when is_constraint_label aggressive l <> None ->
-      let cs, ty = extract_constraint_labels env aggressive ty2 in
+  | Tarrow(l, ty1, ty2, _) when is_constraint_label l <> None ->
+      let cs, ty = extract_constraint_labels env ty2 in
       (l,ty1)::cs, ty
   | _ -> [], ty
 
+let rec extract_constraint_labels_aggressively env ty =
+  let ty = Ctype.expand_head env ty in
+  match repr_desc ty with
+  | Tarrow(l, ty1, ty2, _) ->
+      ([], ty)
+      :: map
+        (fun (cs, ty) -> (l,ty1)::cs, ty)
+        (extract_constraint_labels_aggressively env ty2)
+  | _ -> [[], ty]
+    
 let is_imp e = 
   let imps = 
     flip map e.exp_attributes (function 
@@ -86,8 +94,14 @@ let derived_candidates = ref []
 let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
   | [] -> [[]]
   | (trace,ty)::tr_tys ->
-      let cands = get_cands ty in
-      concat & flip map cands & fun (lid,path,vdesc,aggressive) ->
+      let cands =
+        let cs = get_cands ty in
+        concat & map (fun (lid, path, vdesc, aggressive) ->
+          if not aggressive then [(lid, path, vdesc, extract_constraint_labels env vdesc.val_type)]
+          else map (fun cs_ty -> (lid, path, vdesc, cs_ty)) & 
+            extract_constraint_labels_aggressively env vdesc.val_type) cs
+      in
+      concat & flip map cands & fun (lid,path,_vdesc,(cs,vty)) ->
          match
            try Some (assoc path trace) with _ -> None
          with
@@ -102,9 +116,13 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
              let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding is no longer useful. Replace instead of add? *)
 
              let ity = Ctype.instance env ty in
-             let ivty = Ctype.instance env vdesc.val_type in
         
-             let cs, ivty = extract_constraint_labels env aggressive ivty in
+             let ivty, cs =
+               match Ctype.instance_list env (vty::map snd cs) with
+               | [] -> assert false
+               | ivty :: ictys ->
+                   ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
+             in
 
              with_snapshot & fun () ->
                try
@@ -195,7 +213,7 @@ let resolve_imp policy env loc ty =
 (* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
-  | (l, Some e, Optional) when is_constraint_label false l = Some `Optional ->
+  | (l, Some e, Optional) when is_constraint_label l = Some `Optional ->
       begin match e.exp_desc with
       | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
           begin match is_option_type env e.exp_type with
@@ -241,7 +259,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
             Location.print_loc e.exp_loc);
         e
            
-    | Texp_function (l, [case], e') when is_constraint_label false l <> None ->
+    | Texp_function (l, [case], e') when is_constraint_label l <> None ->
         (* If a pattern has a form l:x where [is_constraint_label l],
            then the value can be used as an instance of the same type.
 
