@@ -117,8 +117,11 @@ let from_expression e =
       | Pexp_tuple xs -> Or (map t2 xs)
       | _ -> Or [t2 e]
     and t2 e = match e.pexp_desc with
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "aggressive"} },
+                    ["", e] ) -> Aggressive (t2 e)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
                     ["", e] ) -> Opened (t3 e)
+      | Pexp_ident {txt=Lident "related"} -> Related
       | _ -> Direct (t3 e)
     and t3 e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
