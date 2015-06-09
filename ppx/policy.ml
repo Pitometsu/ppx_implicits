@@ -11,6 +11,7 @@ open Format
 open Ppxx
 open Longident
 
+(** spec dsl *)
 type t = 
   | Or of t2 list
   | Type (** [%imp].  No allowed in [%%imp_policy] *)
@@ -18,11 +19,19 @@ type t =
 and t2 = 
   | Opened of t3
   | Direct of t3
+  | Aggressive of t2
+  | Related
 
 and t3 =
   | In of Longident.t
   | Just of Longident.t
 
+let rec is_static = function
+  | Opened _ -> true
+  | Direct _ -> true
+  | Aggressive t2 -> is_static t2
+  | Related -> false
+    
 let to_string = 
   let open Format in
   let rec t = function
@@ -33,9 +42,11 @@ let to_string =
   and t2 = function
     | Direct x -> t3 x
     | Opened x -> Printf.sprintf "opened (%s)" (t3 x)
+    | Related -> "related"
+    | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
   and t3 = function
-    | In lid -> ksprintf (fun x -> x) "%a" Pprintast.default#longident lid
-    | Just lid -> ksprintf (fun x -> x) "just %a" Pprintast.default#longident lid
+    | In lid -> ksprintf (fun x -> x) "%a" Longident.format lid
+    | Just lid -> ksprintf (fun x -> x) "just %a" Longident.format lid
   in
   t 
 
@@ -196,7 +207,7 @@ let from_module_path env mp =
         Path.format mp
   | Some policy -> policy
 
-let check_module loc env lid =
+let check_module env loc lid =
   match 
     (* CR jfuruse: what is load parameter? *)  
     try Some (Env.lookup_module ~load:true lid env) with _ -> None
@@ -211,6 +222,11 @@ let check_module loc env lid =
           errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
       | Some mdecl -> mdecl
 
+(** result *)
+type res =
+  | Static of Ppxx.Longident.t * Path.t * Types.value_description
+  | Dynamic of (Types.type_expr -> (Ppxx.Longident.t * Path.t * Types.value_description) list)
+          
 let check_value env lid =
   try
     let path, vdesc = Env.lookup_value lid env in
@@ -221,6 +237,22 @@ let check_value env lid =
         eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
       None
   
+let check_module_path_accessibility env loc path =
+  let lid = Untypeast.lident_of_path path in
+  try
+    if path <> Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env then begin
+      warn (fun () ->
+        eprintf "%a: %a is not accessible in the current scope therefore ignored." Location.print_loc loc Path.format path);
+      `Shadowed
+    end else
+      `Accessible (lid, Env.find_module path env)
+  with
+  | _ ->
+      warn (fun () ->
+        eprintf "%a: ?!?!? %a is not found in the environment." Location.print_loc loc Path.format path);
+      `Not_found
+  
+    
 let scrape_sg env mdecl = 
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
@@ -232,7 +264,7 @@ let scrape_sg env mdecl =
       eprintf "scraping failed: %s" & Printexc.to_string e;
       raise e
 
-let rec get_candidates ~recursive env lid mdecl =
+let rec values_of_module ~recursive env lid mdecl =
   let sg = scrape_sg env mdecl in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) ->
@@ -243,12 +275,12 @@ let rec get_candidates ~recursive env lid mdecl =
       let lid = Ldot (lid, Ident.name id) in
       begin match check_value env lid with
       | None -> st
-      | Some (path, vdesc) -> (lid, path, vdesc) :: st
+      | Some (path, vdesc) -> (lid, path, vdesc, false) :: st
       end
 
   | Sig_module (id, moddecl, _) when recursive -> 
       let lid = Ldot (lid, Ident.name id) in
-      get_candidates ~recursive env lid moddecl @ st
+      values_of_module ~recursive env lid moddecl @ st
         
   | _ -> st
 
@@ -270,7 +302,7 @@ let module_lids_in_open_path env lids = function
   | None -> 
       flip filter_map lids (fun lid ->
         try
-          Some (Env.lookup_module ~load:false (*?*) lid env)
+          Some (Env.lookup_module ~load:true (*?*) lid env)
         with
         | _ -> None)
   | Some (Path.Pident id) when Ident.name id = "Pervasives" && Ident.persistent id  -> 
@@ -283,64 +315,108 @@ let module_lids_in_open_path env lids = function
       let env = Env.open_signature Asttypes.Fresh open_ sg env in
       flip filter_map lids (fun lid ->
         try
-          Some (Env.lookup_module ~load:false (*?*) lid env)
+          Some (Env.lookup_module ~load:true (*?*) lid env)
         with
         | _ -> None)
       
 let module_lids_in_open_paths env lids opens =
   concat_map (module_lids_in_open_path env lids) opens
 
-let candidates loc env = 
-  let rec t = function
-    | Type -> assert false (* This should not happen *)
-    | Or ts -> concat & map t2 ts
-  and t2 = function
-    | Opened x -> 
-        let lid = match x with
-          | Just lid -> lid
-          | In lid -> lid
-        in
-        let make lid = match x with
-          | Just _ -> Direct (Just lid)
-          | In _ -> Direct (In lid)
-        in
-        let opens = get_opens env in
-        let paths = 
-          concat 
-          & map (module_lids_in_open_path env [lid]) 
-          & None :: map (fun x -> Some x) opens
-        in
-        (* We translate paths to longidents.
-           for the instance name spacing by 'open', it seems ok.
-
-           module X = struct
-             module Show = struct
-             end
-           end
-           module Y = struct
-             module Show = struct
-             end
-           end
-           open X
-           open Y
-
-           To access values inside X.Show, Show is not good since
-           it is shadowed by open Y. 
-        *)
-        (* CR jfuruse: need to check lids are really point paths *)
-        let lids = map Untypeast.lident_of_path paths in
-        t & Or (map make lids)
-    | Direct x -> t3 x
-  and t3 = function
-    | Just lid ->
-        let mdecl = check_module loc env lid in
-        get_candidates ~recursive:false env lid mdecl
-    | In lid ->
-        let mdecl = check_module loc env lid in
-        get_candidates ~recursive:true env lid mdecl
+let data_types env ty =
+  let open Btype in
+  let open Ctype in
+  let res = ref [] in
+  (* CR jfuruse: oops, may loop forever? *)
+  let expand_repr_desc env ty = (repr & expand_head env ty).desc in
+  let rec loop ty = 
+    begin match expand_repr_desc env ty with
+    | Tconstr (p, _tys, _) ->
+        res := p :: !res;
+    | _ -> ()
+    end;
+    iter_type_expr loop ty
   in
-  t
+  loop ty;
+  sort_uniq compare !res
 
-let candidates loc env t =
-  sort_uniq (fun (l1,p1,_) (l2,p2,_) -> compare (l1,p1) (l2,p2)) 
-  & candidates loc env t
+let related_modules env ty =
+  let open Path in
+  data_types env ty
+  |> filter_map (function
+      | Pdot (p, _, _) -> Some p
+      | Pident _ -> None
+      | Papply _ -> assert false)
+  |> sort_uniq compare
+
+let cand_direct env loc t3 =
+  let recursive, lid = match t3 with
+    | Just lid -> false, lid
+    | In lid -> true, lid
+  in
+  let mdecl = check_module env loc lid in
+  values_of_module ~recursive env lid mdecl
+
+let cand_related env loc ty = 
+  let mods = related_modules env ty in
+  let lmods = filter_map (fun p ->
+    match check_module_path_accessibility env loc p with
+    | `Accessible (lid, mdecl) -> Some (lid, mdecl)
+    | _ -> None) mods
+  in
+  (* CR jfuruse: values_of_module should be memoized *)
+  concat & map (fun (lid,mdecl) -> values_of_module ~recursive:false env lid mdecl) lmods
+  
+let cand_opened env loc x =
+  let lid = match x with
+    | Just lid -> lid
+    | In lid -> lid
+  in
+  let opens = get_opens env in
+  let paths = 
+    concat 
+    & map (module_lids_in_open_path env [lid]) 
+    & None :: map (fun x -> Some x) opens
+  in
+  let lids = flip filter_map paths (fun path ->
+    match check_module_path_accessibility env loc path with
+    | `Accessible (lid,_) -> Some lid
+    | `Shadowed | `Not_found -> None)
+  in
+  concat & map (fun lid ->
+    cand_direct env loc
+      (match x with
+      | Just _ -> Just lid
+      | In _ -> In lid)) lids
+
+let rec cand_static env loc = function
+  | Related -> assert false
+  | Aggressive x ->
+      map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_static env loc x
+  | Opened x -> cand_opened env loc x
+  | Direct x -> cand_direct env loc x
+
+let rec cand_dynamic env loc ty = function
+  | Related -> cand_related env loc ty
+  | Aggressive x ->
+      map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
+  | Opened _ | Direct _ -> assert false
+
+let uniq xs =
+  let tbl = Hashtbl.create 107 in
+  iter (fun (l,p,v,f as x) ->
+    try
+      let (_, _, _, f') = Hashtbl.find tbl p in
+      Hashtbl.replace tbl p (l,p,v, f || f')
+    with
+    | Not_found -> Hashtbl.add tbl p x) xs;
+  Hashtbl.to_list tbl |> map snd
+
+let candidates env loc = function
+  | Type -> assert false (* This should not happen *)
+  | Or ts ->
+      let statics, dynamics = partition is_static ts in
+      let statics = concat & map (cand_static env loc) statics in
+      let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
+      fun ty -> uniq & statics @ dynamics ty
+
+
