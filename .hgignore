@@ -17,3 +17,5 @@ ppx/ppx_test$
 \#.*
 a\.out$
 \.(aux|log|out|pdf)$
+^ppx/ppx_implicits$
+^ppx/ppx_implicits\.exe$
