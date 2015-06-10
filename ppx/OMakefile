@@ -15,6 +15,7 @@ FILES[] =
     compile
     ppx
 
-MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+# ppx is installed by lib/OMakefile with MyOCamlPackageExtras
+MyOCamlPPX(ppx_implicits, $(FILES))
 
 WithMerlin()

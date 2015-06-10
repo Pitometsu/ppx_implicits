@@ -177,6 +177,7 @@ let resolve policy env loc ty = with_snapshot & fun () ->
   | [[e]] -> e
   | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty
 
+(* get the policy for [%imp] from its type *)
 let imp_type_policy env loc ty =
   match expand_repr_desc env ty with
   | Tconstr (p, _, _) -> 
@@ -196,9 +197,9 @@ let imp_type_policy env loc ty =
   | _ -> `Error `Strange_type
     
 let resolve_imp policy env loc ty =
-  (* fix the policy if ty = __imp__ *)
   let policy = match policy with
     | Policy.Type ->
+        (* fix the policy for [%imp] *)
         begin match imp_type_policy env loc ty with
         | `Error `Strange_type ->
             errorf "%a: [%%%%imp] has a bad type: %a" 
@@ -210,7 +211,7 @@ let resolve_imp policy env loc ty =
   in
   resolve policy env loc ty
 
-(* ?l:None  where (None : X...Y.__imp__ option) has a special rule *) 
+(* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
   | (l, Some e, Optional) when is_constraint_label l = Some `Optional ->
