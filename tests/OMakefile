@@ -1,3 +1,4 @@
+OUT=.exe
 PPX=$(file ../ppx/ppx_implicits$(EXE))
 .SCANNER: scan-ocaml-%: $(PPX)
 OCamlRequire($(PPX))
@@ -14,17 +15,17 @@ OCamlRequire($(PPX))
   $(PPX) -debug $< > $@
 
 Test_(name) =
-  $(name)$(EXE): $(name).ml $(PPX)
+  $(name)$(OUT): $(name).ml $(PPX)
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -ppx $(PPX) -o $(name)$(EXE) $(name).ml
-  out/$(name).out: $(name)$(EXE)
+    ocamlc -ppx $(PPX) -o $(name)$(OUT) $(name).ml
+  out/$(name).out: $(name)$(OUT)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
-    ./$(name)$(EXE)
+    ./$(name)$(OUT)
   clean:
-    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(OUT)
   export
 
 Test(name) =
@@ -45,3 +46,4 @@ Test(just)
 Test(opened)
 Test(template)
 Test(readme)
+Test(aggressive)

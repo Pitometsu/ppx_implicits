@@ -35,6 +35,11 @@ module String = struct
   let is_prefix p s = try sub s 0 (length p) = p with _ -> false
 end
 
+module Hashtbl = struct
+  include Hashtbl
+  let to_list tbl = Hashtbl.fold (fun k v st -> (k,v) :: st) tbl []
+end
+  
 module Format = struct
   include Format
 

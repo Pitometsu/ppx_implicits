@@ -1,4 +1,4 @@
-OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot
+OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre
 
 OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
