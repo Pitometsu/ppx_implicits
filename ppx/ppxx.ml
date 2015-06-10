@@ -37,6 +37,7 @@ end
 module Longident = struct
   include Longident
   let format = Pprintast.default#longident
+  let to_string l = Format.ksprintf (fun x -> x) "%a" format l
 end
 
 module Ident = struct

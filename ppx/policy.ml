@@ -21,6 +21,7 @@ and t2 =
   | Direct of t3
   | Aggressive of t2
   | Related
+  | Name of string * Re.re * t2
 
 and t3 =
   | In of Longident.t
@@ -29,8 +30,8 @@ and t3 =
 let rec is_static = function
   | Opened _ -> true
   | Direct _ -> true
-  | Aggressive t2 -> is_static t2
   | Related -> false
+  | Aggressive t2 | Name (_, _, t2) -> is_static t2
     
 let to_string = 
   let open Format in
@@ -44,8 +45,9 @@ let to_string =
     | Opened x -> Printf.sprintf "opened (%s)" (t3 x)
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
+    | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
   and t3 = function
-    | In lid -> ksprintf (fun x -> x) "%a" Longident.format lid
+    | In lid -> Longident.to_string lid
     | Just lid -> ksprintf (fun x -> x) "just %a" Longident.format lid
   in
   t 
@@ -121,6 +123,9 @@ let from_expression e =
                     ["", e] ) -> Aggressive (t2 e)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
                     ["", e] ) -> Opened (t3 e)
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "name"} },
+                    [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
+                    ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
       | _ -> Direct (t3 e)
     and t3 e = match e.pexp_desc with
@@ -391,18 +396,24 @@ let cand_opened env loc x =
       | Just _ -> Just lid
       | In _ -> In lid)) lids
 
+let cand_name rex f =
+  filter (fun (lid, _, _, _) ->
+    Re_pcre.pmatch ~rex & Longident.to_string lid) & f ()
+
 let rec cand_static env loc = function
   | Related -> assert false
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_static env loc x
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
+  | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
   | Opened _ | Direct _ -> assert false
+  | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
 
 let uniq xs =
   let tbl = Hashtbl.create 107 in

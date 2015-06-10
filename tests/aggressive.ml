@@ -14,7 +14,7 @@ let () = assert ([%imp aggressive(related)] (Y.Boo X.Foo) = "Boo (Foo)")
 
 module Show = struct
   type 'a t = Packed of ('a -> string)
-  [%%imp_policy aggressive(related), Show.ShowInstance]
+  [%%imp_policy aggressive(name "show" related), Show.ShowInstance]
   module ShowInstance = struct
     let pack ~_x = Packed _x
     let pack_opt ~_x = Some (Packed _x)

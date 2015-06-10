@@ -2,5 +2,6 @@ depends: [
   "ocamlfind"
   "omake"
   "ppx_tools"
+  "re" 
 ]
 ocaml-version: [= "4.02.1"]
