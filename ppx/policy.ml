@@ -8,7 +8,7 @@ open Utils
 open List
 open Parsetree
 open Format
-open Ppxx
+open Compilerlibx
 open Longident
 
 (** spec dsl *)
@@ -232,8 +232,8 @@ let check_module env loc lid =
 
 (** result *)
 type res =
-  | Static of Ppxx.Longident.t * Path.t * Types.value_description
-  | Dynamic of (Types.type_expr -> (Ppxx.Longident.t * Path.t * Types.value_description) list)
+  | Static of Longident.t * Path.t * Types.value_description
+  | Dynamic of (Types.type_expr -> (Longident.t * Path.t * Types.value_description) list)
           
 let check_value env lid =
   try

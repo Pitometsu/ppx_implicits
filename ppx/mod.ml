@@ -1,35 +1,9 @@
 open Utils
 open Typedtree
-open Ppxx
+open Compilerlibx
 open Longident (* has flatten *)
 open List (* has flatten *)
 open Format
-
-module Types = struct
-  include Types
-  open Btype
-  open Ctype
-  let repr_desc ty = (repr ty).desc
-  let expand_repr_desc env ty = (repr & expand_head env ty).desc
-
-  let with_snapshot f =
-    let snapshot = snapshot () in
-    let res = protect f in
-    backtrack snapshot;
-    unprotect res
-
-  let is_constr env ty = match expand_repr_desc env ty with
-    | Tconstr (p, tys, _) -> Some (p, tys)
-    | _ -> None
-  
-  let is_option_type env ty = match is_constr env ty with
-    | Some (po, [ty]) when po = Predef.path_option -> Some ty
-    | _ -> None
-
-  let gen_vars ty =
-    flip filter (Ctype.free_variables ty) & fun ty ->
-      ty.level = Btype.generic_level
-end
 
 open Types
 
@@ -69,25 +43,6 @@ let is_imp e =
   | [Some x] -> Some (Policy.from_ok e.exp_loc x)
   | _ -> assert false (* multiple *)
   
-(* Create a type which can be unified only with itself *)
-let create_uniq_type =
-  let cntr = ref 0 in
-  fun () -> 
-    incr cntr;
-    (* Ident.create is not good. Unifying this data type ident with
-       a tvar may cause "escaping the scope" errors
-    *)
-    Ctype.newty ( Tconstr ( Pident (Ident.create_persistent & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) )
-
-let close_gen_vars ty =
-  List.iter (fun gv ->
-    match repr_desc gv with
-    | Tvar _ ->
-        Ctype.unify Env.empty gv (create_uniq_type ());
-        (* eprintf "Closing %a@." Printtyp.type_expr gv *)
-    | Tunivar _ -> ()
-    | _ -> assert false) & gen_vars ty
-    
 (* derived candidates *)
 let derived_candidates = ref []
           
@@ -166,16 +121,16 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
                | _ -> []
 
 let resolve policy env loc ty = with_snapshot & fun () ->
-  if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.print_loc loc;
+  if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
   close_gen_vars ty;
   let get_cands =
     let f = Policy.candidates env loc policy in
     fun ty -> Policy.uniq & f ty @ map snd !derived_candidates
   in
   match resolve env get_cands [([],ty)] with
-  | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty;
+  | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.format loc Printtyp.type_expr ty;
   | [[e]] -> e
-  | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.print_loc loc Printtyp.type_expr ty
+  | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.format loc Printtyp.type_expr ty
 
 (* get the policy for [%imp] from its type *)
 let imp_type_policy env loc ty =
@@ -186,7 +141,7 @@ let imp_type_policy env loc ty =
           (* __imp_policy__ must exit *)
           let _p, td = 
             try Env.lookup_type (Lident "__imp_policy__") env with
-            | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.print_loc loc
+            | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.format loc
           in
           `Ok (Policy.from_type_decl td.type_loc td)
       | Pdot (mp, _, _) -> 
@@ -203,7 +158,7 @@ let resolve_imp policy env loc ty =
         begin match imp_type_policy env loc ty with
         | `Error `Strange_type ->
             errorf "%a: [%%%%imp] has a bad type: %a" 
-              Location.print_loc loc
+              Location.format loc
               Printtyp.type_expr ty
         | `Ok p -> p
         end
@@ -257,7 +212,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         (* Eeek, label with multiple cases? *)
         warn (fun () ->
           eprintf "%a: Unexpected label with multiple function cases"
-            Location.print_loc e.exp_loc);
+            Location.format e.exp_loc);
         e
            
     | Texp_function (l, [case], e') when is_constraint_label l <> None ->

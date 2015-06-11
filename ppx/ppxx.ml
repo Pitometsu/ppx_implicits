@@ -34,35 +34,6 @@ module Name = struct
       n ^ "_" ^ string_of_int x
 end
 
-module Longident = struct
-  include Longident
-  let format = Pprintast.default#longident
-  let to_string l = Format.ksprintf (fun x -> x) "%a" format l
-end
-
-module Ident = struct
-  include Ident
-  let format ppf id = Format.fprintf ppf "%s/%d" id.name id.stamp
-end
-
-module Path = struct
-  include Path
-
-  let rec format_verbose ppf =
-    let open Format in
-    function
-      | Pident id -> Ident.format ppf id
-      | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format_verbose p name n
-      | Papply (p1, p2) -> fprintf ppf "%a(%a)" format_verbose p1 format_verbose p2
-
-  let rec format ppf =
-    let open Format in
-    function
-      | Pident id -> Ident.format ppf id
-      | Pdot (p, name, _n) -> fprintf ppf "%a.%s" format p name
-      | Papply (p1, p2) -> fprintf ppf "%a(%a)" format p1 format p2
-end
-  
 module Typ = struct
   include Typ
   let new_var =
