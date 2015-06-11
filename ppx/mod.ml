@@ -41,7 +41,7 @@ let is_imp e =
   match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
   | [Some x] -> Some (Policy.from_ok e.exp_loc x)
-  | _ -> assert false (* multiple *)
+  | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
 (* derived candidates *)
 let derived_candidates = ref []
@@ -139,15 +139,20 @@ let imp_type_policy env loc ty =
       begin match p with
       | Pident _ ->
           (* __imp_policy__ must exit *)
-          let _p, td = 
-            try Env.lookup_type (Lident "__imp_policy__") env with
+          let td = 
+            try
+              let p, td = Env.lookup_type (Lident "__imp_policy__") env in
+              match p with
+              | Pident _ -> td
+              | _ -> raise Exit (* __imp_policy__ exists but in a module *)
+            with
             | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.format loc
           in
           `Ok (Policy.from_type_decl td.type_loc td)
       | Pdot (mp, _, _) -> 
           (* mp.__imp_policy__ must exist *)
           `Ok (Policy.from_module_path env mp)
-      | _ -> assert false (* F(X) *)
+      | _ -> assert false (* impos: F(X) *)
       end
   | _ -> `Error `Strange_type
     
@@ -166,31 +171,32 @@ let resolve_imp policy env loc ty =
   in
   resolve policy env loc ty
 
+let is_none e = match e.exp_desc with
+  | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
+      is_option_type e.exp_env e.exp_type
+  | _ -> None
+    
 (* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
   | (l, Some e, Optional) when is_constraint_label l = Some `Optional ->
-      begin match e.exp_desc with
-      | Texp_construct ({Location.txt=Lident "None"}, _, []) ->
-          begin match is_option_type env e.exp_type with
-          | None -> assert false
-          | Some ty ->
-              begin match imp_type_policy env loc ty with
-              | `Error `Strange_type -> a (* Think abount derived! *)
-              | `Ok policy ->
-                  (l, 
-                   Some begin try
-                      (* Try just [%imp] first *)
-                      resolve policy env loc e.exp_type
-                     with
-                     | _ ->
-                       (* If above failed, try Some [%imp] *)
-                       Forge.Exp.some & resolve policy env loc ty
-                   end,
-                   Optional)
-              end
+      begin match is_none e with
+      | None -> a
+      | Some ty ->
+          begin match imp_type_policy env loc ty with
+          | `Error `Strange_type -> a (* Think abount derived! *)
+          | `Ok policy ->
+              (l, 
+               Some begin try
+                  (* Try just [%imp] first *)
+                  resolve policy env loc e.exp_type
+                 with
+                 | _ ->
+                     (* If above failed, try Some [%imp] *)
+                     Forge.Exp.some & resolve policy env loc ty
+               end,
+               Optional)
           end
-      | _ -> a
       end
   | _ -> a
 
@@ -236,7 +242,6 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
     | _ -> match is_imp e with
     | None -> e
-
     | Some policy -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
 
   let leave_expression e = 
