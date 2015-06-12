@@ -9,6 +9,7 @@ open Parsetree
 open Ast_mapper
 open Location
 open Utils
+open Compilerlibx
 
 let extend super =
   let expr self e =
@@ -44,7 +45,7 @@ let extend super =
         let policy = Policy.(from_ok loc & from_payload pld) in
         if policy = Policy.Type then 
           errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
-            Location.print_loc loc;
+            Location.format loc;
         { sitem with pstr_desc = Pstr_type [ forge loc policy ] }
     | _ -> super.structure_item self sitem
   in
@@ -54,7 +55,7 @@ let extend super =
         let policy = Policy.(from_ok loc & from_payload pld) in
         if policy = Policy.Type then 
           errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
-            Location.print_loc loc;
+            Location.format loc;
         { sitem with psig_desc = Psig_type [ forge loc policy ] }
     | _ -> super.signature_item self sitem
   in

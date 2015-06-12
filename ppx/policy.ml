@@ -156,13 +156,13 @@ let from_structure str =
 
 let from_ok loc = function
   | `Ok v -> v
-  | `Error (`String s) -> errorf "%a: %s" Location.print_loc loc s
+  | `Error (`String s) -> errorf "%a: %s" Location.format loc s
   | `Error (`Failed_unmangle s) -> 
-      errorf "%a: Illegal policy encoding: %S" Location.print_loc loc s
+      errorf "%a: Illegal policy encoding: %S" Location.format loc s
   | `Error (`Parse s) ->
-      errorf "%a: Policy parse failed: %S" Location.print_loc loc s
+      errorf "%a: Policy parse failed: %S" Location.format loc s
   | `Error (`ParseExp (_, s)) ->
-      errorf "%a: Policy parse failed: %s" Location.print_loc loc s
+      errorf "%a: Policy parse failed: %s" Location.format loc s
 
 let from_payload = function
   | PStr s -> from_structure s
@@ -182,7 +182,7 @@ let from_type_decl loc = function
         from_string x >>= fun x ->
         from_expression x
   | _ -> 
-      errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.print_loc loc
+      errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
 
 let from_module_type env mp loc mty =
   let sg = 
@@ -193,7 +193,7 @@ let from_module_type env mp loc mty =
     with
     | _ -> 
         errorf "%a: Scraping failure of module %a"
-          Location.print_loc loc
+          Location.format loc
           Path.format mp
   in
   match 
@@ -211,7 +211,7 @@ let from_module_path env mp =
   match from_module_type env mp md.md_loc md.md_type with
   | None -> 
       errorf "%a: Module %a has no implicit policy declaration [%%%%imp_policy POLICY]@." 
-        Location.print_loc md.md_loc
+        Location.format md.md_loc
         Path.format mp
   | Some policy -> policy
 
@@ -221,13 +221,13 @@ let check_module env loc lid =
     try Some (Env.lookup_module ~load:true lid env) with _ -> None
   with
   | None ->
-      errorf "%a: no module found: %a" Location.print_loc loc Longident.format lid
+      errorf "%a: no module found: %a" Location.format loc Longident.format lid
   | Some path ->
       match 
         try Some (Env.find_module path env) with _ -> None
       with
       | None -> 
-          errorf "%a: no module desc found: %a" Location.print_loc loc Path.format path
+          errorf "%a: no module desc found: %a" Location.format loc Path.format path
       | Some mdecl -> mdecl
 
 (** result *)
@@ -250,14 +250,14 @@ let check_module_path_accessibility env loc path =
   try
     if path <> Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env then begin
       warn (fun () ->
-        eprintf "%a: %a is not accessible in the current scope therefore ignored." Location.print_loc loc Path.format path);
+        eprintf "%a: %a is not accessible in the current scope therefore ignored." Location.format loc Path.format path);
       `Shadowed
     end else
       `Accessible (lid, Env.find_module path env)
   with
   | _ ->
       warn (fun () ->
-        eprintf "%a: ?!?!? %a is not found in the environment." Location.print_loc loc Path.format path);
+        eprintf "%a: ?!?!? %a is not found in the environment." Location.format loc Path.format path);
       `Not_found
   
     
