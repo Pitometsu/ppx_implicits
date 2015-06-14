@@ -1,0 +1,15 @@
+0.1.0 (incoming)
+=================
+
+- Added ppx_implicits.cma library
+- Added related policy
+- Added name policy
+- Added aggressive policy
+- ppx_implicits now understands byte-compiler options at its standalone execution
+
+0.0.1
+=====
+
+* Initial release
+
+
