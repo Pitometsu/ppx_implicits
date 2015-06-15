@@ -26,7 +26,7 @@ Some notes:
    * For Pexp_apply, it is unclear whether arguments are reordered, especially
     when there are optional arguments.
 
-  * TODO: check Ttype_variant -> Ptype_variant (stub None)
+   * TODO: check Ttype_variant -> Ptype_variant (stub None)
 
 *)
 

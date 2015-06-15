@@ -9,6 +9,7 @@ FILES[] =
     compilerlibx
     ppxx
     forge
+    unshadow
     policy
     pre
     tysize

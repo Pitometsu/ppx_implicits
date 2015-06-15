@@ -28,6 +28,8 @@ module Path = struct
       | Pident id -> Ident.format ppf id
       | Pdot (p, name, _n) -> fprintf ppf "%a.%s" format p name
       | Papply (p1, p2) -> fprintf ppf "%a(%a)" format p1 format p2
+
+  let to_string l = Format.ksprintf (fun x -> x) "%a" format l
 end
   
 module Location = struct

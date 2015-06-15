@@ -28,6 +28,8 @@ module List = struct
       | Some y -> y :: filter_map f xs
 
   let concat_map f xs = concat (map f xs)
+
+  let assoc_opt x xs = try Some (assoc x xs) with _ -> None
 end 
 
 module String = struct

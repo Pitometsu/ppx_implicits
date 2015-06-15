@@ -4,11 +4,12 @@
    This is only to forge a Typedtree AST which will be untypeast'ed 
    to Parsetree immediately.
 *)
+open Utils
+open Typedtree
 
 module Dummy = struct
 
   open Types
-  open Typedtree
 
   let type_expr = Btype.newgenty (Types.Tvar None)
 
@@ -33,14 +34,20 @@ module Dummy = struct
     }
 
   let mod_type = Mty_signature [] 
+
+  let structure_item = { str_desc = Tstr_recmodule []
+                       ; str_loc = Location.none
+                       ; str_env = env 
+                       }
 end
 
 let loc txt = 
   let open Location in
   { loc = none; txt }
 
+let lidentloc_of_path p = loc & Untypeast.lident_of_path p
+
 module Exp = struct
-  open Typedtree
 
   let ident lid p = 
     { Dummy.exp with
@@ -85,7 +92,6 @@ module Exp = struct
 end
 
 module Pat = struct
-  open Typedtree
 
   let desc d = { pat_desc = d;
                  pat_loc = Location.none;
@@ -98,13 +104,24 @@ module Pat = struct
   let var id = desc (Tpat_var (id, loc (Ident.name id)))
 end
 
-module Mod = struct
-  open Typedtree
+module MB = struct
+  let module_binding id x = { mb_id = id
+                            ; mb_name = loc id.name
+                            ; mb_expr = x
+                            ; mb_attributes = []
+                            ; mb_loc = Location.none 
+                            } 
+end
 
-  let unpack e = 
-    { mod_desc = Tmod_unpack (e, Dummy.mod_type);
+module Mod = struct
+  let of_module_expr_desc d = 
+    { mod_desc = d;
       mod_loc = Location.none;
       mod_type = Dummy.mod_type;
       mod_env = Dummy.env;
       mod_attributes = [] }
+
+  let ident p = of_module_expr_desc & Tmod_ident (p, lidentloc_of_path p)
+
+  let unpack e = of_module_expr_desc & Tmod_unpack (e, Dummy.mod_type)
 end

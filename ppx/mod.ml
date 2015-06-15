@@ -254,4 +254,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
         { e with exp_attributes = others }
 end
 
-module Map = TypedtreeMap.MakeMap(MapArg)
+module Map = struct
+  include TypedtreeMap.MakeMap(MapArg)
+  let map_structure str =
+    Unshadow.aliases := [];
+    let str = map_structure str in
+    Unshadow.Map.map_structure str
+end

@@ -4,13 +4,15 @@ module X = struct
   end
 end
 
-open X (* to make Show searchable *)
+open X
 
 module Y = struct
-  module X = struct
+  module Show = struct
     (* This makes X.Show.int inaccessible *)
   end 
-  let () = assert ([%imp2 Show] 1 = "1")
+  module X = struct
+  end
+  let () = assert ([%imp opened Show] 1 = "1")
 end
 
 

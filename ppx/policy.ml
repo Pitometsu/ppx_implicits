@@ -17,15 +17,13 @@ type t =
   | Type (** [%imp].  No allowed in [%%imp_policy] *)
 
 and t2 = 
-  | Opened of t3
-  | Direct of t3
+  | Opened of Longident.t flagged
+  | Direct of Longident.t flagged
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
 
-and t3 =
-  | In of Longident.t
-  | Just of Longident.t
+and 'a flagged = In of 'a | Just of 'a
 
 let rec is_static = function
   | Opened _ -> true
@@ -35,20 +33,21 @@ let rec is_static = function
     
 let to_string = 
   let open Format in
+  let flagged f = function
+    | In x -> f x
+    | Just x -> Printf.sprintf "just %s" & f x
+  in
   let rec t = function
     | Type -> ""
     | Or [] -> assert false
     | Or [x] -> t2 x
     | Or xs -> String.concat ", " (map t2 xs)
   and t2 = function
-    | Direct x -> t3 x
-    | Opened x -> Printf.sprintf "opened (%s)" (t3 x)
+    | Direct pf -> flagged Path.to_string pf
+    | Opened pl -> Printf.sprintf "opened (%s)" (flagged Longident.to_string pl)
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
-  and t3 = function
-    | In lid -> Longident.to_string lid
-    | Just lid -> ksprintf (fun x -> x) "just %a" Longident.format lid
   in
   t 
 
@@ -122,13 +121,14 @@ let from_expression e =
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "aggressive"} },
                     ["", e] ) -> Aggressive (t2 e)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
-                    ["", e] ) -> Opened (t3 e)
+                    ["", e] ) -> 
+          Opened (flag_lid e)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "name"} },
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | _ -> Direct (t3 e)
-    and t3 e = match e.pexp_desc with
+      | _ -> Direct (flag_lid e)
+    and flag_lid e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
                     ["", e] ) -> 
           begin match get_lid e with
@@ -215,20 +215,13 @@ let from_module_path env mp =
         Path.format mp
   | Some policy -> policy
 
-let check_module env loc lid =
+let check_module env loc path =
   match 
-    (* CR jfuruse: what is load parameter? *)  
-    try Some (Env.lookup_module ~load:true lid env) with _ -> None
+    try Some (Env.find_module path env) with _ -> None
   with
-  | None ->
-      errorf "%a: no module found: %a" Location.format loc Longident.format lid
-  | Some path ->
-      match 
-        try Some (Env.find_module path env) with _ -> None
-      with
-      | None -> 
-          errorf "%a: no module desc found: %a" Location.format loc Path.format path
-      | Some mdecl -> mdecl
+  | None -> 
+      errorf "%a: no module desc found: %a" Location.format loc Path.format path
+  | Some mdecl -> mdecl
 
 (** result *)
 type res =
@@ -361,15 +354,21 @@ let cand_direct env loc t3 =
     | Just lid -> false, lid
     | In lid -> true, lid
   in
-  let mdecl = check_module env loc lid in
+  let mdecl = check_module env loc path in
   values_of_module ~recursive env lid mdecl
 
-let cand_related env loc ty = 
+let cand_related env _loc ty = 
   let mods = related_modules env ty in
-  let lmods = filter_map (fun p ->
-    match check_module_path_accessibility env loc p with
-    | `Accessible (lid, mdecl) -> Some (lid, mdecl)
-    | _ -> None) mods
+  let lmods = flip map mods & fun p ->
+    match Unshadow.check_module_path env p with
+    | `Accessible lid ->
+        let mdecl = Env.find_module p env in
+        (lid, mdecl)             
+    | `Shadowed (id, id', p) ->
+        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
+        let mdecl = Env.find_module p env in
+        (Untypeast.lident_of_path p, mdecl)             
+    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
   in
   (* CR jfuruse: values_of_module should be memoized *)
   concat & map (fun (lid,mdecl) -> values_of_module ~recursive:false env lid mdecl) lmods
@@ -385,10 +384,13 @@ let cand_opened env loc x =
     & map (module_lids_in_open_path env [lid]) 
     & None :: map (fun x -> Some x) opens
   in
-  let lids = flip filter_map paths (fun path ->
-    match check_module_path_accessibility env loc path with
-    | `Accessible (lid,_) -> Some lid
-    | `Shadowed | `Not_found -> None)
+  let lids = flip map paths & fun path ->
+    match Unshadow.check_module_path env path with
+    | `Accessible lid -> lid
+    | `Shadowed (id, id', p) ->
+        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
+        Untypeast.lident_of_path p
+    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
   in
   concat & map (fun lid ->
     cand_direct env loc
