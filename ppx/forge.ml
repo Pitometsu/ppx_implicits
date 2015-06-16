@@ -47,6 +47,15 @@ let loc txt =
 
 let lidentloc_of_path p = loc & Untypeast.lident_of_path p
 
+module Path = struct
+  open Longident
+  open Path
+  let rec of_lident = function
+    | Lident s -> Pident (Ident.create s)
+    | Ldot (t,s) -> Pdot (of_lident t, s, 0)
+    | Lapply (t1,t2) -> Papply (of_lident t1, of_lident t2)
+end
+
 module Exp = struct
 
   let ident lid p = 

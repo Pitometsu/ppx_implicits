@@ -18,7 +18,7 @@ type t =
 
 and t2 = 
   | Opened of Longident.t flagged
-  | Direct of Longident.t flagged
+  | Direct of (Longident.t * Path.t option) flagged
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
@@ -32,7 +32,6 @@ let rec is_static = function
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
     
 let to_string = 
-  let open Format in
   let flagged f = function
     | In x -> f x
     | Just x -> Printf.sprintf "just %s" & f x
@@ -43,8 +42,8 @@ let to_string =
     | Or [x] -> t2 x
     | Or xs -> String.concat ", " (map t2 xs)
   and t2 = function
-    | Direct pf -> flagged Path.to_string pf
-    | Opened pl -> Printf.sprintf "opened (%s)" (flagged Longident.to_string pl)
+    | Direct pf -> flagged (fun (l,_) -> Longident.to_string l) pf
+    | Opened lf -> Printf.sprintf "opened (%s)" (flagged Longident.to_string lf)
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
@@ -127,7 +126,12 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | _ -> Direct (flag_lid e)
+      | _ -> 
+          let flid = flag_lid e in
+          begin match flid with
+          | In lid -> Direct (In (lid, None))
+          | Just lid -> Direct (Just (lid, None))
+          end
     and flag_lid e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
                     ["", e] ) -> 
@@ -272,6 +276,8 @@ let rec values_of_module ~recursive env lid mdecl =
       (* CR jfuruse: 
          I don't undrestand yet why the above _vdesc is not appropriate
          and we must get vdesc like below.
+
+         I guess some type alias information is not in _vdesc...
       *)
       let lid = Ldot (lid, Ident.name id) in
       begin match check_value env lid with
@@ -350,9 +356,15 @@ let related_modules env ty =
   |> sort_uniq compare
 
 let cand_direct env loc t3 =
-  let recursive, lid = match t3 with
-    | Just lid -> false, lid
-    | In lid -> true, lid
+  let recursive, lid, popt = match t3 with
+    | Just (lid, popt) -> false, lid, popt
+    | In (lid, popt) -> true, lid, popt
+  in
+  let path = match popt with
+    | Some p -> p
+    | None -> 
+        (* CR jfuruse: error handling *)
+        Env.lookup_module ~load:false lid env
   in
   let mdecl = check_module env loc path in
   values_of_module ~recursive env lid mdecl
@@ -392,11 +404,11 @@ let cand_opened env loc x =
         Untypeast.lident_of_path p
     | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
   in
-  concat & map (fun lid ->
+  concat & map2 (fun lid path ->
     cand_direct env loc
       (match x with
-      | Just _ -> Just lid
-      | In _ -> In lid)) lids
+      | Just _ -> Just (lid, Some path)
+      | In _ -> In (lid, Some path))) lids paths
 
 let cand_name rex f =
   filter (fun (lid, _, _, _) ->
