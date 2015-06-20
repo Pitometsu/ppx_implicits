@@ -269,7 +269,7 @@ let scrape_sg env mdecl =
       eprintf "scraping failed: %s" & Printexc.to_string e;
       raise e
 
-let rec values_of_module ~recursive env lid mdecl =
+let rec values_of_module ~recursive env lid path mdecl =
   let sg = scrape_sg env mdecl in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) ->
@@ -280,14 +280,23 @@ let rec values_of_module ~recursive env lid mdecl =
          I guess some type alias information is not in _vdesc...
       *)
       let lid = Ldot (lid, Ident.name id) in
+      let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
+      begin 
+        let vdesc = Env.find_value path env in
+        (lid, path, vdesc, false) :: st
+      end
+(*
       begin match check_value env lid with
       | None -> st
       | Some (path, vdesc) -> (lid, path, vdesc, false) :: st
       end
+*)
 
   | Sig_module (id, moddecl, _) when recursive -> 
       let lid = Ldot (lid, Ident.name id) in
-      values_of_module ~recursive env lid moddecl @ st
+      let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
+      (* CR jfuruse: Can I trust moddecl? *)
+      values_of_module ~recursive env lid path moddecl @ st
         
   | _ -> st
 
@@ -364,10 +373,10 @@ let cand_direct env loc t3 =
     | Some p -> p
     | None -> 
         (* CR jfuruse: error handling *)
-        Env.lookup_module ~load:false lid env
+        Env.lookup_module ~load:true lid env
   in
   let mdecl = check_module env loc path in
-  values_of_module ~recursive env lid mdecl
+  values_of_module ~recursive env lid path mdecl
 
 let cand_related env _loc ty = 
   let mods = related_modules env ty in
@@ -375,15 +384,15 @@ let cand_related env _loc ty =
     match Unshadow.check_module_path env p with
     | `Accessible lid ->
         let mdecl = Env.find_module p env in
-        (lid, mdecl)             
+        (lid, p, mdecl)             
     | `Shadowed (id, id', p) ->
         Unshadow.aliases := (id, id') :: !Unshadow.aliases;
         let mdecl = Env.find_module p env in
-        (Untypeast.lident_of_path p, mdecl)             
+        (Untypeast.lident_of_path p, p, mdecl)             
     | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
   in
   (* CR jfuruse: values_of_module should be memoized *)
-  concat & map (fun (lid,mdecl) -> values_of_module ~recursive:false env lid mdecl) lmods
+  concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
   
 let cand_opened env loc x =
   let lid = match x with

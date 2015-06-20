@@ -51,7 +51,7 @@ Test(imp2)
 Test(imp3)
 Test(imp31)
 Test(imp4)
-Test_(inacc) # must fail
+Test(inacc)
 Test(prop)
 Test(typeclass)
 Test(just)
