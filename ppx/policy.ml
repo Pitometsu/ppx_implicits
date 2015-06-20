@@ -232,16 +232,6 @@ type res =
   | Static of Longident.t * Path.t * Types.value_description
   | Dynamic of (Types.type_expr -> (Longident.t * Path.t * Types.value_description) list)
           
-let check_value env lid =
-  try
-    let path, vdesc = Env.lookup_value lid env in
-    Some (path, vdesc)
-  with
-  | Not_found ->
-      warn (fun () -> 
-        eprintf "%%imp instance %a is not accessible in the current scope therefore ignored." Longident.format lid);
-      None
-  
 let check_module_path_accessibility env loc path =
   let lid = Untypeast.lident_of_path path in
   try
@@ -282,16 +272,10 @@ let rec values_of_module ~recursive env lid path mdecl =
       let lid = Ldot (lid, Ident.name id) in
       let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
       begin 
+        (* CR jfuruse: think about error *)
         let vdesc = Env.find_value path env in
         (lid, path, vdesc, false) :: st
       end
-(*
-      begin match check_value env lid with
-      | None -> st
-      | Some (path, vdesc) -> (lid, path, vdesc, false) :: st
-      end
-*)
-
   | Sig_module (id, moddecl, _) when recursive -> 
       let lid = Ldot (lid, Ident.name id) in
       let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
