@@ -144,7 +144,7 @@ let imp_type_policy env loc ty =
               let p, td = Env.lookup_type (Lident "__imp_policy__") env in
               match p with
               | Pident _ -> td
-              | _ -> raise Exit (* __imp_policy__ exists but in a module *)
+              | _ -> raise Exit (* __imp_policy__ exists but in some module, not in the top *)
             with
             | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.format loc
           in
