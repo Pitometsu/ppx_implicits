@@ -29,8 +29,13 @@ val from_payload :
    | `Ok of t ]
 
 val from_type_decl : Location.t -> type_declaration -> t
+(** get policy from type __imp_policy__ = .. *)
+
 val from_module_type : Env.t -> Path.t -> Location.t -> module_type -> t option
+(** get policy from a module type which has type __imp_policy__ = .. *)
+
 val from_module_path : Env.t -> Path.t -> t
+(** get policy from a module path which has type __imp_policy__ = .. *)
 
 val check_module_path_accessibility :
   Env.t ->
