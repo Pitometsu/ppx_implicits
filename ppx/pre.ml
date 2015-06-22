@@ -60,13 +60,3 @@ let extend super =
     | _ -> super.signature_item self sitem
   in
   { super with expr; structure_item; signature_item }
-
-(*
-  [%imp Show || Show2]
-  [%imp Opened Show || Opened Show2]
-*)
-
-
-
-   
-   

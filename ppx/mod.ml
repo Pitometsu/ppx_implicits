@@ -51,12 +51,12 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
   | (trace,ty)::tr_tys ->
       let cands =
         let cs = get_cands ty in
-        concat & map (fun (lid, path, vdesc, aggressive) ->
+        flip concat_map cs & fun (lid, path, vdesc, aggressive) ->
           if not aggressive then [(lid, path, vdesc, extract_constraint_labels env vdesc.val_type)]
           else map (fun cs_ty -> (lid, path, vdesc, cs_ty)) & 
-            extract_constraint_labels_aggressively env vdesc.val_type) cs
+            extract_constraint_labels_aggressively env vdesc.val_type
       in
-      concat & flip map cands & fun (lid,path,_vdesc,(cs,vty)) ->
+      flip concat_map cands & fun (lid,path,_vdesc,(cs,vty)) ->
          match
            try Some (assoc path trace) with _ -> None
          with
