@@ -10,6 +10,7 @@ open Parsetree
 open Format
 open Compilerlibx
 open Longident
+open Path
 
 (** spec dsl *)
 type t = 
@@ -209,7 +210,18 @@ let from_module_type env mp loc mty =
       | _ -> None
   with
   | [] -> None
-  | [td] -> Some (from_type_decl loc td)
+  | [td] -> 
+      (* Add mp.Instances as the default recipes *)
+      begin match from_type_decl loc td with
+      | Type -> assert false
+      | Or t2s -> 
+          Some (Or (t2s 
+                    @ flip filter_map sg (function
+                        | Sig_module (id, _, _) when id.Ident.name = "Instances"  ->
+                            let mp' = Pdot(mp, "Instances", id.Ident.stamp) (* CR jfuruse: really? *) in
+                            Some (Direct (In (Untypeast.lident_of_path mp', Some mp')))
+                        | _ -> None)))
+      end
   | _ -> assert false
 
 let from_module_path env mp =
