@@ -71,6 +71,8 @@ let mangle s =
   done;
   Buffer.contents b
 
+let to_mangled_string x = mangle & to_string x
+
 (* CR jfuruse: need tests *)
 let unmangle s = 
   try
@@ -227,11 +229,6 @@ let check_module env loc path =
       errorf "%a: no module desc found: %a" Location.format loc Path.format path
   | Some mdecl -> mdecl
 
-(** result *)
-type res =
-  | Static of Longident.t * Path.t * Types.value_description
-  | Dynamic of (Types.type_expr -> (Longident.t * Path.t * Types.value_description) list)
-          
 let check_module_path_accessibility env loc path =
   let lid = Untypeast.lident_of_path path in
   try
@@ -319,9 +316,6 @@ let module_lids_in_open_path env lids = function
         with
         | _ -> None)
       
-let module_lids_in_open_paths env lids opens =
-  concat_map (module_lids_in_open_path env lids) opens
-
 let data_types env ty =
   let open Btype in
   let open Ctype in
@@ -421,6 +415,8 @@ let rec cand_dynamic env loc ty = function
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
   | Opened _ | Direct _ -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
+
+type result = Longident.t * Path.t * value_description * bool
 
 let uniq xs =
   let tbl = Hashtbl.create 107 in

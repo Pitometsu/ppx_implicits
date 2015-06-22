@@ -21,7 +21,7 @@ let extend super =
     | _ -> super.expr self e
   in
   let forge loc policy =
-    let mangled = Policy.(mangle & to_string policy) in                
+    let mangled = Policy.to_mangled_string policy in                
           { ptype_name = {txt = "__imp_policy__"; loc}
           ; ptype_params = []
           ; ptype_cstrs = []
