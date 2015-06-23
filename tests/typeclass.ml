@@ -8,16 +8,16 @@ module Show = struct
   type 'a t = (module S with type a = 'a)
 
   module IMP = struct
-    type 'a __imp__ = Packed of (module S with type a = 'a)
+    type 'a t = Packed of (module S with type a = 'a)
     [%%imp_policy opened ShowInstance]
     let unpack (Packed x) = x
     let unpack_opt = function None -> assert false | Some (Packed x) -> x
-  end
 
-  (* This forces users to open Show... This is not good. *)
-  module ShowInstance = struct
-    let pack ~_x = IMP.Packed _x
-    let pack_opt ~_x = Some (IMP.Packed _x)
+    (* Default instances for this imp *)
+    module Instances = struct
+      let pack ~_x = Packed _x
+      let pack_opt ~_x = Some (Packed _x)
+    end
   end
 
   let show (type a) ?_imp = let module M = (val (IMP.unpack_opt _imp : a t)) in M.show
@@ -57,7 +57,7 @@ module Twin = struct
   module ShowInstance = struct
 
     let tuple (type b) ~_x:(_x : b Show.t) : (b * b) Show.t = 
-      let _imp = Show.ShowInstance.pack ~_x in 
+      let _imp = Show.IMP.Instances.pack ~_x in 
       let module M = struct
         type a = b * b
         let show (x,y) = "( " ^ Show.show ~_imp x ^ ", " ^ Show.show ~_imp y ^ " )"
@@ -70,8 +70,6 @@ end
 (* Let ppx_implicits wire the dispatch code automatically *)
 module Triple = struct
   module ShowInstance = struct
-
-    open Show (* for Show.ShowInstance *)
 
     let tuple (type b) ~_x:(_x : b Show.t) : (b * b * b) Show.t = 
 
