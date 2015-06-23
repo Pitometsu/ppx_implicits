@@ -3,7 +3,7 @@ module Make(A : sig
 end) = struct
   [@@@warning "-16"]
   type 'a t = Packed of 'a A.t
-  module Instance = struct
+  module Instances = struct
     let pack ~_x = Packed _x
     let pack_opt ~_x = Some (Packed _x)
   end
