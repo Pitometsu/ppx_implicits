@@ -3,11 +3,11 @@
 *)
 
 module Show = struct
+  [%%imp_policy opened ShowInstance]
   include Ppx_implicits.Implicits.Make(struct type 'a t = 'a -> string end)
-  [%%imp_policy Show.Instance, opened ShowInstance]
+  let show = unpack_opt
 end
 
-let show = Show.unpack_opt
 
 module Int = struct
   module ShowInstance = struct
@@ -17,4 +17,4 @@ end
 
 open Int
 
-let () = assert (show 1 = "1")
+let () = assert (Show.show 1 = "1")
