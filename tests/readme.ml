@@ -65,13 +65,13 @@ module Implicit_parameters = struct
 
     let unpack = function None -> assert false | Some (Packed x) -> x  
     let show ?_imp x = unpack _imp x
-  end
 
-  module ShowBase = struct
-    module ShowInstance = struct
-      let pack ~_d = Show.Packed _d
+    (* default instances *)
+    module Instances = struct
+      let pack ~_d = Packed _d
       let pack_opt ~_d = Some (pack ~_d)
     end
+
   end
 
   module Int = struct
@@ -80,7 +80,6 @@ module Implicit_parameters = struct
     end
   end
 
-  open ShowBase (* to make use of ShowBase.ShowInstance.pack as an instance *)
   open Int      (* to make use of Int.ShowInstance.int as an instance *)
 
   let ()  = assert (Show.show 1 = "1")
