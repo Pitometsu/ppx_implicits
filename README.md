@@ -171,9 +171,12 @@ The form of the type of `[%imp]` is not only `(t1,...,tn) PATH.name`
 but also can be `(t1,...,tn) PATH.name option`.
 This is for efficient handling implicit parameters explained later.
 
+### Default instances for type dependent `[%imp]`
 
-
-
+If `[%imp]`'s policy is defined in a module `M`,
+and if this module `M` has a module `Instances`, 
+then the values defined in this `M.Instances` are taken into account of
+the instances of the implicit value.
 
 
 ## Deriving value implicits
