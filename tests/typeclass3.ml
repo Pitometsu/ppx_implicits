@@ -1,5 +1,6 @@
 module type Show = sig
-  type a
+  (* Parameters must be properly listed. We cannot add parameters using include S *)
+  type a 
   val show : a -> string
 end
 
@@ -26,7 +27,15 @@ module Int = struct
     let show  = string_of_int
   end
 
-  (* The above with [%implicit Show] should produce the following *)
+  (* [%implicit Show] must change the above definition to the following 
+
+    module ShowInt : Show with type a = int = struct
+      type a = int
+      let show  = string_of_int
+    end
+  *)
+
+  (* The above with [%implicit Show] should produce the following. *)
  
   module ShowInstance = struct
     let int : int Show.s = (module ShowInt)
