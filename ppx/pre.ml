@@ -28,6 +28,11 @@ module TypeClass = struct
             | _ -> None) tds
       | _ -> []) sg
 
+  let values sg = filter_map (fun si ->
+    match si.psig_desc with
+      | Psig_value vdesc -> Some vdesc.pval_name.txt
+      | _ -> None) sg
+
   (* type 'a s = (module Show with type a = 'a) *)
   let gen_s name ps =
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
@@ -48,7 +53,7 @@ module TypeClass = struct
                               ~args:[ Typ.constr ?loc:None
                                       (at ?loc:None (Lident "s"))
                                       tvars ]
-                              (at ?loc:None "Pack") ])
+                              (at ?loc:None "Packed") ])
       (at "t")
 
   let pack_unpack = 
@@ -68,18 +73,34 @@ module TypeClass = struct
     in
     Str.extension ?loc:None (at "imp_policy", PStr [(Str.eval opened)])
 
+  (* let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show *)
+  let method_ tys n = 
+    let add_newtypes = fold_right (Exp.newtype ?loc:None) in
+    let paramed_s = Typ.(constr (at ?loc:None (Lident "s")) (map (fun ty -> constr ?loc:None (at ?loc:None (Lident ty)) []) tys)) 
+    in
+    [%stri let [%p Pat.var ?loc:None (at ?loc:None n)] =
+        [%e add_newtypes tys 
+            [%expr fun ?_imp -> 
+                     let module M = (val (unpack_opt ?_imp : [%t paramed_s]))
+                     in [%e Exp.(ident ?loc:None (at ?loc:None (Ldot (Lident "M", n)))) ] ] ] ]
+
   let process_module_type_declaration mtd =
     let name = mtd.pmtd_name.txt in
     match mtd.pmtd_type with 
     | Some { pmty_desc = Pmty_signature sg } -> 
         let ps = parameters sg in
+        let vs = values sg in
         begin match ps with
         | [] -> assert false (* error. no parameters *)
         | _ -> 
-            Str.type_ [gen_s name ps]
-            :: Str.type_ [gen_t ps]
-            :: policy name
-            :: pack_unpack
+            Str.module_ ?loc:None & Mb.mk ?loc:None (at ?loc:None name)
+              (Mod.structure ?loc:None 
+               & Str.type_ [gen_s name ps]
+                 :: Str.type_ [gen_t ps]
+                 :: policy name
+                 :: pack_unpack
+                 @  map (method_ ps) vs
+              )
         end
     | Some _ -> assert false (* error *)
     | None -> assert false (* error *)
@@ -118,6 +139,18 @@ let extend super =
     | {txt="typeclass"}, _ -> assert false (* CR jfuruse: error *)
     | _ -> false
   in
+  let structure self sitems =
+    let sitems = concat_map (fun sitem ->
+      match sitem.pstr_desc with
+      | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
+          (* CR jfuruse: need to remove [@@typeclass] *)
+          [ sitem
+          ; TypeClass.process_module_type_declaration mtd
+          ]
+      | _ -> [sitem]) sitems
+    in
+    super.structure self sitems
+  in 
   let structure_item self sitem = 
     match sitem.pstr_desc with
     | Pstr_extension (({txt="imp_policy"; loc}, pld), _) ->
@@ -126,8 +159,6 @@ let extend super =
           errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
             Location.format loc;
         { sitem with pstr_desc = Pstr_type [ forge loc policy ] }
-    | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
-        super.structure_item self sitem
     | _ -> super.structure_item self sitem
   in
   let signature_item self sitem = 
@@ -140,5 +171,6 @@ let extend super =
         { sitem with psig_desc = Psig_type [ forge loc policy ] }
     | _ -> super.signature_item self sitem
   in
-  { super with expr; structure_item; signature_item }
+  { super with expr; structure; structure_item; signature_item }
+
 
