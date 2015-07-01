@@ -19,7 +19,7 @@ module TypeClass = struct
   open Ast_helper
 
   let parameters sg =
-    concat_map (fun si ->
+    sort compare & concat_map (fun si ->
       match si.psig_desc with
       | Psig_type tds ->
           filter_map (fun td ->
@@ -104,6 +104,17 @@ module TypeClass = struct
         end
     | Some _ -> assert false (* error *)
     | None -> assert false (* error *)
+
+
+  (* module ShowInstance = struct
+       let int : int Show.s = (module ShowInt)
+     end
+  *)
+  let instance mb =  
+    let name = mb.pmb_name.txt in
+    let mexp = assert false in
+    let mb = Mb.mk ?loc:None (at ?loc:None (name ^ "Instance")) mexp in
+    Str.module_ ?loc:None mb 
 end
 
 let extend super =
