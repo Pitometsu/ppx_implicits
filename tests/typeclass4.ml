@@ -6,19 +6,26 @@ end [@@typeclass]
 let show = Show.show
 
 module Int = struct
-  module M = struct
+
+  module ShowInt = struct
     type a = int
     let show  = string_of_int
   end [@@instance Show]
-end
 
-module Float = struct
-  module M = struct
+  module ShowFloat = struct
     type a = float
     let show  = string_of_float
   end [@@instance Show]
+
 end
 
+(* MI
+implicit module ShowFloat = struct
+  type a = float
+  let show  = string_of_float
+end
+*)
+  
 open Int
 open Float
 

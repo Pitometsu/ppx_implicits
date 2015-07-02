@@ -16,8 +16,6 @@ end
     
 let show ?imp = ShowClass.unpack_opt imp
 
-open ShowClass
-
 module ShowInstance = struct
   let int = string_of_int
   let float = string_of_float
