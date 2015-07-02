@@ -9,13 +9,7 @@ module Int = struct
   module ShowInt = struct
     type a = int
     let show  = string_of_int
-  end
-
-  (* The above with [%implicit Show] should produce the following *)
- 
-  module ShowInstance = struct
-    let int : int Show.s = (module ShowInt)
-  end
+  end [@@instance Show]
 end
 
 open Int

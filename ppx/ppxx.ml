@@ -43,6 +43,8 @@ module Typ = struct
       var & "tvar_" ^ string_of_int !cntr
   let ref_ ?loc ?attrs ty = 
     constr ?loc ?attrs (at ?loc & Longident.Lident "ref") [ty]
+  let option ?loc ?attrs ty =
+    constr ?loc ?attrs (at ?loc & Longident.(Ldot (Lident "*predef*", "option"))) [ty]
 end
 
 module Exp = struct
