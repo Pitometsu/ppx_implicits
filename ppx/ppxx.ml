@@ -43,6 +43,8 @@ module Typ = struct
       var & "tvar_" ^ string_of_int !cntr
   let ref_ ?loc ?attrs ty = 
     constr ?loc ?attrs (at ?loc & Longident.Lident "ref") [ty]
+  let option ?loc ?attrs ty =
+    constr ?loc ?attrs (at ?loc & Longident.(Ldot (Lident "*predef*", "option"))) [ty]
 end
 
 module Exp = struct
@@ -152,6 +154,7 @@ let anonymous mapper fname =
   else if Filename.check_suffix fname ".mli" then intf mapper fname 
   else assert false
 
+let debug_pre = ref false
 let debug_resolve = ref false
 let debug_unif = ref false
 
@@ -207,6 +210,7 @@ let run name mapper =
   let rev_files = ref [] in 
   Arg.parse 
     ([ "-debug", Arg.Set debug, "debug mode which can take .ml/.mli then print the result"
+     ; "-debug-pre", Arg.Set debug_pre, "debug pre-preprocessing"
      ; "-debug-resolve", Arg.Set debug_resolve, "debug mode to print overload resolution"
      ; "-debug-unif", Arg.Set debug_unif, "debug mode to print unification results"
      ] @ option_list)

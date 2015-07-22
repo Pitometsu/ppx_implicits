@@ -4,8 +4,16 @@ open Utils
 open Ast_mapper
 
 let preconvert = Pre.extend default_mapper
-let preconvert_structure = preconvert.structure preconvert 
-let preconvert_signature = preconvert.signature preconvert 
+
+let preconvert_structure str = 
+  let str = preconvert.structure preconvert str in
+  if !Ppxx.debug_pre then Pprintast.structure Format.std_formatter str;
+  str
+
+let preconvert_signature sg = 
+  let sg = preconvert.signature preconvert sg in
+  if !Ppxx.debug_pre then Pprintast.signature Format.std_formatter sg;
+  sg
   
 (* If the tool is ocamldep, we do not type-check *)
 let mapper = 

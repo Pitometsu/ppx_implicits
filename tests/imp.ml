@@ -204,9 +204,9 @@ let () = assert (show [%imp opened Show] 1 = "1")
 
 (*
 
-  We want to replace this [%imp opened Show] by [%imp3].
+  We want to replace this [%imp opened Show] by [%imp].
 
-  We introduce a conversion from [%imp3] of type (t1, .., tn) X.Y.Z.t
+  We introduce a conversion from [%imp] of type (t1, .., tn) X.Y.Z.t
   to                             [%imp opened Y]
 
 *)

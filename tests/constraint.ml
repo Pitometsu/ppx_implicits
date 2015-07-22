@@ -7,7 +7,7 @@
 module ShowClass = struct
   type 'a __imp__ = Packed of ('a -> string)
   [%%imp_policy opened ShowInstance]        
-  module ShowInstance = struct
+  module Instances = struct
     let pack ~_d = Packed _d
     let pack_opt ~_d = Some (pack _d)
   end
@@ -15,8 +15,6 @@ module ShowClass = struct
 end
     
 let show ?imp = ShowClass.unpack_opt imp
-
-open ShowClass
 
 module ShowInstance = struct
   let int = string_of_int
