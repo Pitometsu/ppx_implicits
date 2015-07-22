@@ -19,23 +19,6 @@ open List
 module TypeClass = struct
   open Longident
 
-  (* Fake class 
-
-     From 
-
-        module type Show = sig
-          type a 
-          val show : a -> string
-        end
-
-     it builds
-
-        module Show : struct
-          type 'a t
-          let show (type a) : ?_imp:a t -> a -> string = fun ?_imp -> assert false
-        end
-  *)
-
   (* ex. obtain 'a' from the definition of module type Show *)
   let parameters sg = sort compare & concat_map (fun si ->
     match si.psig_desc with
@@ -52,33 +35,7 @@ module TypeClass = struct
       | Psig_value vdesc -> Some (vdesc.pval_name.txt, vdesc.pval_type)
       | _ -> None) sg
 
-(*
-  (* type ('a, 'b) _class *)
-  let fake_typ ps n =
-    let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
-    Type.mk ?loc:None
-      ~params: (map (fun tv -> (tv, Invariant)) tvars)
-      ~kind: Ptype_abstract
-      (at n)
-*)
-
   let add_newtypes = fold_right (fun s -> Exp.newtype ?loc:None s)
-(*
-
-  (* let n (type a) .. : ?_imp:(a,..) _class -> ty = fun ?_imp -> assert false *)
-  let fake_method ps n ty =
-    let pat = Pat.var ?loc:None n in
-    let ty_class = 
-      Typ.constr (at ?loc:None & Lident "_class") 
-      & map (fun p -> Typ.constr (at (Lident p)) []) ps
-    in
-    let exp = 
-      add_newtypes ps 
-      & Exp.constraint_ [%expr fun ?_imp -> assert false]
-          (Typ.arrow "?_imp" (Typ.option ty_class) ty)
-    in
-    Str.value ?loc:None Nonrecursive [ Vb.mk ?loc:None pat exp ]
-*)
 
   (* [%%imp_policy opened ShowInstance] *)
   let policy name = 
@@ -86,38 +43,6 @@ module TypeClass = struct
       [%expr opened [%e Exp.construct (at ?loc:None (Lident (name ^ "Instance"))) None ]] 
     in
     Str.extension ?loc:None (at "imp_policy", PStr [(Str.eval opened)])
-
-(*
-  (* module Show = struct
-       type 'a _class
-       let show (type a) : ?_imp:a _class -> a -> string = fun ?_imp -> assert false
-     end 
-  *)
-  let fake_class cname ps vs =
-    let tds = 
-      [ Str.type_ ?loc:None [ fake_typ ps "_class" ];
-        Str.type_ ?loc:None [ fake_typ ps "_module" ] ]
-    in
-    let methods = map (fun (n,ty) -> fake_method ps n ty) vs in
-    Str.module_ ?loc:None & 
-      Mb.mk ?loc:None 
-        (at ?loc:None cname) 
-        (Mod.structure ?loc:None (tds @ methods @ [ policy cname ]))
-    
-  let fake_class mtd =
-    let cname = mtd.pmtd_name.txt in
-    match mtd.pmtd_type with 
-    | Some { pmty_desc = Pmty_signature sg } -> 
-        let ps = parameters sg in
-        let vs = values sg in
-        begin match ps with
-        | [] -> assert false (* error. no parameters *)
-        | _ -> fake_class cname ps vs
-        end
-    | Some _ -> assert false (* error *)
-    | None -> assert false (* error *)
-*)
-    
 
   (* type 'a _module = (module Show with type a = 'a) *)
   let gen_ty_module name ps =
@@ -131,15 +56,14 @@ module TypeClass = struct
 
   (* type ('a, 'b) _class = Packed of ('a, 'b) _module *)
   let gen_ty_class ps =
-
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
     Type.mk ?loc:None
       ~params: (map (fun tv -> (tv, Invariant)) tvars)
       ~kind: (Ptype_variant [ Type.constructor 
                                ?loc:None 
-                              ~args:[ Typ.constr ?loc:None
-                                      (at ?loc:None (Lident "_module"))
-                                      tvars ]
+                               ~args:[ Typ.constr ?loc:None
+                                       (at ?loc:None (Lident "_module"))
+                                       tvars ]
                               (at ?loc:None "Packed") ])
       (at "_class")
 
@@ -156,7 +80,10 @@ module TypeClass = struct
 
   (* let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show *)
   let method_ tys (n,_ty) = 
-    let paramed_s = Typ.(constr (at ?loc:None (Lident "_module")) (map (fun ty -> constr ?loc:None (at ?loc:None (Lident ty)) []) tys)) 
+    let paramed_s = 
+      let open Typ in
+      constr (at ?loc:None & Lident "_module") 
+      & map (fun ty -> constr ?loc:None (at ?loc:None & Lident ty) []) tys
     in
     [%stri let [%p Pat.var ?loc:None n] =
         [%e add_newtypes tys 
@@ -222,16 +149,16 @@ module TypeClass = struct
     in
     let ps = parameters str in
     Str.module_ ?loc:None & Mb.mk ?loc:None (at ?loc:None oname)
-      (Mod.structure ?loc:None [
-         Str.value ?loc:None Nonrecursive 
-           [ Vb.mk ?loc:None 
-               (Pat.var ?loc:None "dict")
-               (Exp.constraint_ ?loc:None 
-                 (Exp.pack ?loc:None (Mod.ident ?loc:None (at ?loc:None (Lident iname))))
-                 (Typ.constr ?loc:None 
-                   (at ?loc:None (Ldot (lid, "_module")))
-                   (map (fun (p,_) -> Typ.constr ?loc:None (at ?loc:None (Ldot (Lident iname, p))) []) ps)))
-           ]])
+    & Mod.structure ?loc:None 
+        [ Str.value ?loc:None Nonrecursive 
+            [ Vb.mk ?loc:None 
+                (Pat.var ?loc:None "dict")
+                (Exp.constraint_ ?loc:None 
+                   (Exp.pack ?loc:None & Mod.ident' ?loc:None & Lident iname)
+                   (Typ.constr ?loc:None 
+                     (at ?loc:None & Ldot (lid, "_module"))
+                     & map (fun (p,_) -> Typ.constr ?loc:None (at ?loc:None & Ldot (Lident iname, p)) []) ps))
+           ]]
 end
 
 let extend super =

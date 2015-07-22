@@ -9,7 +9,8 @@ end
 
 module Ident = struct
   include Ident
-  let format ppf id = Format.fprintf ppf "%s/%d" id.name id.stamp
+  let format_verbose ppf id = Format.fprintf ppf "%s/%d" id.name id.stamp
+  let format ppf id = Format.pp_print_string ppf id.name
 end
 
 module Path = struct
@@ -18,7 +19,7 @@ module Path = struct
   let rec format_verbose ppf =
     let open Format in
     function
-      | Pident id -> Ident.format ppf id
+      | Pident id -> Ident.format_verbose ppf id
       | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format_verbose p name n
       | Papply (p1, p2) -> fprintf ppf "%a(%a)" format_verbose p1 format_verbose p2
 
@@ -109,9 +110,7 @@ end) = Main_args.Make_bytecomp_options (struct
   let _compat_32 = set bytecode_compatible_32
   let _config = show_config
   let _custom = set custom_runtime
-(*
   let _no_check_prims = set no_check_prims
-*)
   let _dllib s = dllibs := Misc.rev_split_words s @ !dllibs
   let _dllpath s = dllpaths := !dllpaths @ [s]
   let _for_pack s = for_package := Some s
@@ -121,9 +120,7 @@ end) = Main_args.Make_bytecomp_options (struct
   let _impl = A.impl
   let _intf = A.intf
   let _intf_suffix s = Config.interface_suffix := s
-(*
   let _keep_docs = set keep_docs
-*)
   let _keep_locs = set keep_locs
   let _labels = unset classic
   let _linkall = set link_everything
@@ -138,10 +135,8 @@ end) = Main_args.Make_bytecomp_options (struct
   let _o s = output_name := Some s
   let _open s = open_modules := s :: !open_modules
   let _output_obj () = output_c_object := true; custom_runtime := true
-(*
   let _output_complete_obj () =
     output_c_object := true; output_complete_object := true; custom_runtime := true
-*)
   let _pack = set make_package
   let _pp s = preprocessor := Some s
   let _ppx s = first_ppx := s :: !first_ppx
