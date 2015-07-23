@@ -5,6 +5,7 @@ OCAMLPPFLAGS=
 
 FILES[] =
     utils
+    unshadow
     untypeast
     compilerlibx
     ppxx

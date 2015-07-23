@@ -167,7 +167,7 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
   Open extension:
 
-  show and show_twice normally use [%imp Show] or [%imp Opened Show], so writing 
+  show and show_twice normally use [%imp Show] or [%imp opened Show], so writing 
   Show everytime is boring. It would be better if we can omit writing Show like:
 
   show [%imp] 1

@@ -19,6 +19,7 @@ type t =
 
 and t2 = 
   | Opened of Longident.t flagged
+  | Opened' of (string * Re.re) flagged
   | Direct of (Longident.t * Path.t option) flagged
   | Aggressive of t2
   | Related
@@ -418,6 +419,7 @@ let rec cand_static env loc = function
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_static env loc x
   | Opened x -> cand_opened env loc x
+  | Opened' x -> cand_opened' env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
 
@@ -425,7 +427,7 @@ let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
-  | Opened _ | Direct _ -> assert false
+  | Opened _ | Opened' _ | Direct _ -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
 
 type result = Longident.t * Path.t * value_description * bool

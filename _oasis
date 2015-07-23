@@ -1,6 +1,6 @@
 OASISFormat: 0.2
 Name:        ppx_implicits
-Version:     0.0.1
+Version:     1.1.0
 Synopsis:    ppx_implicits: ppx extension for implicits, overloading and type classes.
 Authors:     Jun FURUSE
 License:     LGPL-2.0 with OCaml linking exception
