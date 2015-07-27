@@ -15,7 +15,7 @@ open Path
 (** spec dsl *)
 type t = 
   | Or of t2 list
-  | Type (** [%imp].  No allowed in [%%imp_policy] *)
+  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_policy] *)
 
 and t2 = 
   | Opened of Longident.t flagged
@@ -23,6 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
+  | OpenedWithAliasType
 
 and 'a flagged = In of 'a | Just of 'a
 
@@ -31,6 +32,7 @@ let rec is_static = function
   | Direct _ -> true
   | Related -> false
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
+  | OpenedWithAliasType -> true
     
 let to_string = 
   let flagged f = function
@@ -48,6 +50,7 @@ let to_string =
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
+    | OpenedWithAliasType -> "opened_with_alias_type"
   in
   t 
 
@@ -129,6 +132,7 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
+      | Pexp_ident {txt=Lident "opened_with_alias_type"} -> OpenedWithAliasType
       | _ -> 
           let flid = flag_lid e in
           begin match flid with
@@ -309,19 +313,23 @@ let get_opens env = get_opens & Env.summary env
 
 let module_lids_in_open_path env lids = function
   | None -> 
+      (* Finds lids in the current scope, but only defined ones in the current scope level.
+           * Persistent ones are excluded
+           * Sub-modules are excluded
+      *)
       flip filter_map lids (fun lid ->
         try
-          Some (Env.lookup_module ~load:true (*?*) lid env)
+          let p = Env.lookup_module ~load:true (*?*) lid env in
+          match p with
+          | Pident id when not & Ident.persistent id -> Some p
+          | _ -> None (* not sure... *)
         with
         | _ -> None)
-  | Some (Path.Pident id) when Ident.name id = "Pervasives" && Ident.persistent id  -> 
-      (* We assume Pervasives has no instances *)
-      []
   | Some open_ ->
       (*  eprintf "open %a@." Path.format open_; *)
       let mdecl = Env.find_module open_ env in (* It should succeed *)
       let sg = scrape_sg env mdecl in
-      let env = Env.open_signature Asttypes.Fresh open_ sg env in
+      let env = Env.open_signature Asttypes.Fresh open_ sg Env.empty in
       flip filter_map lids (fun lid ->
         try
           Some (Env.lookup_module ~load:true (*?*) lid env)
@@ -390,6 +398,36 @@ let cand_opened env loc x =
     | In lid -> lid
   in
   let opens = get_opens env in
+  if !Ppxx.debug_resolve then begin
+    Format.eprintf "debug_resolve: cand_opened opened paths@.";
+    flip iter opens & Format.eprintf "  %a@." Path.format
+  end;
+  let paths = 
+    concat 
+    & map (module_lids_in_open_path env [lid]) 
+    & None :: map (fun x -> Some x) opens
+  in
+  if !Ppxx.debug_resolve then begin
+    Format.eprintf "debug_resolve: cand_opened cand modules@.";
+    flip iter paths & Format.eprintf "  %a@." Path.format
+  end;
+  let lids = flip map paths & fun path ->
+    match Unshadow.check_module_path env path with
+    | `Accessible lid -> lid
+    | `Shadowed (id, id', p) ->
+        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
+        Untypeast.lident_of_path p
+    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+  in
+  concat & map2 (fun lid path ->
+    cand_direct env loc
+      (match x with
+      | Just _ -> Just (lid, Some path)
+      | In _ -> In (lid, Some path))) lids paths
+
+let cand_opened_with_alias_type _env _loc = assert false
+(*
+  let opens = get_opens env in
   let paths = 
     concat 
     & map (module_lids_in_open_path env [lid]) 
@@ -408,6 +446,7 @@ let cand_opened env loc x =
       (match x with
       | Just _ -> Just (lid, Some path)
       | In _ -> In (lid, Some path))) lids paths
+*)
 
 let cand_name rex f =
   filter (fun (lid, _, _, _) ->
@@ -420,15 +459,16 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
+  | OpenedWithAliasType -> cand_opened_with_alias_type env loc
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
-  | Opened _ | Direct _ -> assert false
+  | Opened _ | Direct _ | OpenedWithAliasType -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
 
-type result = Longident.t * Path.t * value_description * bool
+type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
 
 let uniq xs =
   let tbl = Hashtbl.create 107 in
@@ -445,7 +485,10 @@ let candidates env loc = function
   | Or ts ->
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
+      if !Ppxx.debug_resolve then begin
+        Format.eprintf "debug_resolve: static candidates@.";
+        flip iter statics & fun (lid, path, _vdesc, _b) ->
+          Format.eprintf "  %a %a@." Longident.format lid Path.format path
+      end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty
-
-

@@ -120,7 +120,13 @@ module Cf = struct
 end
 
 module Cstr = struct
+  include Cstr
   let mk ?(self= Pat.any ()) fields = Cstr.mk self fields
+end
+
+module Mod = struct
+  include Ast_helper.Mod
+  let ident' ?loc lid = ident ?loc (at ?loc lid)
 end
 
 let ppx_name = ref "ppx name is not set"

@@ -21,26 +21,34 @@ end
 
 let show = Show.show
 
-module Int = struct
+module M = struct
   module ShowInt = struct
     type a = int
     let show  = string_of_int
   end
 
-  (* [%implicit Show] must change the above definition to the following 
+  (* The above with [%implicit Show] should produce the following. *)
+ 
+  module ShowInstance = struct
+    let int : ShowInt.a Show.s = (module ShowInt)
+  end
+end
 
-    module ShowInt : Show with type a = int = struct
-      type a = int
-      let show  = string_of_int
-    end
-  *)
+(* Eek, we cannot merge M and N, because of ShowInstance *)
+module N = struct
+  module ShowFloat = struct
+    type a = float
+    let show  = string_of_float
+  end
 
   (* The above with [%implicit Show] should produce the following. *)
  
   module ShowInstance = struct
-    let int : int Show.s = (module ShowInt)
+    let float : ShowFloat.a Show.s = (module ShowFloat)
   end
 end
 
-open Int
+open M
+open N
 let () = assert (show 1 = "1")
+let () = assert (show 1.2 = "1.2")
