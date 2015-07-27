@@ -45,7 +45,7 @@ val check_module_path_accessibility :
    | `Not_found
    | `Shadowed ]
 
-type result = Longident.t * Path.t * value_description * bool
+type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
 
 val uniq : result list -> result list
 
