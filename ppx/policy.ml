@@ -320,8 +320,9 @@ let module_lids_in_open_path env lids = function
       flip filter_map lids (fun lid ->
         try
           let p = Env.lookup_module ~load:true (*?*) lid env in
-Format.eprintf "XXX %a@." Path.format p;
-Some p
+          match p with
+          | Pident id when not & Ident.persistent id -> Some p
+          | _ -> None (* not sure... *)
         with
         | _ -> None)
   | Some open_ ->
