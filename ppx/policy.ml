@@ -23,7 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
-  | OpenedWithAliasType
+  | Opened2
 
 and 'a flagged = In of 'a | Just of 'a
 
@@ -32,7 +32,7 @@ let rec is_static = function
   | Direct _ -> true
   | Related -> false
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
-  | OpenedWithAliasType -> true
+  | Opened2 -> true
     
 let to_string = 
   let flagged f = function
@@ -50,7 +50,7 @@ let to_string =
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
-    | OpenedWithAliasType -> "opened_with_alias_type"
+    | Opened2 -> "opened2"
   in
   t 
 
@@ -132,7 +132,7 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | Pexp_ident {txt=Lident "opened_with_alias_type"} -> OpenedWithAliasType
+      | Pexp_ident {txt=Lident "opened2"} -> Opened2
       | _ -> 
           let flid = flag_lid e in
           begin match flid with
@@ -425,7 +425,7 @@ let cand_opened env loc x =
       | Just _ -> Just (lid, Some path)
       | In _ -> In (lid, Some path))) lids paths
 
-let cand_opened_with_alias_type _env _loc = assert false
+let cand_opened2 _env _loc = assert false
 (*
   let opens = get_opens env in
   let paths = 
@@ -459,13 +459,13 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | OpenedWithAliasType -> cand_opened_with_alias_type env loc
+  | Opened2 -> cand_opened2 env loc
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
-  | Opened _ | Direct _ | OpenedWithAliasType -> assert false
+  | Opened _ | Direct _ | Opened2 -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
 
 type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
