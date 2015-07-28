@@ -138,20 +138,21 @@ let imp_type_policy env loc ty =
   | Tconstr (p, _, _) -> 
       begin match p with
       | Pident _ ->
+          (* Oh it's local... *)
           (* __imp_policy__ must exit *)
-          let td = 
+          let _p, td = 
             try
               let p, td = Env.lookup_type (Lident "__imp_policy__") env in
               match p with
-              | Pident _ -> td
+              | Pident id when Ident.persistent id -> p, td
               | _ -> raise Exit (* __imp_policy__ exists but in some module, not in the top *)
             with
             | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.format loc
           in
           `Ok (Policy.from_type_decl td.type_loc td)
       | Pdot (mp, _, _) -> 
-          (* mp.__imp_policy__ must exist *)
-          `Ok (Policy.from_module_path env mp)
+          (* <mp>.__imp_policy__ must exist *)
+          `Ok (snd & Policy.from_module_path env mp)
       | _ -> assert false (* impos: F(X) *)
       end
   | _ -> `Error `Strange_type
