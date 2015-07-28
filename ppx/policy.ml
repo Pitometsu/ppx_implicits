@@ -23,7 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
-  | Opened2 of Types.type_expr
+  | Opened2 of Path.t option
 
 and 'a flagged = In of 'a | Just of 'a
 
@@ -132,7 +132,7 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | Pexp_ident {txt=Lident "opened2"} -> Opened2 (Ctype.newvar () (* anything *))
+      | Pexp_ident {txt=Lident "opened2"} -> Opened2 None
       | _ -> 
           let flid = flag_lid e in
           begin match flid with
@@ -183,15 +183,23 @@ let from_payload = function
 
 open Types
 
-let from_type_decl loc = function
+let fix_opened2 _loc p = function
+  | Type -> assert false
+  | Or t2s ->
+      let f = function
+        | Opened2 None -> Opened2 (Some p)
+        | Opened2 (Some _) -> assert false
+        | x -> x
+      in
+      Or (map f t2s)
+    
+let from_type_decl p loc = function
   | { type_params = []
     ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->
       let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
-      from_ok loc & 
-        unmangle id.Ident.name >>= fun x -> 
-        from_string x >>= fun x ->
-        from_expression x
+      fix_opened2 loc p & from_ok loc
+      & unmangle id.Ident.name >>= from_string >>= from_expression
   | _ -> 
       errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
 
@@ -213,7 +221,7 @@ let from_module_type mp loc mty =
         assert false (* CR jfuruse: error *)
   in
   (* Add mp.Instances as the default recipes *)
-  match from_type_decl loc td with
+  match from_type_decl p loc td with
   | Type -> assert false
   | Or t2s ->
       let default_instances =
@@ -227,7 +235,7 @@ let from_module_type mp loc mty =
         with
         | Not_found -> []
       in
-      Some (p, Or (t2s @ default_instances))
+      Some (Or (t2s @ default_instances))
 
 let from_module_path env mp =
   let md = Env.find_module mp env in (* CR jfuruse: Error *)
@@ -447,36 +455,58 @@ let cand_opened env loc x =
    type M.__imp_policy__ must exists and it is "opened2"
    We seek types equal to __imp_instance__ = M.__imp_policy__
 *) 
-let cand_opened2 _env _loc = assert false
-(*
-  let opens = get_opens env in
-  if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened2 opened paths@.";
-    flip iter opens & Format.eprintf "  %a@." Path.format
-  end;
-  let paths = 
-    concat 
-    & map (module_lids_in_open_path env [lid]) 
-    & None :: map (fun x -> Some x) opens
+let cand_opened2 env loc p_policy =
+  let has_instance mp =
+    let md = Env.find_module mp env in
+    let dummy = "Dummy" in
+    let id = Ident.create dummy in
+    let env = Env.add_module id md.md_type Env.empty in
+    (* note that td is under Dummy *)
+    try
+      let p, td = Env.lookup_type (Longident.(Ldot (Lident dummy, "__imp_instance__"))) env
+      in
+      begin match p with
+      | Pdot (_, "__imp_instance__", n) ->
+          begin match td with
+          | { type_params = [];
+              type_manifest = Some { desc = Tconstr (p, _, _) };
+            } when p = p_policy ->
+              Some (Pdot (mp, "__imp_instance__", n))
+          | _ -> None
+          end
+      | _ -> assert false
+      end
+    with
+    | Not_found -> None
   in
-  if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened cand modules@.";
-    flip iter paths & Format.eprintf "  %a@." Path.format
-  end;
-  let lids = flip map paths & fun path ->
-    match Unshadow.check_module_path env path with
-    | `Accessible lid -> lid
-    | `Shadowed (id, id', p) ->
-        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
-        Untypeast.lident_of_path p
-    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+  let rec find_modules = function
+    | Env.Env_empty -> []
+    | Env_value (s, _, _)
+    | Env_extension (s, _, _)
+    | Env_modtype (s, _, _)
+    | Env_class (s, _, _)
+    | Env_cltype (s, _, _)
+    | Env_functor_arg (s, _)
+    | Env_type (s, _, _) -> find_modules s
+    | Env_module (s, id, md) ->
+        let res = find_modules s in
+        begin match has_instance (Pident id) with
+        | None -> res
+        | Some x -> x :: res
+        end
+    | Env_open (s, path) ->
+        let md = Env.find_module path env in
+        fold_left (fun res -> function
+          | Sig_module (id, md, _) ->
+              begin match has_instance (Pdot (path, id.Ident.name, id.Ident.stamp (* right? *))) with
+              | None -> res
+              | Some x -> x :: res
+              end
+          | _ -> res)
+          (find_modules s) (scrape_sg env md)
   in
-  concat & map2 (fun lid path ->
-    cand_direct env loc
-      (match x with
-      | Just _ -> Just (lid, Some path)
-      | In _ -> In (lid, Some path))) lids paths
-*)
+  let ps = find_modules & Env.summary env in
+  assert false
   
 let cand_name rex f =
   filter (fun (lid, _, _, _) ->
@@ -489,7 +519,7 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Opened2 _ -> cand_opened2 env loc
+  | Opened2 p -> cand_opened2 env loc p
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
