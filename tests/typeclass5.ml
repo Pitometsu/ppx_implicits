@@ -41,7 +41,7 @@ module M = struct
 
   (* The above with [%implicit Show] should produce the following. *)
  
-  module ShowInstance = struct
+  module ShowFloatInstance = struct
     let float : ShowFloat.a Show.s = (module ShowFloat)
     type __imp_instance__ = Show.__imp_policy__ 
   end

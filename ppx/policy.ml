@@ -281,7 +281,8 @@ let scrape_sg env mdecl =
       eprintf "scraping failed: %s" & Printexc.to_string e;
       raise e
 
-let rec values_of_module ~recursive env lid path mdecl =
+let rec values_of_module ~recursive env lid path mdecl
+          : (Longident.t * Path.t * value_description) list =
   let sg = scrape_sg env mdecl in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) ->
@@ -296,7 +297,7 @@ let rec values_of_module ~recursive env lid path mdecl =
       begin 
         (* CR jfuruse: think about error *)
         let vdesc = Env.find_value path env in
-        (lid, path, vdesc, false) :: st
+        (lid, path, vdesc) :: st
       end
   | Sig_module (id, moddecl, _) when recursive -> 
       let lid = Ldot (lid, Ident.name id) in
@@ -334,7 +335,7 @@ let rec dump_summary =
   | Env_module (s, id, _) -> eprintf "module %a@." Ident.format id; dump_summary s
   | Env_open (s, path) -> eprintf "open %a@." Path.format path; dump_summary s
 
-let dump_summary env = dump_summary & Env.summary env
+let _dump_summary env = dump_summary & Env.summary env
   
 let module_lids_in_open_path env lids = function
   | None -> 
@@ -387,6 +388,8 @@ let related_modules env ty =
       | Papply _ -> assert false)
   |> sort_uniq compare
 
+let mark_not_aggressive xs = flip map xs & fun (a,b,c) -> (a,b,c,false)
+    
 let cand_direct env loc t3 =
   let recursive, lid, popt = match t3 with
     | Just (lid, popt) -> false, lid, popt
@@ -399,7 +402,8 @@ let cand_direct env loc t3 =
         Env.lookup_module ~load:true lid env
   in
   let mdecl = check_module env loc path in
-  values_of_module ~recursive env lid path mdecl
+  mark_not_aggressive
+  & values_of_module ~recursive env lid path mdecl
 
 let cand_related env _loc ty = 
   let mods = related_modules env ty in
@@ -415,10 +419,10 @@ let cand_related env _loc ty =
     | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
   in
   (* CR jfuruse: values_of_module should be memoized *)
-  concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
+  mark_not_aggressive
+  & concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
   
 let cand_opened env loc x =
-  dump_summary env;
   let lid = match x with
     | Just lid -> lid
     | In lid -> lid
@@ -466,12 +470,13 @@ let cand_opened2 env loc p_policy =
       let p, td = Env.lookup_type (Longident.(Ldot (Lident dummy, "__imp_instance__"))) env
       in
       begin match p with
-      | Pdot (_, "__imp_instance__", n) ->
+      | Pdot (_, "__imp_instance__", _n) ->
           begin match td with
           | { type_params = [];
               type_manifest = Some { desc = Tconstr (p, _, _) };
             } when p = p_policy ->
-              Some (Pdot (mp, "__imp_instance__", n))
+              Some mp
+              (* Some (Pdot (mp, "__imp_instance__", n)) *)
           | _ -> None
           end
       | _ -> assert false
@@ -488,7 +493,7 @@ let cand_opened2 env loc p_policy =
     | Env_cltype (s, _, _)
     | Env_functor_arg (s, _)
     | Env_type (s, _, _) -> find_modules s
-    | Env_module (s, id, md) ->
+    | Env_module (s, id, _md) ->
         let res = find_modules s in
         begin match has_instance (Pident id) with
         | None -> res
@@ -496,18 +501,39 @@ let cand_opened2 env loc p_policy =
         end
     | Env_open (s, path) ->
         let md = Env.find_module path env in
+        (* Strange way to ask the correct position ... *)
+        let dummy_id = Ident.create "Dummy" in
+        let env' = Env.add_module_declaration dummy_id md Env.empty in
         fold_left (fun res -> function
-          | Sig_module (id, md, _) ->
-              begin match has_instance (Pdot (path, id.Ident.name, id.Ident.stamp (* right? *))) with
+          | Sig_module (id, _md, _) ->
+              let pos =
+                match Env.lookup_module ~load:false (Longident.(Ldot (Lident "Dummy", id.Ident.name))) env' with
+                | Pdot (_, _n, pos) -> pos
+                | _ -> assert false
+              in
+              begin match has_instance (Pdot (path, id.Ident.name, pos)) with
               | None -> res
               | Some x -> x :: res
               end
           | _ -> res)
           (find_modules s) (scrape_sg env md)
   in
-  let ps = find_modules & Env.summary env in
-  assert false
-  
+  let paths = find_modules & Env.summary env in
+  if !Ppxx.debug_resolve then begin
+    Format.eprintf "debug_resolve: cand_opened2 cand modules@.";
+    flip iter paths & Format.eprintf "  %a@." Path.format
+  end;
+  let lids = flip map paths & fun path ->
+    match Unshadow.check_module_path env path with
+    | `Accessible lid -> lid
+    | `Shadowed (id, id', p) ->
+        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
+        Untypeast.lident_of_path p
+    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+  in
+  concat & map2 (fun lid path ->
+    cand_direct env loc (Just (lid, Some path))) lids paths
+    
 let cand_name rex f =
   filter (fun (lid, _, _, _) ->
     Re_pcre.pmatch ~rex & Longident.to_string lid) & f ()
@@ -519,7 +545,8 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Opened2 p -> cand_opened2 env loc p
+  | Opened2 (Some p) -> cand_opened2 env loc p
+  | Opened2 None -> assert false
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
