@@ -23,7 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
-  | Opened2 of Path.t option
+  | Typeclass of Path.t option
 
 and 'a flagged = In of 'a | Just of 'a
 
@@ -32,7 +32,7 @@ let rec is_static = function
   | Direct _ -> true
   | Related -> false
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
-  | Opened2 _ -> true
+  | Typeclass _ -> true
     
 let to_string = 
   let flagged f = function
@@ -50,7 +50,7 @@ let to_string =
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
-    | Opened2 _ -> "opened2"
+    | Typeclass _ -> "typeclass"
   in
   t 
 
@@ -132,7 +132,7 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | Pexp_ident {txt=Lident "opened2"} -> Opened2 None
+      | Pexp_ident {txt=Lident "typeclass"} -> Typeclass None
       | _ -> 
           let flid = flag_lid e in
           begin match flid with
@@ -183,12 +183,12 @@ let from_payload = function
 
 open Types
 
-let fix_opened2 _loc p = function
+let fix_typeclass _loc p = function
   | Type -> assert false
   | Or t2s ->
       let f = function
-        | Opened2 None -> Opened2 (Some p)
-        | Opened2 (Some _) -> assert false
+        | Typeclass None -> Typeclass (Some p)
+        | Typeclass (Some _) -> assert false
         | x -> x
       in
       Or (map f t2s)
@@ -198,7 +198,7 @@ let from_type_decl p loc = function
     ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->
       let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
-      fix_opened2 loc p & from_ok loc
+      fix_typeclass loc p & from_ok loc
       & unmangle id.Ident.name >>= from_string >>= from_expression
   | _ -> 
       errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
@@ -456,10 +456,10 @@ let cand_opened env loc x =
       | In _ -> In (lid, Some path))) lids paths
 
 (* [%imp] : 'a M.ty
-   type M.__imp_policy__ must exists and it is "opened2"
+   type M.__imp_policy__ must exists and it is "typeclass"
    We seek types equal to __imp_instance__ = M.__imp_policy__
 *) 
-let cand_opened2 env loc p_policy =
+let cand_typeclass env loc p_policy =
   let has_instance mp =
     let md = Env.find_module mp env in
     let dummy = "Dummy" in
@@ -520,7 +520,7 @@ let cand_opened2 env loc p_policy =
   in
   let paths = find_modules & Env.summary env in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened2 cand modules@.";
+    Format.eprintf "debug_resolve: cand_typeclass cand modules@.";
     flip iter paths & Format.eprintf "  %a@." Path.format
   end;
   let lids = flip map paths & fun path ->
@@ -545,14 +545,14 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Opened2 (Some p) -> cand_opened2 env loc p
-  | Opened2 None -> assert false
+  | Typeclass (Some p) -> cand_typeclass env loc p
+  | Typeclass None -> assert false
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
   | Aggressive x ->
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
-  | Opened _ | Direct _ | Opened2 _ -> assert false
+  | Opened _ | Direct _ | Typeclass _ -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
 
 type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)

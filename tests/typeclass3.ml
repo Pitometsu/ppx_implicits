@@ -27,8 +27,6 @@ module M = struct
     let show  = string_of_int
   end
 
-  (* The above with [@@implicit Show] should produce the following. *)
- 
   module ShowInstance = struct
     let int : ShowInt.a Show.s = (module ShowInt)
   end
@@ -41,8 +39,6 @@ module N = struct
     let show  = string_of_float
   end
 
-  (* The above with [@@implicit Show] should produce the following. *)
- 
   module ShowInstance = struct
     let float : ShowFloat.a Show.s = (module ShowFloat)
   end
