@@ -1,5 +1,6 @@
 module type Show = sig
-  (* Parameters must be properly listed. We cannot add parameters using include S *)
+  (* Parameters must be properly listed. 
+     We cannot add parameters using include S *)
   type a 
   val show : a -> string
 end [@@typeclass]
