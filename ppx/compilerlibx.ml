@@ -84,6 +84,7 @@ module Types = struct
       | _ -> assert false) & gen_vars ty
 end
 
+(* Pity! This is version dependent *)
 module BytecompOptions(A : sig
   val impl : string -> unit
   val intf : string -> unit

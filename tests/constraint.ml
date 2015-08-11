@@ -1,9 +1,3 @@
-(* 
-   
-   Let's start to have functions to show various data types in one module Show.
-
-*)
-
 module ShowClass = struct
   type 'a __imp__ = Packed of ('a -> string)
   [%%imp_policy opened ShowInstance]        
@@ -19,6 +13,8 @@ let show ?_imp = ShowClass.unpack_opt _imp
 module ShowInstance = struct
   let int = string_of_int
   let float = string_of_float
+
+  (* constraint works! *)
   let list ?_imp:(imp : 'a ShowClass.__imp__ option) (xs : 'a list) = 
     "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
 end

@@ -1,4 +1,4 @@
-(* The following strange recipes are rejected to be used recursively
+(* The following strange recipes cannot be composed recursively, 
    since their recusrive use do not strictly decrease the type size *)
 module Show = struct
   let int ~_d:(_d : int -> string) = _d

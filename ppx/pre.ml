@@ -1,7 +1,10 @@
 (*
 
-  Pre-preprocessing for syntax sugars for [%imp] and [%%imp_policy].
-
+  Pre-preprocessing for syntax sugars for 
+    [%imp]
+    [%%imp_policy]
+    [@@typeclass]
+    [@@instance]
 *)
 
 open Ast_helper
@@ -15,7 +18,7 @@ open Utils
 open Compilerlibx
 open List
 
-(* @@typeclass *)
+(* [@@typeclass] and [@@instance] *)
 module TypeClass = struct
   open Longident
 
@@ -76,7 +79,6 @@ module TypeClass = struct
             | None -> assert false
             | Some (Packed x) -> x
     ] 
-
 
   (* let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show *)
   let method_ tys (n,_ty) = 
@@ -170,29 +172,31 @@ let extend super =
   let expr self e =
     match e.pexp_desc with
     | Pexp_extension ( ({txt="imp"} as strloc), x) ->
+        (* [%imp ...] => (assert false) [@imp ...] *)
         { (Exp.assert_false ()) with
           pexp_loc = e.pexp_loc;
           pexp_attributes = [ (strloc, x) ] }
     | _ -> super.expr self e
   in
-  let forge loc policy =
+  (* type __imp_policy__ = .. *)
+  let forge_policy loc policy =
     let mangled = Policy.to_mangled_string policy in                
-          { ptype_name = {txt = "__imp_policy__"; loc}
-          ; ptype_params = []
-          ; ptype_cstrs = []
-          ; ptype_kind = Ptype_variant [
-            { pcd_name = {txt=mangled; loc}
-            ; pcd_args = []
-            ; pcd_res = None
-            ; pcd_loc = loc
-            ; pcd_attributes = []
-            }
-          ]
-          ; ptype_private = Private (* How dare you want to use it? *)
-          ; ptype_manifest = None
-          ; ptype_attributes = []
-          ; ptype_loc= loc
-          }
+    { ptype_name = {txt = "__imp_policy__"; loc}
+    ; ptype_params = []
+    ; ptype_cstrs = []
+    ; ptype_kind = Ptype_variant [
+        { pcd_name = {txt=mangled; loc}
+        ; pcd_args = []
+        ; pcd_res = None
+        ; pcd_loc = loc
+        ; pcd_attributes = []
+        }
+      ]
+    ; ptype_private = Private (* How dare you want to use it? *)
+    ; ptype_manifest = None
+    ; ptype_attributes = []
+    ; ptype_loc= loc
+    }
   in
   let has_typeclass_attr = function
     | {txt="typeclass"}, PStr [] -> true
@@ -203,17 +207,19 @@ let extend super =
     let sitems = concat_map (fun sitem ->
       match sitem.pstr_desc with
       | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
+          (* module type M = ... [@@typeclass] *)
           (* CR jfuruse: need to remove [@@typeclass] *)
           [ sitem
           ; TypeClass.process_module_type_declaration mtd
           ]
       | Pstr_module mb ->
+          (* module M = ... [@@instance Show] *)
           begin match 
             filter_map (function 
-                    | ({txt="instance"}, 
-                        PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt}, None) }, []) } ]) -> Some txt
-                    | ({txt="instance"}, _) -> assert false (* CR jfuruse: error *)
-                    | _ -> None) mb.pmb_attributes
+              | ({txt="instance"}, 
+                  PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt}, None) }, []) } ]) -> Some txt
+              | ({txt="instance"}, _) -> assert false (* CR jfuruse: error *)
+              | _ -> None) mb.pmb_attributes
           with
           | [] -> [ sitem ]
           | [lid] -> [sitem; TypeClass.instance lid mb]
@@ -226,21 +232,23 @@ let extend super =
   let structure_item self sitem = 
     match sitem.pstr_desc with
     | Pstr_extension (({txt="imp_policy"; loc}, pld), _) ->
+        (* [%%imp_policy ..] => type __imp_policy__ = .. *)
         let policy = Policy.(from_ok loc & from_payload pld) in
         if policy = Policy.Type then 
           errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
             Location.format loc;
-        { sitem with pstr_desc = Pstr_type [ forge loc policy ] }
+        { sitem with pstr_desc = Pstr_type [ forge_policy loc policy ] }
     | _ -> super.structure_item self sitem
   in
   let signature_item self sitem = 
     match sitem.psig_desc with
     | Psig_extension (({txt="imp_policy"; loc}, pld), _) ->
+        (* [%%imp_policy ..] => type __imp_policy__ = .. *)
         let policy = Policy.(from_ok loc & from_payload pld) in
         if policy = Policy.Type then 
           errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
             Location.format loc;
-        { sitem with psig_desc = Psig_type [ forge loc policy ] }
+        { sitem with psig_desc = Psig_type [ forge_policy loc policy ] }
     | _ -> super.signature_item self sitem
   in
   { super with expr; structure; structure_item; signature_item }

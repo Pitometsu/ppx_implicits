@@ -26,7 +26,7 @@ $ omake
 
 `omake` should build `ppx/ppx_implicits` then test files under `tests/`.
 
-## Oh, it does not work with `ocaml`.
+## Oh, it does not work with `ocaml` toplevel (REPL).
 
 `ppx_implicits` does not work with `ocaml` toplevel. Please use `ocamlc` or `ocamlopt`.
 This is due to the limitation of PPX framework, which cannot pass big information from
@@ -90,8 +90,8 @@ let () = assert ([%imp Show, Show3] ([ 1 ], [ 2; 3 ]) = "([ 1 ], [ 2; 3 ])")
 (* [%imp Show] is expanded to Show3.list ~_d:(Show3.twin ~_d: Show.int) *)
 ```
 
-You can also write `opened PATH` to specify multiple modules with name `PATH` 
-which exist just under the opened module paths. 
+You can also write `opened PATH` to specify multiple modules at once,
+which exist just under the opened module paths whose name is `PATH`. 
 This is like Haskell's `import` to specify class instances:
 
 ```ocaml
@@ -123,11 +123,11 @@ let () = assert ([%imp opened Show] [ 1 ] = "[ 1 ]")
 
 ## Type dependent instance policy
 
-With some conditions, we can simly write `[%imp]` and omit its policy.
+With some conditions, we can simply write `[%imp]` and omit its policy.
 The policy of `[%imp]` is type-dependent:
 it is deduced from the type information of the expression.
 
-First of all, the type of `[%imp]` must be
+The type of `[%imp]` must be
 `(t1,..,tn) PATH.name` or `(t1,...,tn) PATH.name option` or their alias,
 so that the policy can be found in module `PATH`.
 

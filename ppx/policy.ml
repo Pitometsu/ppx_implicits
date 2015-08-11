@@ -23,7 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
-  | Typeclass of Path.t option
+  | Typeclass of Path.t option (* None at parsing, but must be filled with Some until the resolution *) 
 
 and 'a flagged = In of 'a | Just of 'a
 
@@ -183,6 +183,7 @@ let from_payload = function
 
 open Types
 
+(** fill Typeclass None *)
 let fix_typeclass _loc p = function
   | Type -> assert false
   | Or t2s ->
@@ -198,24 +199,37 @@ let from_type_decl p loc = function
     ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->
       let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
-      fix_typeclass loc p & from_ok loc
+      fix_typeclass loc p
+      & from_ok loc
       & unmangle id.Ident.name >>= from_string >>= from_expression
   | _ -> 
       errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
 
-let from_module_type mp loc mty =
+        
+(* Build an empty type env except mp module with the given module type *)
+class dummy_module mp mty =
   let dummy = "Dummy" in
-  let id = Ident.create dummy in
+  let id = Ident.create "Dummy" in
   let env = Env.add_module id mty Env.empty in
-  (* note that td is under Dummy *)
+object
+
+  method lookup_type s =
+    match Env.lookup_type (Longident.(Ldot (Lident dummy, s))) env with
+    | Pdot (_, s', n), td -> Pdot (mp, s', n), td
+    | _ -> assert false
+
+  method lookup_module s =
+    match Env.lookup_module ~load:false (Longident.(Ldot (Lident dummy, s))) env with
+    | Pdot (_, s', n) -> Pdot (mp, s', n)
+    | _ -> assert false
+    
+end
+  
+let from_module_type mp loc mty =
+  let m = new dummy_module mp mty in
   let p, td =
     try
-      let p,type_decl = Env.lookup_type (Longident.(Ldot (Lident dummy, "__imp_policy__"))) env
-      in
-      match p with
-      | Pdot (_, "__imp_policy__", n) ->
-          Pdot (mp, "__imp_policy__", n), type_decl
-      | _ -> assert false
+      m#lookup_type "__imp_policy__"
     with
     | Not_found ->
         assert false (* CR jfuruse: error *)
@@ -226,12 +240,8 @@ let from_module_type mp loc mty =
   | Or t2s ->
       let default_instances =
         try
-          let p = Env.lookup_module ~load:false (*?*) (Longident.(Ldot (Lident dummy, "Instances"))) env in
-          match p with
-          | Pdot (_, "Instances", n) ->
-              let p = Pdot (mp, "Instances", n) in
-              [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
-          | _ -> assert false
+          let p = m#lookup_module "Instances" in
+          [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
         with
         | Not_found -> []
       in
@@ -254,22 +264,6 @@ let check_module env loc path =
       errorf "%a: no module desc found: %a" Location.format loc Path.format path
   | Some mdecl -> mdecl
 
-let check_module_path_accessibility env loc path =
-  let lid = Untypeast.lident_of_path path in
-  try
-    if path <> Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env then begin
-      warn (fun () ->
-        eprintf "%a: %a is not accessible in the current scope therefore ignored." Location.format loc Path.format path);
-      `Shadowed
-    end else
-      `Accessible (lid, Env.find_module path env)
-  with
-  | _ ->
-      warn (fun () ->
-        eprintf "%a: ?!?!? %a is not found in the environment." Location.format loc Path.format path);
-      `Not_found
-  
-    
 let scrape_sg env mdecl = 
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
@@ -462,25 +456,15 @@ let cand_opened env loc x =
 let cand_typeclass env loc p_policy =
   let has_instance mp =
     let md = Env.find_module mp env in
-    let dummy = "Dummy" in
-    let id = Ident.create dummy in
-    let env = Env.add_module id md.md_type Env.empty in
-    (* note that td is under Dummy *)
+    let m = new dummy_module mp md.md_type in
     try
-      let p, td = Env.lookup_type (Longident.(Ldot (Lident dummy, "__imp_instance__"))) env
-      in
-      begin match p with
-      | Pdot (_, "__imp_instance__", _n) ->
-          begin match td with
-          | { type_params = [];
-              type_manifest = Some { desc = Tconstr (p, _, _) };
-            } when p = p_policy ->
-              Some mp
-              (* Some (Pdot (mp, "__imp_instance__", n)) *)
-          | _ -> None
-          end
-      | _ -> assert false
-      end
+      let _, td = m#lookup_type "__imp_instance__" in
+      match td with
+      | { type_params = []
+        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_policy ->
+          Some mp
+          (* Some (Pdot (mp, "__imp_instance__", n)) *)
+      | _ -> None
     with
     | Not_found -> None
   in
@@ -502,16 +486,10 @@ let cand_typeclass env loc p_policy =
     | Env_open (s, path) ->
         let md = Env.find_module path env in
         (* Strange way to ask the correct position ... *)
-        let dummy_id = Ident.create "Dummy" in
-        let env' = Env.add_module_declaration dummy_id md Env.empty in
+        let m = new dummy_module path md.md_type in
         fold_left (fun res -> function
           | Sig_module (id, _md, _) ->
-              let pos =
-                match Env.lookup_module ~load:false (Longident.(Ldot (Lident "Dummy", id.Ident.name))) env' with
-                | Pdot (_, _n, pos) -> pos
-                | _ -> assert false
-              in
-              begin match has_instance (Pdot (path, id.Ident.name, pos)) with
+              begin match has_instance (m#lookup_module id.Ident.name) with
               | None -> res
               | Some x -> x :: res
               end

@@ -37,14 +37,6 @@ val from_module_type : Path.t -> Location.t -> module_type -> t option
 val from_module_path : Env.t -> Path.t -> t
 (** get policy from a module path which has type __imp_policy__ = .. *)
 
-val check_module_path_accessibility :
-  Env.t ->
-  Location.t ->
-  Path.t ->
-  [> `Accessible of Longident.t * module_declaration
-   | `Not_found
-   | `Shadowed ]
-
 type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
 
 val uniq : result list -> result list
