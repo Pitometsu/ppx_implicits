@@ -1,8 +1,161 @@
-# NOTE
+# ppx_implicits, implicit values and type classes for OCaml via PPX
 
-The basic tools of `ppx_implicits` are done, but their compositions are still updating.
-This document can change often and can be obsolete. Check files under `tests` directory which are
-sure to be working and up-to-date.
+In short,
+
+* ppx_implicits provides implicit values and type classes to OCaml.
+* NOT a compiler modification but a PPX preprocessor.
+
+You can play with type classes and more with your vanilla OCaml compiler. 
+
+# Limitation
+
+Before advertising, I should note that:
+
+ppx_implicits does not work with OCaml toplevel (REPL).
+Please use `ocamlc` or `ocamlopt`.
+
+This is due to the limitation of PPX framework, which cannot pass big information from
+preprocessing of one compilation unit to another. In the toplevel, the compilation unit
+is each toplevel expression and `ppx_implicits` cannot share important typing information
+between toplevel expressions. 
+
+This could be fixed by keeping one PPX process running throughout an REPL session,
+but it would need significant change of the REPL...
+
+# How to build
+
+```shell
+$ opam install omake ppx_tools
+$ hg clone https://bitbucket.org/camlspotter/ppx_implicits  # You need Mercurial
+$ cd ppx_implicits
+$ cp OMakeroot.in OMakeroot
+$ omake
+$ omake install
+```
+
+`omake` should build `ppx/ppx_implicits` then test files under `tests/`.
+
+`opam ppx_implicits` is possible but it is likely very old.
+
+# How to use
+
+Add `-ppx ppx_implicits` to your compiler commands.
+
+# Example: Type class
+
+Type class is one of the most complicated example of ppx_implicits
+but everyone loves type classes so let's start with it.
+
+## Class declaration
+
+In ppx_implicits, type classes are defined like as follows:
+
+```ocaml
+module type Show = sig
+  type a 
+  val show : a -> string
+end [@@typeclass]
+```
+
+This is almost equivalent with the following type class definition in Haskell:
+
+```haskell
+class Show a where
+  show :: a -> String
+```
+
+A module type definition with attribute `[@@typeclass]` defines
+a module of the same name. The values declared in the signature are
+available as values in the module. In the above example, `ppx_implicits`
+defines a value named `Show.show`. It has the following type:
+
+```ocaml
+val show : ?_imp: 'a Show._class -> 'a -> string
+```
+
+Optional arguements labeled with `?_xxx` are considered
+as type class constraints by ppx_implicits.
+The above signature is
+almost equivalent with the following Haskell signature:
+
+```ocaml
+show :: 'a Show => 'a -> string
+```
+
+## Instance declaration
+
+Now let's define instances of `Show`:
+
+```ocaml
+module M = struct
+  module Int = struct
+    type a = int
+    let show  = string_of_int
+  end [@@instance Show]
+
+  module Float = struct
+    type a = float
+    let show  = string_of_float
+  end [@@instance Show]
+end
+```
+
+A module declaration with `[@@instance PATH]` is to declare an instance
+of type class `PATH`. The module must have a signature less general than
+the module type `PATH`.
+
+Haskell equivalent of the above code is like as follows:
+
+```haskell
+module M where
+
+instance Show Int where
+  show = string_of_int
+
+-- Haskell has Double instead of Float actually... never mind
+instance Show Float where
+  show = string_of_float
+```
+
+## Use of overloaded values
+
+`Show.show` is now usable. Which instances should be used is controlled by
+`open` statement:
+
+```ocaml
+open M
+let () = assert (Show.show 1 = "1")
+let () = assert (Show.show 1.2 = "1.2")
+```
+
+Here, `open M` makes the instances declarations under `M` available
+for the use of `Show.show`. It is as same as `import M` controls
+instance availableness in Haskell:
+
+```haskell
+import M
+import qualified Show
+
+main :: IO ()
+main = do
+  -- Haskell overloads number literals...
+  assert (Show.show (1 :: Int) = "1") $ return ()
+  assert (Show.show (1.2 :: Float) = "1.2") $ return ()
+```
+
+## Overloading is first class
+
+You can define a new overloaded value from one defined with `[@@typeclass]`:
+
+```ocaml
+let show_twice ?_imp x = show x ^ show x
+```
+
+defines a value `show_twice : ?_imp: 'a Show._class -> 'a -> string`:
+
+```ocaml
+let () = assert (show_twice 1.2 = "1.21.2")
+```
 
 # Value Implicits
 
@@ -11,28 +164,6 @@ for implicit values, implicit parameters, modular implicits and type classes.
 
 You can enjoy overloading with your official OCaml compiler (4.02.1), today!!
 No compiler patching required. 
-
-## How to build
-
-Sorry, `ppx_implicits` is not yet OPAM available.
-
-```shell
-$ opam install omake ppx_tools
-$ hg clone https://bitbucket.org/camlspotter/ppx_implicits  # You need Mercurial
-$ cd ppx_implicits
-$ cp OMakeroot.in OMakeroot
-$ omake
-```
-
-`omake` should build `ppx/ppx_implicits` then test files under `tests/`.
-
-## Oh, it does not work with `ocaml` toplevel (REPL).
-
-`ppx_implicits` does not work with `ocaml` toplevel. Please use `ocamlc` or `ocamlopt`.
-This is due to the limitation of PPX framework, which cannot pass big information from
-preprocessing of one compilation unit to another. In the toplevel, the compilation unit
-is each toplevel expression and `ppx_implicits` cannot share important typing information
-between toplevel expressions. 
 
 ## Implicit values `[%imp POLICY]`
 

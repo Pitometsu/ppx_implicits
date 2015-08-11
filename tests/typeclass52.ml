@@ -22,3 +22,13 @@ end
 open M
 let () = assert (show 1 = "1")
 let () = assert (show 1.2 = "1.2")
+
+let show_aliased = show
+let () = assert (show_aliased 3.4 = "3.4")
+
+let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
+let () = assert (show_twice 5.6 = "5.65.6")
+
+let show_twice' ?_imp x = show x ^ show x
+let () = assert (show_twice' 5.6 = "5.65.6")
+  
