@@ -148,14 +148,30 @@ main = do
 You can define a new overloaded value from one defined with `[@@typeclass]`:
 
 ```ocaml
-let show_twice ?_imp x = show x ^ show x
-```
+let show_twice : ?_imp x = show ?_imp x  ^ show ?_imp x
 
-defines a value `show_twice : ?_imp: 'a Show._class -> 'a -> string`:
-
-```ocaml
 let () = assert (show_twice 1.2 = "1.21.2")
 ```
+
+or
+
+```ocaml
+let show_twice' : ?_imp: 'a Show._class -> 'a -> string = fun ?_imp x ->
+  show x ^ show x
+
+let () = assert (show_twice' 1.2 = "1.21.2")
+```
+
+which is similar to the following Haskell code:
+
+```haskell
+show_twice' :: Show a => a -> string
+show_twice' x = show x ++ show x
+```
+
+Dictionary dispatching requires manual wiring,
+either by explicit applications of dispatch `show ?_imp x`
+or by an explicit type annotation. 
 
 # Value Implicits
 
