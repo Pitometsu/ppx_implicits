@@ -16,6 +16,11 @@ module Option = struct
   let map f = function
     | None -> None
     | Some v -> Some (f v)
+
+  open Format
+  let format f ppf = function
+    | None -> pp_print_string ppf "None"
+    | Some v -> fprintf ppf "@[<2>Some@ (@[%a@])@]" f v
 end
 
 module List = struct
@@ -62,3 +67,4 @@ let warn f =
   Format.eprintf "@[<2>Warning:@ ";
   f ();
   Format.eprintf "@]@.";
+  

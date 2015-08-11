@@ -7,10 +7,16 @@ open Path
 let conv_ident id = "__" ^ id.name ^ "__" ^ string_of_int id.stamp
 
 let rec check_module_path env path =
+(*
+  Format.eprintf "  checking %a@." Path.format_verbose path;
+*)
   let lid = Untypeast.lident_of_path path in
   let path' = try Some (Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env) with _ -> None in 
   if Some path = path' then `Accessible lid
-  else
+  else begin
+(*
+    Format.eprintf "    shadowed: found %a@." (Option.format Path.format_verbose) path';
+*)
     match path with
     | Pident id -> 
         let n = conv_ident id in
@@ -23,7 +29,14 @@ let rec check_module_path env path =
         | `Not_found p -> `Not_found p
     end
     | _ -> assert false
+  end
 
+let check_module_path env path =
+(*
+  Format.eprintf "check_module_path: %a@." Path.format path;
+*)
+  check_module_path env path
+        
 let aliases = ref ([] : (Ident.t * Ident.t) list)
 
 module MapArg : TypedtreeMap.MapArgument = struct
