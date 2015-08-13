@@ -31,10 +31,10 @@ val from_payload :
 val from_type_decl : Path.t -> Location.t -> type_declaration -> t
 (** get policy from type __imp_policy__ = .. *)
 
-val from_module_type : Path.t -> Location.t -> module_type -> t option
+val from_module_type : Env.t -> Path.t -> Location.t -> module_type -> [> `Ok of t | `Error of [> `No_imp_policy of Location.t * Path.t ] ]
 (** get policy from a module type which has type __imp_policy__ = .. *)
 
-val from_module_path : Env.t -> Path.t -> t
+val from_module_path : imp_loc: Location.t -> Env.t -> Path.t -> [> `Ok of t | `Error of [> `No_imp_policy of Location.t * Path.t ] ]
 (** get policy from a module path which has type __imp_policy__ = .. *)
 
 type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)

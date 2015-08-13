@@ -104,7 +104,9 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
                          trace;
                      end;
                      raise e
-                 | `Error e -> raise e
+                 | `Error e ->
+                     eprintf "Ctype.unify raised strange exception %s@." (Printexc.to_string e);
+                     raise e
                  end;
                  let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                  flip map (resolve env get_cands tr_tys) & fun res ->
@@ -152,7 +154,16 @@ let imp_type_policy env loc ty =
           `Ok (Policy.from_type_decl p td.type_loc td)
       | Pdot (mp, _, _) -> 
           (* <mp>.__imp_policy__ must exist *)
-          `Ok (Policy.from_module_path env mp)
+          begin match Policy.from_module_path ~imp_loc:loc env mp with
+          | `Ok x -> `Ok x
+          | `Error (`No_imp_policy (mp_loc, mp)) ->
+              errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_policy POLICY].@ %a: module %a is defined here.@]"
+                Location.format loc
+                Printtyp.type_expr ty (* reset? *)
+                Path.format mp
+                Location.format mp_loc
+                Path.format mp
+          end
       | _ -> assert false (* impos: F(X) *)
       end
   | _ -> `Error `Strange_type
@@ -234,12 +245,14 @@ module MapArg : TypedtreeMap.MapArgument = struct
         derived_candidates := (fid, (Longident.Lident fid, Path.Pident id, 
                                      { val_type = case.c_lhs.pat_type;
                                        val_kind = Val_reg;
-                                       val_loc = case.c_lhs.pat_loc; (* CR jfuruse: make it ghost *)
+                                       val_loc = Ppxx.ghost case.c_lhs.pat_loc;
                                        val_attributes = [] },
                                      false)) :: !derived_candidates;
-        let case = { case with c_lhs = Forge.Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc=case.c_lhs.pat_loc})) } in (* CR jfuruse: make the loc ghost *)
+        let case = { case with
+                     c_lhs = Forge.Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})) }
+        in
         { e with exp_desc = Texp_function (l, [case], e');
-                 exp_attributes = ({txt=fid; loc=e.exp_loc}, PStr []) :: e.exp_attributes }
+                 exp_attributes = ({txt=fid; loc= Ppxx.ghost e.exp_loc}, PStr []) :: e.exp_attributes }
 
     | _ -> match is_imp e with
     | None -> e
@@ -260,5 +273,6 @@ module Map = struct
   let map_structure str =
     Unshadow.aliases := [];
     let str = map_structure str in
+    if !Ppxx.debug_resolve then eprintf "Unshadow...@.";
     Unshadow.Map.map_structure str
 end

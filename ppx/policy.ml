@@ -207,7 +207,10 @@ let from_type_decl p loc = function
 
         
 (* Build an empty type env except mp module with the given module type *)
-class dummy_module mp mty =
+class dummy_module env mp mty =
+  (* Env.lookup_* does not support Mty_alias (and probably Mty_indent) *)
+  let mty = Env.scrape_alias env & Mtype.scrape env mty in
+  let () = eprintf "dummy_module of @[%a@]@." Printtyp.modtype mty in 
   let dummy = "Dummy" in
   let id = Ident.create "Dummy" in
   let env = Env.add_module id mty Env.empty in
@@ -223,38 +226,38 @@ object
     | Pdot (_, s', n) -> Pdot (mp, s', n)
     | _ -> assert false
     
+  method lookup_value s =
+    match Env.lookup_value (Longident.(Ldot (Lident dummy, s))) env with
+    | Pdot (_, s', n), _vd -> Pdot (mp, s', n)
+    | _ -> assert false
+    
 end
   
-let from_module_type mp loc mty =
-  let m = new dummy_module mp mty in
-  let p, td =
-    try
-      m#lookup_type "__imp_policy__"
-    with
-    | Not_found ->
-        assert false (* CR jfuruse: error *)
-  in
-  (* Add mp.Instances as the default recipes *)
-  match from_type_decl p loc td with
-  | Type -> assert false
-  | Or t2s ->
-      let default_instances =
-        try
-          let p = m#lookup_module "Instances" in
-          [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
-        with
-        | Not_found -> []
-      in
-      Some (Or (t2s @ default_instances))
+let from_module_type env mp loc mty =
+  let m = new dummy_module env mp mty in
+  try
+    let p, td = m#lookup_type "__imp_policy__" in
+    (* Add mp.Instances as the default recipes *)
+    match from_type_decl p loc td with
+    | Type -> assert false
+    | Or t2s ->
+        let default_instances =
+          try
+            let p = m#lookup_module "Instances" in
+            [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
+          with
+          | Not_found -> []
+        in
+        `Ok (Or (t2s @ default_instances))
+  with _ -> `Error (`No_imp_policy (loc, mp))
 
-let from_module_path env mp =
-  let md = Env.find_module mp env in (* CR jfuruse: Error *)
-  match from_module_type mp md.md_loc md.md_type with
-  | None -> 
-      errorf "%a: Module %a has no implicit policy declaration [%%%%imp_policy POLICY]@." 
-        Location.format md.md_loc
-        Path.format mp
-  | Some res -> res
+let from_module_path ~imp_loc env mp =
+  let md =
+    try Env.find_module mp env with _ ->
+      Format.eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
+      assert false
+  in
+  from_module_type env mp md.md_loc md.md_type
 
 let check_module env loc path =
   match 
@@ -264,10 +267,29 @@ let check_module env loc path =
       errorf "%a: no module desc found: %a" Location.format loc Path.format path
   | Some mdecl -> mdecl
 
-let scrape_sg env mdecl = 
+let test_scrape_sg path env sg =
+  match path with
+  | Pident {Ident.name = "Pervasives"} -> ()
+  | _ ->
+  let lid = Untypeast.lident_of_path path in      
+  Format.eprintf "SCRAPE SG %a@." Path.format_verbose path;
+  flip iter sg & function
+    | Sig_value (id, _vdesc) ->
+        let lid = Ldot (lid, id.Ident.name) in
+        let popt = try Some (fst (Env.lookup_value lid env)) with _ -> None in
+        Format.eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
+    | Sig_module (id, _moddecl, _) ->
+        Format.eprintf "  module %a@." Ident.format_verbose id
+    | Sig_type (id, _, _) -> 
+        Format.eprintf "  type %a@." Ident.format_verbose id
+    | _ -> ()
+    
+let scrape_sg path env mdecl = 
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
-    | Mty_signature sg -> sg
+    | Mty_signature sg ->
+        test_scrape_sg path env sg;
+        sg
     | Mty_functor _ -> [] (* We do not scan the internals of functors *)
     | _ -> assert false
   with
@@ -276,27 +298,29 @@ let scrape_sg env mdecl =
       raise e
 
 let rec values_of_module ~recursive env lid path mdecl
-          : (Longident.t * Path.t * value_description) list =
-  let sg = scrape_sg env mdecl in
+    : (Longident.t * Path.t * value_description) list =
+  let m = new dummy_module env path mdecl.md_type in
+  let sg = scrape_sg path env mdecl in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
   | Sig_value (id, _vdesc) ->
-      (* CR jfuruse: 
-         I don't undrestand yet why the above _vdesc is not appropriate
-         and we must get vdesc like below.
-
-         I guess some type alias information is not in _vdesc...
-      *)
       let lid = Ldot (lid, Ident.name id) in
-      let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
-      begin 
-        (* CR jfuruse: think about error *)
-        let vdesc = Env.find_value path env in
-        (lid, path, vdesc) :: st
+      let path = try m#lookup_value & Ident.name id with Not_found ->
+        eprintf "VOM m#lookup_value %s not found@." & Ident.name id;
+        assert false
+      in
+      begin
+        try
+          let vdesc = Env.find_value path env in
+          (* eprintf "    VOM: %a@." Path.format_verbose path; *)
+          (lid, path, vdesc) :: st
+        with
+        | Not_found ->
+            Format.eprintf "VOM: %a but not found@." Path.format_verbose path;
+            assert false
       end
   | Sig_module (id, moddecl, _) when recursive -> 
       let lid = Ldot (lid, Ident.name id) in
-      let path = Path.Pdot (path, Ident.name id, id.Ident.stamp) in (* CR jfuruse: likely incorrect *)
-      (* CR jfuruse: Can I trust moddecl? *)
+      let path = m#lookup_module & Ident.name id in
       values_of_module ~recursive env lid path moddecl @ st
         
   | _ -> st
@@ -348,7 +372,7 @@ let module_lids_in_open_path env lids = function
   | Some open_ ->
       (*  eprintf "open %a@." Path.format open_; *)
       let mdecl = Env.find_module open_ env in (* It should succeed *)
-      let sg = scrape_sg env mdecl in
+      let sg = scrape_sg open_ env mdecl in
       let env = Env.open_signature Asttypes.Fresh open_ sg Env.empty in
       flip filter_map lids (fun lid ->
         try
@@ -392,8 +416,10 @@ let cand_direct env loc t3 =
   let path = match popt with
     | Some p -> p
     | None -> 
-        (* CR jfuruse: error handling *)
-        Env.lookup_module ~load:true lid env
+        try
+          Env.lookup_module ~load:true lid env
+        with
+        | Not_found -> errorf "%a: Unbound module %a." Location.format loc Longident.format lid
   in
   let mdecl = check_module env loc path in
   mark_not_aggressive
@@ -456,7 +482,7 @@ let cand_opened env loc x =
 let cand_typeclass env loc p_policy =
   let has_instance mp =
     let md = Env.find_module mp env in
-    let m = new dummy_module mp md.md_type in
+    let m = new dummy_module env mp md.md_type in
     try
       let _, td = m#lookup_type "__imp_instance__" in
       match td with
@@ -486,7 +512,7 @@ let cand_typeclass env loc p_policy =
     | Env_open (s, path) ->
         let md = Env.find_module path env in
         (* Strange way to ask the correct position ... *)
-        let m = new dummy_module path md.md_type in
+        let m = new dummy_module env path md.md_type in
         fold_left (fun res -> function
           | Sig_module (id, _md, _) ->
               begin match has_instance (m#lookup_module id.Ident.name) with
@@ -494,7 +520,7 @@ let cand_typeclass env loc p_policy =
               | Some x -> x :: res
               end
           | _ -> res)
-          (find_modules s) (scrape_sg env md)
+          (find_modules s) (scrape_sg path env md)
   in
   let paths = find_modules & Env.summary env in
   if !Ppxx.debug_resolve then begin

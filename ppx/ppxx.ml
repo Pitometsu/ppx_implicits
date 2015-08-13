@@ -8,6 +8,8 @@ open Ast_mapper
 open Ast_helper
 open Location
 
+let ghost l = { l with loc_ghost = true }
+    
 let at ?loc txt = 
   let loc = match loc with 
       | None -> !Ast_helper.default_loc
@@ -15,7 +17,6 @@ let at ?loc txt =
   in
   { txt; loc }
 
- 
 let lid ?loc s = at ?loc & Longident.parse s
 
 let with_default_loc loc f = 

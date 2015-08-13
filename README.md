@@ -60,6 +60,7 @@ end [@@typeclass]
 This is almost equivalent with the following type class definition in Haskell:
 
 ```haskell
+-- Haskell
 class Show a where
   show :: a -> String
 ```
@@ -88,11 +89,14 @@ Now let's define instances of `Show`:
 
 ```ocaml
 module M = struct
+
+  (* Instance for int *)
   module Int = struct
     type a = int
     let show  = string_of_int
   end [@@instance Show]
 
+  (* Instance for float *)
   module Float = struct
     type a = float
     let show  = string_of_float
@@ -107,6 +111,7 @@ the module type `PATH`.
 Haskell equivalent of the above code is like as follows:
 
 ```haskell
+-- Haskell
 module M where
 
 instance Show Int where
@@ -133,6 +138,7 @@ for the use of `Show.show`. It is as same as `import M` controls
 instance availableness in Haskell:
 
 ```haskell
+-- Haskell
 import M
 import qualified Show
 
@@ -170,6 +176,7 @@ let () = assert (show_twice' 1.2 = "1.21.2")
 They are similar to the following Haskell code:
 
 ```haskell
+-- Haskell
 show_twice :: Show a => a -> string
 show_twice x = show x ++ show x
 ```
@@ -381,14 +388,22 @@ let show ?_imp = match _imp with
   | None -> assert false
   | Some (M.Packed x) -> x
 
+let () = assert (show 1 = "1")
+(* ?_imp is omitted and it is equivalent with  show ?_imp:None 1
+   ppx_implicits replaces it by                show ?_imp:(Some [%imp]) 1
+   which is equivalent with                    show ?_imp:(Some [%imp opened Show]) 1
+   finally it is expanded to                   show ?_imp:(Some Show (M.Packed (MInt.Show.int))) 1
+*)
+
 let () = assert (show 1.2 = "1.2")
 (* ?_imp is omitted and it is equivalent with  show ?_imp:None 1.2
    ppx_implicits replaces it by                show ?_imp:(Some [%imp]) 1.2
    which is equivalent with                    show ?_imp:(Some [%imp opened Show]) 1.2
+   finally it is expanded to                   show ?_imp:(Some Show (M.Packed (MFloat.Show.float))) 1
 *)
 ```
 
-Now `show` looks like overloaded!
+Now `show` is overloaded!
 
 ## Back to type class
 
@@ -408,7 +423,7 @@ from its static typing:
 * Module `M` must have a declaration `[%%imp_policy POLICY]`.
 Under these conditions `[%imp]` is equilvalent with `[%imp POLICY]`.
 
-## `related`
+## `related` policy
 
 `[%imp related]` gathers instances from the modules appear in its type.
 For example if `[%imp related]` has a type `'a M.t N.t -> O.t option`
@@ -419,7 +434,7 @@ to get the module names for instances. For example if `M.t` is defined
 as `type t = P.t * Q.t` then module `M` is not considered as instance space but `P` and `Q`
 (if `P.t` and `Q.t` are not alias.).
 
-## `aggressive(p)`
+## `aggressive(p)` policy
 
 By default, higher order implicit values have constraint labels
 `~_LABEL` and `?_LABEL` to receive instances. For example:
@@ -453,7 +468,7 @@ For example, `show_list` has two ways to be used as intances.
 The first one is useful to provide implicit `show` function combining
 other `show_xxx` functions, but the second one is probably useless.
 
-## `name "rex" p`
+## `name "rex" p` policy
 
 Policy `name "rex" p` filters the instances obtained from the policy `p`
 by the regular expression `"rex"`. The regular expression must be one of PCRE.
@@ -461,3 +476,7 @@ by the regular expression `"rex"`. The regular expression must be one of PCRE.
 collect undesired values.
 
 # Recursion limit
+
+To assure the type inference of implicit values, recursive uses of instances
+are limited: if one instance `x` is composed like `x ~_imp:x ...`,
+then the type of the internal use must be strictly smaller than the one of the outer use.
