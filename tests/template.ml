@@ -4,7 +4,7 @@
 
 module Show = struct
   [%%imp_policy opened ShowInstance]
-  include Ppx_implicits.Implicits.Make(struct type 'a t = 'a -> string end)
+  include Implicits.Make(struct type 'a t = 'a -> string end)
   let show = unpack_opt
 end
 

@@ -15,19 +15,19 @@ OCamlRequire($(PPX))
   $(PPX) -debug $< > $@
 
 Test_(name) =
-  $(name)$(OUT): $(name).ml $(PPX) ../lib/ppx_implicits.cmo
+  $(name)$(OUT): $(name).ml $(PPX) implicits.cmo
     mkdir_if_not_exists(out)
-    $(PPX) -debug $(name).ml -I ../lib > out/$(name).ml
-    ocamlc -ppx $(PPX) -I ../lib -i $(name).ml > out/$(name).mli
-    ocamlc -ppx $(PPX) -I ../lib ../lib/ppx_implicits.cmo -o $(name)$(OUT) $(name).ml
+    $(PPX) -debug $(name).ml > out/$(name).ml
+    ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
+    ocamlc -ppx $(PPX) implicits.cmo -o $(name)$(OUT) $(name).ml
   out/$(name).out: $(name)$(OUT)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
     ./$(name)$(OUT)
 
-  $(name)_test_ocamlfind$(OUT): $(name).ml
+  $(name)_test_ocamlfind$(OUT): $(name).ml implicits.cmo
     mkdir_if_not_exists(out)
-    ocamlfind ocamlc -package ppx_implicits -o $(name)_test_ocamlfind$(OUT) $(name).ml
+    ocamlfind ocamlc -package ppx_implicits implicits.cmo -o $(name)_test_ocamlfind$(OUT) $(name).ml
   out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(OUT)
     stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
     stderr = stdout

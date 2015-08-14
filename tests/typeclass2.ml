@@ -7,7 +7,7 @@ module Show = struct
 
   type 'a s = (module S with type a = 'a)
 
-  include Ppx_implicits.Implicits.Make(struct
+  include Implicits.Make(struct
     type 'a t = 'a s
   end)
 
