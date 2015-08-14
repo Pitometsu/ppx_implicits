@@ -62,9 +62,13 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
          with
          | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
              (* recursive call and the type size is not strictly decreasing *)
-             if !Ppxx.debug_resolve then 
-               eprintf "@[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
+             if !Ppxx.debug_unif then begin
+               eprintf "Checking %a <> ... using %a ... oops"
+                 Printtyp.type_expr ty
+                 Path.format path;
+               eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
                  Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+             end;
              []
 
          | _ ->
@@ -83,9 +87,10 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
                try
 
                  if !Ppxx.debug_unif then
-                   eprintf "Checking %a <> %a ..."
+                   eprintf "Checking %a <> %a, using %a ..."
                      Printtyp.type_expr ity
-                     Printtyp.type_expr ivty;
+                     Printtyp.type_expr ivty
+                     Path.format path;
 
                  begin match protect & fun () -> Ctype.unify env ity ivty with
                  | `Ok _ ->
