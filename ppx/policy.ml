@@ -210,7 +210,9 @@ let from_type_decl p loc = function
 class dummy_module env mp mty =
   (* Env.lookup_* does not support Mty_alias (and probably Mty_indent) *)
   let mty = Env.scrape_alias env & Mtype.scrape env mty in
+(*
   let () = eprintf "dummy_module of @[%a@]@." Printtyp.modtype mty in 
+*)
   let dummy = "Dummy" in
   let id = Ident.create "Dummy" in
   let env = Env.add_module id mty Env.empty in
@@ -267,7 +269,7 @@ let check_module env loc path =
       errorf "%a: no module desc found: %a" Location.format loc Path.format path
   | Some mdecl -> mdecl
 
-let test_scrape_sg path env sg =
+let _test_scrape_sg path env sg =
   match path with
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
@@ -284,11 +286,13 @@ let test_scrape_sg path env sg =
         Format.eprintf "  type %a@." Ident.format_verbose id
     | _ -> ()
     
-let scrape_sg path env mdecl = 
+let scrape_sg _path env mdecl = 
   try
     match Env.scrape_alias env & Mtype.scrape env mdecl.md_type with
     | Mty_signature sg ->
+(*
         test_scrape_sg path env sg;
+*)
         sg
     | Mty_functor _ -> [] (* We do not scan the internals of functors *)
     | _ -> assert false
