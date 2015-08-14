@@ -35,6 +35,16 @@ module List = struct
   let concat_map f xs = concat (map f xs)
 
   let assoc_opt x xs = try Some (assoc x xs) with _ -> None
+
+  open Format   
+  let rec format (sep : (unit, formatter, unit) format)  f ppf = function
+    | [] -> ()
+    | [x] -> f ppf x
+    | x::xs -> 
+        fprintf ppf "@[%a@]%t%a" 
+  	f x
+  	(fun ppf -> fprintf ppf sep)
+  	(format sep f) xs
 end 
 
 module String = struct

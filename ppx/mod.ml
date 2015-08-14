@@ -137,7 +137,11 @@ let resolve spec env loc ty = with_snapshot & fun () ->
   match resolve env get_cands [([],ty)] with
   | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.format loc Printtyp.type_expr ty;
   | [[e]] -> e
-  | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.format loc Printtyp.type_expr ty
+  | [es] -> errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type:@ @[%a@]@]@.@[<2>Following possible resolutions:@ @[<v>%a@]@]"
+      Location.format loc
+      Printtyp.type_expr ty
+      (List.format "@," (Printast.expression 0)) (map Untypeast.untype_expression es)
+  | _ -> assert false (* we only resolve one instance at a time *)
 
 (* get the spec for [%imp] from its type *)
 let imp_type_spec env loc ty =

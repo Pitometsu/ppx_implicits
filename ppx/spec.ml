@@ -256,7 +256,7 @@ let from_module_type env mp loc mty =
 let from_module_path ~imp_loc env mp =
   let md =
     try Env.find_module mp env with _ ->
-      Format.eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
+      eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
       assert false
   in
   from_module_type env mp md.md_loc md.md_type
@@ -274,16 +274,16 @@ let _test_scrape_sg path env sg =
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
   let lid = Untypeast.lident_of_path path in      
-  Format.eprintf "SCRAPE SG %a@." Path.format_verbose path;
+  eprintf "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
         let lid = Ldot (lid, id.Ident.name) in
         let popt = try Some (fst (Env.lookup_value lid env)) with _ -> None in
-        Format.eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
+        eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
     | Sig_module (id, _moddecl, _) ->
-        Format.eprintf "  module %a@." Ident.format_verbose id
+        eprintf "  module %a@." Ident.format_verbose id
     | Sig_type (id, _, _) -> 
-        Format.eprintf "  type %a@." Ident.format_verbose id
+        eprintf "  type %a@." Ident.format_verbose id
     | _ -> ()
     
 let scrape_sg _path env mdecl = 
@@ -319,7 +319,7 @@ let rec values_of_module ~recursive env lid path mdecl
           (lid, path, vdesc) :: st
         with
         | Not_found ->
-            Format.eprintf "VOM: %a but not found@." Path.format_verbose path;
+            eprintf "VOM: %a but not found@." Path.format_verbose path;
             assert false
       end
   | Sig_module (id, moddecl, _) when recursive -> 
@@ -453,8 +453,8 @@ let cand_opened env loc x =
   in
   let opens = get_opens env in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened opened paths@.";
-    flip iter opens & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_opened opened paths@.";
+    flip iter opens & eprintf "  %a@." Path.format
   end;
   let paths = 
     concat 
@@ -462,8 +462,8 @@ let cand_opened env loc x =
     & None :: map (fun x -> Some x) opens
   in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened cand modules@.";
-    flip iter paths & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_opened cand modules@.";
+    flip iter paths & eprintf "  %a@." Path.format
   end;
   let lids = flip map paths & fun path ->
     match Unshadow.check_module_path env path with
@@ -528,8 +528,8 @@ let cand_typeclass env loc p_spec =
   in
   let paths = find_modules & Env.summary env in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_typeclass cand modules@.";
-    flip iter paths & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_typeclass cand modules@.";
+    flip iter paths & eprintf "  %a@." Path.format
   end;
   let lids = flip map paths & fun path ->
     match Unshadow.check_module_path env path with
@@ -581,9 +581,9 @@ let candidates env loc = function
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
       if !Ppxx.debug_resolve then begin
-        Format.eprintf "debug_resolve: static candidates@.";
+        eprintf "debug_resolve: static candidates@.";
         flip iter statics & fun (lid, path, _vdesc, _b) ->
-          Format.eprintf "  %a %a@." Longident.format lid Path.format path
+          eprintf "  %a %a@." Longident.format lid Path.format path
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty
