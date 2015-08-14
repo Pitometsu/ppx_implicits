@@ -1,9 +1,10 @@
 0.1.0 (upcoming)
 =================
 
-- Added related policy
-- Added name policy
-- Added aggressive policy
+- policy is now called "spec"
+- Added related spec
+- Added name spec
+- Added aggressive spec
 - Added [@@typeclass] and [@@instance] attributes for type class
 - ppx_implicits now understands byte-compiler options at its standalone execution
 

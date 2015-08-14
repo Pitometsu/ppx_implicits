@@ -1,3 +1,7 @@
+(*
+  aggressive + related: construct overloading instances from normal functions
+*)
+
 module X = struct
   type t = Foo
   let show = function
@@ -14,7 +18,7 @@ let () = assert ([%imp aggressive(related)] (Y.Boo X.Foo) = "Boo (Foo)")
 
 module Show = struct
   type 'a t = Packed of ('a -> string)
-  [%%imp_policy aggressive(name "show" related)]
+  [%%imp_spec aggressive(name "show" related)]
   (* default instances *)
   module Instances = struct
     let pack ~_x = Packed _x

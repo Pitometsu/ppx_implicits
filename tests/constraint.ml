@@ -1,6 +1,6 @@
 module ShowClass = struct
-  type 'a __imp__ = Packed of ('a -> string)
-  [%%imp_policy opened ShowInstance]        
+  type 'a t = Packed of ('a -> string)
+  [%%imp_spec opened ShowInstance]        
   module Instances = struct
     let pack ~_d = Packed _d
     let pack_opt ~_d = Some (pack _d)
@@ -15,7 +15,7 @@ module ShowInstance = struct
   let float = string_of_float
 
   (* constraint works! *)
-  let list ?_imp:(imp : 'a ShowClass.__imp__ option) (xs : 'a list) = 
+  let list ?_imp:(_ : 'a ShowClass.t option) (xs : 'a list) = 
     "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
 end
 

@@ -14,7 +14,7 @@ module Show = struct
     type 'a t = 'a s
   end)
 
-  [%%imp_policy typeclass]
+  [%%imp_spec typeclass]
 
   let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show
 end
@@ -31,7 +31,7 @@ module M = struct
  
   module ShowIntIntance = struct
     let int : ShowInt.a Show.s = (module ShowInt)
-    type __imp_instance__ = Show.__imp_policy__
+    type __imp_instance__ = Show.__imp_spec__
   end
 
   module ShowFloat = struct
@@ -43,7 +43,7 @@ module M = struct
  
   module ShowFloatInstance = struct
     let float : ShowFloat.a Show.s = (module ShowFloat)
-    type __imp_instance__ = Show.__imp_policy__ 
+    type __imp_instance__ = Show.__imp_spec__ 
   end
 end
 

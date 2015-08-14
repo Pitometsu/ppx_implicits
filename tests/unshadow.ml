@@ -1,3 +1,5 @@
+(* "Unshadowing" test *)
+
 module X = struct
   module Show = struct
     let int = string_of_int

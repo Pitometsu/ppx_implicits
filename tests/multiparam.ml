@@ -1,3 +1,5 @@
+(* multi parameter class *)
+
 module type Num = sig
   type a
   type b
@@ -20,7 +22,7 @@ module Num = struct
     | None -> assert false
     | Some (Packed x) -> x
 
-  [%%imp_policy opened NumInstance]
+  [%%imp_spec opened NumInstance]
 
   let add (type a) (type b) (type c) ?_imp:(_imp:(a, b, c) t option) = 
     let module M = (val (unpack_opt ?_imp)) in 

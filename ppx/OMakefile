@@ -11,7 +11,7 @@ FILES[] =
     ppxx
     forge
     unshadow
-    policy
+    spec
     pre
     tysize
     mod

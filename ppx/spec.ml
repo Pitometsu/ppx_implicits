@@ -15,7 +15,7 @@ open Path
 (** spec dsl *)
 type t = 
   | Or of t2 list
-  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_policy] *)
+  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_spec] *)
 
 and t2 = 
   | Opened of Longident.t flagged
@@ -54,7 +54,7 @@ let to_string =
   in
   t 
 
-let prefix = "Policy_"
+let prefix = "Spec_"
 let prefix_len = String.length prefix
 
 (* convert an arbitrary string to Lexer.identchar's
@@ -147,7 +147,7 @@ let from_expression e =
           | None -> failwith "just requires an argument"
           end
       | Pexp_construct ({txt=lid}, None) -> In lid
-      | _ -> failwith "illegal policy expression"
+      | _ -> failwith "illegal spec expression"
     in
     `Ok (t e)
   with
@@ -163,21 +163,21 @@ let from_structure str =
       | Pstr_eval (e, _) ->
           from_expression e
       | _ ->
-          `Error (`String "policy must be an OCaml expression")
+          `Error (`String "spec must be an OCaml expression")
 
 let from_ok loc = function
   | `Ok v -> v
   | `Error (`String s) -> errorf "%a: %s" Location.format loc s
   | `Error (`Failed_unmangle s) -> 
-      errorf "%a: Illegal policy encoding: %S" Location.format loc s
+      errorf "%a: Illegal spec encoding: %S" Location.format loc s
   | `Error (`Parse s) ->
-      errorf "%a: Policy parse failed: %S" Location.format loc s
+      errorf "%a: Spec parse failed: %S" Location.format loc s
   | `Error (`ParseExp (_, s)) ->
-      errorf "%a: Policy parse failed: %s" Location.format loc s
+      errorf "%a: Spec parse failed: %s" Location.format loc s
 
 let from_payload = function
   | PStr s -> from_structure s
-  | _ -> `Error (`String "policy must be an OCaml expression")
+  | _ -> `Error (`String "spec must be an OCaml expression")
 
 (* typed world *)
 
@@ -203,7 +203,7 @@ let from_type_decl p loc = function
       & from_ok loc
       & unmangle id.Ident.name >>= from_string >>= from_expression
   | _ -> 
-      errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
+      errorf "%a: Illegal data type definition for __imp_spec__. [%%%%imp_spec SPEC] must be used." Location.format loc
 
         
 (* Build an empty type env except mp module with the given module type *)
@@ -238,7 +238,7 @@ end
 let from_module_type env mp loc mty =
   let m = new dummy_module env mp mty in
   try
-    let p, td = m#lookup_type "__imp_policy__" in
+    let p, td = m#lookup_type "__imp_spec__" in
     (* Add mp.Instances as the default recipes *)
     match from_type_decl p loc td with
     | Type -> assert false
@@ -251,7 +251,7 @@ let from_module_type env mp loc mty =
           | Not_found -> []
         in
         `Ok (Or (t2s @ default_instances))
-  with _ -> `Error (`No_imp_policy (loc, mp))
+  with _ -> `Error (`No_imp_spec (loc, mp))
 
 let from_module_path ~imp_loc env mp =
   let md =
@@ -480,10 +480,10 @@ let cand_opened env loc x =
       | In _ -> In (lid, Some path))) lids paths
 
 (* [%imp] : 'a M.ty
-   type M.__imp_policy__ must exists and it is "typeclass"
-   We seek types equal to __imp_instance__ = M.__imp_policy__
+   type M.__imp_spec__ must exists and it is "typeclass"
+   We seek types equal to __imp_instance__ = M.__imp_spec__
 *) 
-let cand_typeclass env loc p_policy =
+let cand_typeclass env loc p_spec =
   let has_instance mp =
     let md = Env.find_module mp env in
     let m = new dummy_module env mp md.md_type in
@@ -491,7 +491,7 @@ let cand_typeclass env loc p_policy =
       let _, td = m#lookup_type "__imp_instance__" in
       match td with
       | { type_params = []
-        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_policy ->
+        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_spec ->
           Some mp
           (* Some (Pdot (mp, "__imp_instance__", n)) *)
       | _ -> None

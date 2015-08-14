@@ -1,4 +1,4 @@
-(* test for opened policy *)
+(* test for opened spec *)
 
 module X = struct
   module Show = struct
@@ -13,8 +13,8 @@ module Y = struct
 end
 
 module ShowClass = struct
-  type 'a __imp__ = Packed of ('a -> string)
-  [%%imp_policy opened Show]
+  type 'a t = Packed of ('a -> string)
+  [%%imp_spec opened Show]
   module Show = struct
     let pack ~_x:f = Some (Packed f)
   end

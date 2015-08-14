@@ -35,12 +35,12 @@ let rec extract_constraint_labels_aggressively env ty =
 let is_imp e = 
   let imps = 
     flip map e.exp_attributes (function 
-      | {txt="imp"}, payload -> Some (Policy.from_payload payload)
+      | {txt="imp"}, payload -> Some (Spec.from_payload payload)
       | _ -> None)
   in
   match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
-  | [Some x] -> Some (Policy.from_ok e.exp_loc x)
+  | [Some x] -> Some (Spec.from_ok e.exp_loc x)
   | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
 (* derived candidates *)
@@ -122,42 +122,42 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
                with
                | _ -> []
 
-let resolve policy env loc ty = with_snapshot & fun () ->
+let resolve spec env loc ty = with_snapshot & fun () ->
   if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
   close_gen_vars ty;
   let get_cands =
-    let f = Policy.candidates env loc policy in
-    fun ty -> Policy.uniq & f ty @ map snd !derived_candidates
+    let f = Spec.candidates env loc spec in
+    fun ty -> Spec.uniq & f ty @ map snd !derived_candidates
   in
   match resolve env get_cands [([],ty)] with
   | [] -> errorf "@[<2>%a:@ no instance found for@ @[%a@]@]" Location.format loc Printtyp.type_expr ty;
   | [[e]] -> e
   | _ -> errorf  "@[<2>%a:@ overloaded type has a too ambiguous type:@ @[%a@]@]" Location.format loc Printtyp.type_expr ty
 
-(* get the policy for [%imp] from its type *)
-let imp_type_policy env loc ty =
+(* get the spec for [%imp] from its type *)
+let imp_type_spec env loc ty =
   match expand_repr_desc env ty with
   | Tconstr (p, _, _) -> 
       begin match p with
       | Pident _ ->
           (* Oh it's local... *)
-          (* __imp_policy__ must exit *)
+          (* __imp_spec__ must exit *)
           let p, td = 
             try
-              let p, td = Env.lookup_type (Lident "__imp_policy__") env in
+              let p, td = Env.lookup_type (Lident "__imp_spec__") env in
               match p with
               | Pident id when Ident.persistent id -> p, td
-              | _ -> raise Exit (* __imp_policy__ exists but in some module, not in the top *)
+              | _ -> raise Exit (* __imp_spec__ exists but in some module, not in the top *)
             with
-            | _ -> errorf "%a: Current module has no implicit policy declaration [%%%%imp_policy POLICY]" Location.format loc
+            | _ -> errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]" Location.format loc
           in
-          `Ok (Policy.from_type_decl p td.type_loc td)
+          `Ok (Spec.from_type_decl p td.type_loc td)
       | Pdot (mp, _, _) -> 
-          (* <mp>.__imp_policy__ must exist *)
-          begin match Policy.from_module_path ~imp_loc:loc env mp with
+          (* <mp>.__imp_spec__ must exist *)
+          begin match Spec.from_module_path ~imp_loc:loc env mp with
           | `Ok x -> `Ok x
-          | `Error (`No_imp_policy (mp_loc, mp)) ->
-              errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_policy POLICY].@ %a: module %a is defined here.@]"
+          | `Error (`No_imp_spec (mp_loc, mp)) ->
+              errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_spec SPEC].@ %a: module %a is defined here.@]"
                 Location.format loc
                 Printtyp.type_expr ty (* reset? *)
                 Path.format mp
@@ -168,20 +168,20 @@ let imp_type_policy env loc ty =
       end
   | _ -> `Error `Strange_type
     
-let resolve_imp policy env loc ty =
-  let policy = match policy with
-    | Policy.Type ->
-        (* fix the policy for [%imp] *)
-        begin match imp_type_policy env loc ty with
+let resolve_imp spec env loc ty =
+  let spec = match spec with
+    | Spec.Type ->
+        (* fix the spec for [%imp] *)
+        begin match imp_type_spec env loc ty with
         | `Error `Strange_type ->
             errorf "%a: [%%%%imp] has a bad type: %a" 
               Location.format loc
               Printtyp.type_expr ty
         | `Ok p -> p
         end
-    | _ -> policy
+    | _ -> spec
   in
-  resolve policy env loc ty
+  resolve spec env loc ty
 
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
@@ -195,17 +195,17 @@ let resolve_arg loc env a = match a with
       begin match is_none e with
       | None -> a
       | Some ty ->
-          begin match imp_type_policy env loc ty with
+          begin match imp_type_spec env loc ty with
           | `Error `Strange_type -> a (* Think abount derived! *)
-          | `Ok policy ->
+          | `Ok spec ->
               (l, 
                Some begin try
                   (* Try just [%imp] first *)
-                  resolve policy env loc e.exp_type
+                  resolve spec env loc e.exp_type
                  with
                  | _ ->
                      (* If above failed, try Some [%imp] *)
-                     Forge.Exp.some & resolve policy env loc ty
+                     Forge.Exp.some & resolve spec env loc ty
                end,
                Optional)
           end
@@ -256,7 +256,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
     | _ -> match is_imp e with
     | None -> e
-    | Some policy -> resolve_imp policy e.exp_env e.exp_loc e.exp_type
+    | Some spec -> resolve_imp spec e.exp_env e.exp_loc e.exp_type
 
   let leave_expression e = 
     let ids, others = partition (function ({Location.txt}, Parsetree.PStr[]) -> is_function_id txt | _ -> false) e.exp_attributes in

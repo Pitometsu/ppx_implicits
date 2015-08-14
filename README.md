@@ -185,11 +185,11 @@ show_twice x = show x ++ show x
 
 Ok, now let's go back to the basics of ppx_implicits.
 
-## `[%imp POLICY]` expression
+## `[%imp SPEC]` expression
 
-Special expression `[%imp POLICY]` is for *implicit values*, whose definitions
+Special expression `[%imp SPEC]` is for *implicit values*, whose definitions
 are dependent on the context type of the expression
-and automatically composed from the values specified by `POLICY`.
+and automatically composed from the values specified by `SPEC`.
 
 For example, the expression `[%imp Show]` is expaneded using the values defined
 under module `Show`:
@@ -231,7 +231,7 @@ arrow for type classes: `C => t`.
 
 ## Instance search policies
 
-The policy is not a simple module path but forms a small DSL. For example, 
+The spec is not a simple module path but forms a small DSL. For example, 
 you can list policies by `,` to accumulate instances:
 
 ```ocaml
@@ -274,16 +274,16 @@ let () = assert ([%imp opened Show] [ 1 ] = "[ 1 ]") (* MInt.Show, MFloat.Show a
 (* Here, [%imp opened Show] is equivalent with [%imp MInt.Show, MFloat.Show, MList.Show] *)
 ```
 
-## Type dependent instance policy
+## Type dependent instance spec
 
-With some conditions, we can simply write `[%imp]` and omit its policy.
-The policy of `[%imp]` is type-dependent:
+With some conditions, we can simply write `[%imp]` and omit its spec.
+The spec of `[%imp]` is type-dependent:
 it is deduced from the type information of the expression.
 
 * The type of `[%imp]` must be `(t1,..,tn) PATH.name`
   or `(t1,...,tn) PATH.name option` or their alias,
-  so that the policy can be found in module `PATH`.
-* The module `PATH` must have a special declaration `[%%imp_policy POLICY]`
+  so that the spec can be found in module `PATH`.
+* The module `PATH` must have a special declaration `[%%imp_spec SPEC]`
 for `[%imp]` expressions of a type related with `PATH`.
 
 For example, if we have
@@ -291,19 +291,19 @@ For example, if we have
 ```ocaml
 module M = struct
   type 'a t = ...
-  [%%imp_policy POLICY]
+  [%%imp_spec SPEC]
 end
 ```
 
 and if an expression `[%imp]` has a type `int M.t`,
-it is equivalent with `[%imp POLICY]`.
+it is equivalent with `[%imp SPEC]`.
 
 Let's use this `[%imp]` in an actual example:
 
 ```ocaml
 module M = struct
   type 'a t = Packed of 'a -> string
-  [%%imp_policy opened Show]
+  [%%imp_spec opened Show]
 end
 
 let show (M.Packed x) = x
@@ -315,7 +315,7 @@ open MList
      
 let () = assert (show [%imp] [ 1 ] = "[ 1 ]")
 (* [%imp] has the type int list M.t.
-   Module M has [%%imp_policy opened Show]
+   Module M has [%%imp_spec opened Show]
    Therefore this [%imp] is equivalent with [%imp opened Show] *)
 ```
 
@@ -329,7 +329,7 @@ This is for efficient handling implicit parameters explained later.
 
 ## Default instances for type dependent `[%imp]`
 
-If `[%imp]`'s policy is defined in a module `M`,
+If `[%imp]`'s spec is defined in a module `M`,
 and if this module `M` has a module `Instances`, 
 then the values defined in this `M.Instances`
 are considered as instances of the implicit value.
@@ -346,7 +346,7 @@ let show_twice imp x = show imp x ^ show imp x
 let () = assert (show_twice [%imp] 1 = "11")
 ```
 
-`show_twice` function takes an implicit paramter `imp` and delivers it to its internal uses of `show`. The type information of the first argument of `show_twice` is as same as the one of the first argument of `show`, `'a M.t`. Therefore `show_twice [%imp] 1` works as intended using the policy defined in module `M`.
+`show_twice` function takes an implicit paramter `imp` and delivers it to its internal uses of `show`. The type information of the first argument of `show_twice` is as same as the one of the first argument of `show`, `'a M.t`. Therefore `show_twice [%imp] 1` works as intended using the spec defined in module `M`.
 
 This is classic but requires explicit code of implicit value dispatch.
 Actually you can let `ppx_implicits` to wire up this dispatch code more easily
@@ -359,7 +359,7 @@ let show_twice ~_imp:(_:'a M.t) (x : 'a) = show [%imp] x ^ show [%imp] x
 When a function takes an argument with a constraint label
 (`_LABEL` or `?_LABEL`), the argument value is automatically added to
 the instance search spaces for all the occurrences of `[%imp]` and
-`[%imp POLICY]` in its scope.
+`[%imp SPEC]` in its scope.
 In the above example, the argument labeled `_imp` has type `'a M.t`.
 The argument value is an instance of implicit values for `'a M.t`
 inside the body of this function abstraction. The uses of `[%imp]`
@@ -409,21 +409,21 @@ Now `show` is overloaded!
 
 # Implicit policies
 
-Expression `[%imp POLICY]` has `POLICY` parameter
+Expression `[%imp SPEC]` has `SPEC` parameter
 to specify the instance search space for the implicit value.
-`POLICY` is a comma separated list of sub-policies `p1, .., pn`
+`SPEC` is a comma separated list of sub-policies `p1, .., pn`
 
-## Type dependent policy
+## Type dependent spec
 
-When `[%imp]` has no written policies, its policy is deduced
+When `[%imp]` has no written policies, its spec is deduced
 from its static typing:
 
 * `[%imp]` must have a type whose expanded form is either
   `... M.name' or `... M.name option` for some module `M`.
-* Module `M` must have a declaration `[%%imp_policy POLICY]`.
-Under these conditions `[%imp]` is equilvalent with `[%imp POLICY]`.
+* Module `M` must have a declaration `[%%imp_spec SPEC]`.
+Under these conditions `[%imp]` is equilvalent with `[%imp SPEC]`.
 
-## `related` policy
+## `related` spec
 
 `[%imp related]` gathers instances from the modules appear in its type.
 For example if `[%imp related]` has a type `'a M.t N.t -> O.t option`
@@ -434,7 +434,7 @@ to get the module names for instances. For example if `M.t` is defined
 as `type t = P.t * Q.t` then module `M` is not considered as instance space but `P` and `Q`
 (if `P.t` and `Q.t` are not alias.).
 
-## `aggressive(p)` policy
+## `aggressive(p)` spec
 
 By default, higher order implicit values have constraint labels
 `~_LABEL` and `?_LABEL` to receive instances. For example:
@@ -444,7 +444,7 @@ val show_list_imp : ~_imp:('a -> string)  -> 'a -> string
 ```
 here, `~_imp` is the sole constraint of the function `show_list_imp`.
 
-Policy `aggressive` removes this limitation: any function arrow can be
+Spec `aggressive` removes this limitation: any function arrow can be
 treated as constraint arrows.  This is useful to use existing functions
 as implicit value instances without changing types.
 
@@ -468,9 +468,9 @@ For example, `show_list` has two ways to be used as intances.
 The first one is useful to provide implicit `show` function combining
 other `show_xxx` functions, but the second one is probably useless.
 
-## `name "rex" p` policy
+## `name "rex" p` spec
 
-Policy `name "rex" p` filters the instances obtained from the policy `p`
+Spec `name "rex" p` filters the instances obtained from the spec `p`
 by the regular expression `"rex"`. The regular expression must be one of PCRE.
 `name` is useful to restrict instances obtained by `related` which tends to
 collect undesired values.
