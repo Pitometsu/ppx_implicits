@@ -60,8 +60,8 @@ let () = assert (show [%imp opened Show] [ 1 ] = "[ 1 ]")
 module Implicit_parameters = struct
 
   module Show = struct
-    type 'a __imp__ = Packed of 'a
-    [%%imp_policy opened ShowInstance]
+    type 'a t = Packed of 'a
+    [%%imp_spec opened ShowInstance]
 
     let unpack = function None -> assert false | Some (Packed x) -> x  
     let show ?_imp x = unpack _imp x

@@ -15,7 +15,7 @@ open Path
 (** spec dsl *)
 type t = 
   | Or of t2 list
-  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_policy] *)
+  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_spec] *)
 
 and t2 = 
   | Opened of Longident.t flagged
@@ -54,7 +54,7 @@ let to_string =
   in
   t 
 
-let prefix = "Policy_"
+let prefix = "Spec_"
 let prefix_len = String.length prefix
 
 (* convert an arbitrary string to Lexer.identchar's
@@ -147,7 +147,7 @@ let from_expression e =
           | None -> failwith "just requires an argument"
           end
       | Pexp_construct ({txt=lid}, None) -> In lid
-      | _ -> failwith "illegal policy expression"
+      | _ -> failwith "illegal spec expression"
     in
     `Ok (t e)
   with
@@ -163,21 +163,21 @@ let from_structure str =
       | Pstr_eval (e, _) ->
           from_expression e
       | _ ->
-          `Error (`String "policy must be an OCaml expression")
+          `Error (`String "spec must be an OCaml expression")
 
 let from_ok loc = function
   | `Ok v -> v
   | `Error (`String s) -> errorf "%a: %s" Location.format loc s
   | `Error (`Failed_unmangle s) -> 
-      errorf "%a: Illegal policy encoding: %S" Location.format loc s
+      errorf "%a: Illegal spec encoding: %S" Location.format loc s
   | `Error (`Parse s) ->
-      errorf "%a: Policy parse failed: %S" Location.format loc s
+      errorf "%a: Spec parse failed: %S" Location.format loc s
   | `Error (`ParseExp (_, s)) ->
-      errorf "%a: Policy parse failed: %s" Location.format loc s
+      errorf "%a: Spec parse failed: %s" Location.format loc s
 
 let from_payload = function
   | PStr s -> from_structure s
-  | _ -> `Error (`String "policy must be an OCaml expression")
+  | _ -> `Error (`String "spec must be an OCaml expression")
 
 (* typed world *)
 
@@ -203,7 +203,7 @@ let from_type_decl p loc = function
       & from_ok loc
       & unmangle id.Ident.name >>= from_string >>= from_expression
   | _ -> 
-      errorf "%a: Illegal data type definition for __imp_policy__. [%%%%imp_policy POLICY] must be used." Location.format loc
+      errorf "%a: Illegal data type definition for __imp_spec__. [%%%%imp_spec SPEC] must be used." Location.format loc
 
         
 (* Build an empty type env except mp module with the given module type *)
@@ -238,7 +238,7 @@ end
 let from_module_type env mp loc mty =
   let m = new dummy_module env mp mty in
   try
-    let p, td = m#lookup_type "__imp_policy__" in
+    let p, td = m#lookup_type "__imp_spec__" in
     (* Add mp.Instances as the default recipes *)
     match from_type_decl p loc td with
     | Type -> assert false
@@ -251,12 +251,12 @@ let from_module_type env mp loc mty =
           | Not_found -> []
         in
         `Ok (Or (t2s @ default_instances))
-  with _ -> `Error (`No_imp_policy (loc, mp))
+  with _ -> `Error (`No_imp_spec (loc, mp))
 
 let from_module_path ~imp_loc env mp =
   let md =
     try Env.find_module mp env with _ ->
-      Format.eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
+      eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
       assert false
   in
   from_module_type env mp md.md_loc md.md_type
@@ -274,16 +274,16 @@ let _test_scrape_sg path env sg =
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
   let lid = Untypeast.lident_of_path path in      
-  Format.eprintf "SCRAPE SG %a@." Path.format_verbose path;
+  eprintf "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
         let lid = Ldot (lid, id.Ident.name) in
         let popt = try Some (fst (Env.lookup_value lid env)) with _ -> None in
-        Format.eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
+        eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
     | Sig_module (id, _moddecl, _) ->
-        Format.eprintf "  module %a@." Ident.format_verbose id
+        eprintf "  module %a@." Ident.format_verbose id
     | Sig_type (id, _, _) -> 
-        Format.eprintf "  type %a@." Ident.format_verbose id
+        eprintf "  type %a@." Ident.format_verbose id
     | _ -> ()
     
 let scrape_sg _path env mdecl = 
@@ -319,7 +319,7 @@ let rec values_of_module ~recursive env lid path mdecl
           (lid, path, vdesc) :: st
         with
         | Not_found ->
-            Format.eprintf "VOM: %a but not found@." Path.format_verbose path;
+            eprintf "VOM: %a but not found@." Path.format_verbose path;
             assert false
       end
   | Sig_module (id, moddecl, _) when recursive -> 
@@ -453,8 +453,8 @@ let cand_opened env loc x =
   in
   let opens = get_opens env in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened opened paths@.";
-    flip iter opens & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_opened opened paths@.";
+    flip iter opens & eprintf "  %a@." Path.format
   end;
   let paths = 
     concat 
@@ -462,8 +462,8 @@ let cand_opened env loc x =
     & None :: map (fun x -> Some x) opens
   in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_opened cand modules@.";
-    flip iter paths & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_opened cand modules@.";
+    flip iter paths & eprintf "  %a@." Path.format
   end;
   let lids = flip map paths & fun path ->
     match Unshadow.check_module_path env path with
@@ -480,10 +480,10 @@ let cand_opened env loc x =
       | In _ -> In (lid, Some path))) lids paths
 
 (* [%imp] : 'a M.ty
-   type M.__imp_policy__ must exists and it is "typeclass"
-   We seek types equal to __imp_instance__ = M.__imp_policy__
+   type M.__imp_spec__ must exists and it is "typeclass"
+   We seek types equal to __imp_instance__ = M.__imp_spec__
 *) 
-let cand_typeclass env loc p_policy =
+let cand_typeclass env loc p_spec =
   let has_instance mp =
     let md = Env.find_module mp env in
     let m = new dummy_module env mp md.md_type in
@@ -491,7 +491,7 @@ let cand_typeclass env loc p_policy =
       let _, td = m#lookup_type "__imp_instance__" in
       match td with
       | { type_params = []
-        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_policy ->
+        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_spec ->
           Some mp
           (* Some (Pdot (mp, "__imp_instance__", n)) *)
       | _ -> None
@@ -528,8 +528,8 @@ let cand_typeclass env loc p_policy =
   in
   let paths = find_modules & Env.summary env in
   if !Ppxx.debug_resolve then begin
-    Format.eprintf "debug_resolve: cand_typeclass cand modules@.";
-    flip iter paths & Format.eprintf "  %a@." Path.format
+    eprintf "debug_resolve: cand_typeclass cand modules@.";
+    flip iter paths & eprintf "  %a@." Path.format
   end;
   let lids = flip map paths & fun path ->
     match Unshadow.check_module_path env path with
@@ -581,9 +581,9 @@ let candidates env loc = function
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
       if !Ppxx.debug_resolve then begin
-        Format.eprintf "debug_resolve: static candidates@.";
+        eprintf "debug_resolve: static candidates@.";
         flip iter statics & fun (lid, path, _vdesc, _b) ->
-          Format.eprintf "  %a %a@." Longident.format lid Path.format path
+          eprintf "  %a %a@." Longident.format lid Path.format path
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty

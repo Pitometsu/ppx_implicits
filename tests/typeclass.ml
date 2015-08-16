@@ -9,7 +9,7 @@ module Show = struct
 
   module IMP = struct
     type 'a t = Packed of (module S with type a = 'a)
-    [%%imp_policy opened ShowInstance]
+    [%%imp_spec opened ShowInstance]
     let unpack (Packed x) = x
     let unpack_opt = function None -> assert false | Some (Packed x) -> x
 

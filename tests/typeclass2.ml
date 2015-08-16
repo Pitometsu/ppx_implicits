@@ -11,7 +11,7 @@ module Show = struct
     type 'a t = 'a s
   end)
 
-  [%%imp_policy opened ShowInstance]
+  [%%imp_spec opened ShowInstance]
 
   let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show
 end

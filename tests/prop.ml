@@ -1,4 +1,4 @@
-(* Demonstration of [%%imp_policy], instance search space policy control. *) 
+(* Demonstration of [%%imp_spec], instance search space spec control. *) 
 
 module Show = struct
   let int = string_of_int
@@ -10,12 +10,12 @@ module Show2 = struct
 end
   
 module ShowImp = struct
-  type 'a __imp__ = Packed of ('a -> string)
+  type 'a t = Packed of ('a -> string)
 
-  [%%imp_policy ShowImp]
-  (* [%%imp_policy] instructs how to collect the instances for [t __imp__].
+  [%%imp_spec ShowImp]
+  (* [%%imp_spec] instructs how to collect the instances for [t t].
 
-     [%%imp_policy ShowImp] means the values defined under a module accessible
+     [%%imp_spec ShowImp] means the values defined under a module accessible
      as ShowImp are used.
   *)
 

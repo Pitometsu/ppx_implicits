@@ -182,7 +182,7 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 module Z = struct
   module Show = struct
     type 'a __imp__ = private 'a
-    [%%imp_policy opened Show]        
+    [%%imp_spec opened Show]        
     external pack : _d:'a -> 'a __imp__ = "%identity"
     (* private alias and %identity assure this wrapping is cost 0 *)
     let pack_opt ~_d = Some (pack _d)

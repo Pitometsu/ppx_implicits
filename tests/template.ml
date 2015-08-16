@@ -3,7 +3,7 @@
 *)
 
 module Show = struct
-  [%%imp_policy opened ShowInstance]
+  [%%imp_spec opened ShowInstance]
   include Implicits.Make(struct type 'a t = 'a -> string end)
   let show = unpack_opt
 end

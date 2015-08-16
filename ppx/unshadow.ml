@@ -3,19 +3,20 @@ open List
 open Compilerlibx
 open Ident
 open Path
+(* open Format *)
 
 let conv_ident id = "__" ^ id.name ^ "__" ^ string_of_int id.stamp
 
 let rec check_module_path env path =
 (*
-  Format.eprintf "  checking %a@." Path.format_verbose path;
+  eprintf "  checking %a@." Path.format_verbose path;
 *)
   let lid = Untypeast.lident_of_path path in
   let path' = try Some (Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env) with _ -> None in 
   if Some path = path' then `Accessible lid
   else begin
 (*
-    Format.eprintf "    shadowed: found %a@." (Option.format Path.format_verbose) path';
+    eprintf "    shadowed: found %a@." (Option.format Path.format_verbose) path';
 *)
     match path with
     | Pident id -> 
@@ -33,7 +34,7 @@ let rec check_module_path env path =
 
 let check_module_path env path =
 (*
-  Format.eprintf "check_module_path: %a@." Path.format path;
+  eprintf "check_module_path: %a@." Path.format path;
 *)
   check_module_path env path
         
@@ -60,7 +61,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
   let structure_item si = match si.str_desc with
     | Tstr_module mb ->
 (*
-Format.eprintf "module %a@." Ident.format mb.mb_id;
+eprintf "module %a@." Ident.format mb.mb_id;
 *)
         si ::
         begin match assoc_opt mb.mb_id !aliases with

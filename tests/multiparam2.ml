@@ -1,3 +1,5 @@
+(* multi parameter class with [@@typeclass] and [@@instance] *)
+
 module type Num = sig
   type a
   type b

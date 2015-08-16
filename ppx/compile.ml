@@ -39,8 +39,8 @@ let interface ppf sourcefile ast outputprefix =
   (* HACK: Save the parsed result as xxx.mli1 *)
   let mli1file = outputprefix ^ ".mli1" in
   let oc1 = open_out_bin mli1file in
-  let ppf = Format.formatter_of_out_channel oc1 in
-  Format.fprintf ppf "%a@." Pprintast.signature ast;
+  let ppf = formatter_of_out_channel oc1 in
+  fprintf ppf "%a@." Pprintast.signature ast;
   close_out oc1;
   (* HACK END *)
 *)
@@ -76,8 +76,8 @@ let interface ppf sourcefile ast outputprefix =
 (*
   let mli2file = outputprefix ^ ".mli2" in
   let oc2 = open_out_bin mli2file in
-  let ppf = Format.formatter_of_out_channel oc2 in
-  Format.fprintf ppf "%a@." Pprintast.signature ast;
+  let ppf = formatter_of_out_channel oc2 in
+  fprintf ppf "%a@." Pprintast.signature ast;
   close_out oc2;
 *)
   ast
@@ -128,8 +128,8 @@ let implementation ppf sourcefile ast outputprefix =
       ++ (fun ptree -> 
         let ml1file = outputprefix ^ ".ml1" in
         let oc1 = open_out_bin ml1file in
-        let ppf = Format.formatter_of_out_channel oc1 in
-        Format.fprintf ppf "%a@." Pprintast.structure ptree; 
+        let ppf = formatter_of_out_channel oc1 in
+        fprintf ppf "%a@." Pprintast.structure ptree; 
         close_out oc1;
         ptree
       )
@@ -151,8 +151,8 @@ let implementation ppf sourcefile ast outputprefix =
 (*
         let ml2file = outputprefix ^ ".ml2" in
         let oc2 = open_out_bin ml2file in
-        let ppf = Format.formatter_of_out_channel oc2 in
-        Format.fprintf ppf "%a@." Pprintast.structure ptree; 
+        let ppf = formatter_of_out_channel oc2 in
+        fprintf ppf "%a@." Pprintast.structure ptree; 
         close_out oc2;
 *)
         ast)

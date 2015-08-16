@@ -2,7 +2,7 @@
 
   Pre-preprocessing for syntax sugars for 
     [%imp]
-    [%%imp_policy]
+    [%%imp_spec]
     [@@typeclass]
     [@@instance]
 *)
@@ -40,12 +40,12 @@ module TypeClass = struct
 
   let add_newtypes = fold_right (fun s -> Exp.newtype ?loc:None s)
 
-  (* [%%imp_policy typeclass] *)
-  let policy =
+  (* [%%imp_spec typeclass] *)
+  let spec =
     let opened = 
       [%expr typeclass] 
     in
-    Str.extension ?loc:None (at "imp_policy", PStr [(Str.eval opened)])
+    Str.extension ?loc:None (at "imp_spec", PStr [(Str.eval opened)])
 
   (* type 'a _module = (module Show with type a = 'a) *)
   let gen_ty_module name ps =
@@ -106,7 +106,7 @@ module TypeClass = struct
               (Mod.structure ?loc:None 
                & Str.type_ [gen_ty_module name ps]
                  :: Str.type_ [gen_ty_class ps]
-                 :: policy
+                 :: spec
                  :: pack_unpack
                  @  map (method_ ps) vs
               )
@@ -135,7 +135,7 @@ module TypeClass = struct
 
      module ShowIntInstance = struct
        let dict : ShowInt.a Show.s = (module ShowInt)
-       type __imp_instance__ = Show.__imp_policy__
+       type __imp_instance__ = Show.__imp_spec__
      end
   *)
   let instance lid mb =  
@@ -163,7 +163,7 @@ module TypeClass = struct
                     & map (fun (p,_) -> Typ.constr ?loc:None (at ?loc:None & Ldot (Lident iname, p)) []) ps))
             ]
         ; Str.type_ ?loc:None
-          [ Type.mk ?loc:None ~manifest:(Typ.constr ?loc:None (at ?loc:None & Ldot (Lident cname, "__imp_policy__")) []) (at ?loc:None "__imp_instance__")
+          [ Type.mk ?loc:None ~manifest:(Typ.constr ?loc:None (at ?loc:None & Ldot (Lident cname, "__imp_spec__")) []) (at ?loc:None "__imp_instance__")
           ]
         ]
 end
@@ -178,10 +178,10 @@ let extend super =
           pexp_attributes = [ (strloc, x) ] }
     | _ -> super.expr self e
   in
-  (* type __imp_policy__ = .. *)
-  let forge_policy loc policy =
-    let mangled = Policy.to_mangled_string policy in                
-    { ptype_name = {txt = "__imp_policy__"; loc}
+  (* type __imp_spec__ = .. *)
+  let forge_spec loc spec =
+    let mangled = Spec.to_mangled_string spec in                
+    { ptype_name = {txt = "__imp_spec__"; loc}
     ; ptype_params = []
     ; ptype_cstrs = []
     ; ptype_kind = Ptype_variant [
@@ -231,24 +231,24 @@ let extend super =
   in 
   let structure_item self sitem = 
     match sitem.pstr_desc with
-    | Pstr_extension (({txt="imp_policy"; loc}, pld), _) ->
-        (* [%%imp_policy ..] => type __imp_policy__ = .. *)
-        let policy = Policy.(from_ok loc & from_payload pld) in
-        if policy = Policy.Type then 
-          errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
+    | Pstr_extension (({txt="imp_spec"; loc}, pld), _) ->
+        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
+        let spec = Spec.(from_ok loc & from_payload pld) in
+        if spec = Spec.Type then 
+          errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
             Location.format loc;
-        { sitem with pstr_desc = Pstr_type [ forge_policy loc policy ] }
+        { sitem with pstr_desc = Pstr_type [ forge_spec loc spec ] }
     | _ -> super.structure_item self sitem
   in
   let signature_item self sitem = 
     match sitem.psig_desc with
-    | Psig_extension (({txt="imp_policy"; loc}, pld), _) ->
-        (* [%%imp_policy ..] => type __imp_policy__ = .. *)
-        let policy = Policy.(from_ok loc & from_payload pld) in
-        if policy = Policy.Type then 
-          errorf "%a: [%%%%imp_policy POLICY] requires a POLICY expression"
+    | Psig_extension (({txt="imp_spec"; loc}, pld), _) ->
+        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
+        let spec = Spec.(from_ok loc & from_payload pld) in
+        if spec = Spec.Type then 
+          errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
             Location.format loc;
-        { sitem with psig_desc = Psig_type [ forge_policy loc policy ] }
+        { sitem with psig_desc = Psig_type [ forge_spec loc spec ] }
     | _ -> super.signature_item self sitem
   in
   { super with expr; structure; structure_item; signature_item }

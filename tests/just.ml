@@ -1,9 +1,11 @@
+(* just spec
+*)
 module Show = struct
-  type 'a __imp__ = Packed of ('a -> string)
+  type 'a t = Packed of ('a -> string)
   (* This takes only the direct members as instances.
      Values inside sub-modules are ignored.
   *)
-  [%%imp_policy just Show] 
+  [%%imp_spec just Show] 
   let pack ~_x = Some (Packed _x)
   let unpack = function
     | None -> assert false
