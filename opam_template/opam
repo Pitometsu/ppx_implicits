@@ -4,4 +4,5 @@ depends: [
   "ppx_tools"
   "re" 
 ]
-ocaml-version: [= "4.02.1"]
+available: [ ocaml-version >= "4.02.2" & ocaml-version < "4.03.0" ]
+homepage: "http://bitbucket.org/camlspotter/ppx_implicits"
