@@ -44,9 +44,9 @@ let () =
 
   (* explicit optional argument elimination... so lousy... *) 
   fprintf std_formatter "%a %a %a@."
-    (fun x -> format x) 1
-    (fun x -> format x) 1.2
-    (fun x -> format x) [1;2;3];
+    (fun ppf -> format ppf) 1
+    (fun ppf -> format ppf) 1.2
+    (fun ppf -> format ppf) [1;2;3];
 
   (* optional argument eliminator! *)
   let (!?) f x = f x in
@@ -59,9 +59,9 @@ let () =
 
   (* how about using %t? Oh, ppf... *)  
   fprintf std_formatter "%t %t %t@."
-    (fun x -> format x 1)
-    (fun x -> format x 1.2)
-    (fun x -> format x [1;2;3]);
+    (fun ppf -> format ppf 1)
+    (fun ppf -> format ppf 1.2)
+    (fun ppf -> format ppf [1;2;3]);
 
   (* flip eliminates optional argument then flip! *)
   let flip f x y = f y x in
@@ -84,7 +84,9 @@ let derived ?_x:(_ : 'a M.t option) (x : 'a) =
     (format' 1)
     (format' 1.2)
     (format' x)
-  
+
+let () = derived [1;2;3]
+    
 (* all we need now is a some filter which converts
 
   fprintf std_formatter "%A %A %A@." 1 1.2 [1;2;3]

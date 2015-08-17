@@ -69,4 +69,5 @@ Test(constraint)
 Test_(adm)
 Test(xformat)
 Test(double_use)
+Test(fvar)
 
