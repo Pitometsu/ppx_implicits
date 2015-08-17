@@ -71,4 +71,5 @@ Test(xformat)
 Test(double_use)
 Test(fvar)
 Test(nomodule)
+Test(typeclass6)
 
