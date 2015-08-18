@@ -7,6 +7,9 @@
 open Utils
 open Typedtree
 
+(* a dirty hack *)
+let default_loc = ref Location.none
+
 module Dummy = struct
 
   open Types
@@ -15,18 +18,18 @@ module Dummy = struct
 
   let env = Env.empty
 
-  let value_description = 
+  let value_description () = 
     { val_type       = type_expr;
       val_kind       = Val_reg;
-      val_loc        = Location.none;
+      val_loc        = !default_loc;
       val_attributes = [] 
     }
 
   let exp_desc = Texp_tuple []
 
-  let exp = 
+  let exp () = 
     { exp_desc;
-      exp_loc        = Location.none;
+      exp_loc        = !default_loc;
       exp_extra      = [];
       exp_type       = type_expr;
       exp_env        = env;
@@ -35,17 +38,23 @@ module Dummy = struct
 
   let mod_type = Mty_signature [] 
 
-  let structure_item = { str_desc = Tstr_recmodule []
-                       ; str_loc = Location.none
-                       ; str_env = env 
-                       }
+  let structure_item () = 
+    { str_desc = Tstr_recmodule []
+    ; str_loc = !default_loc
+    ; str_env = env 
+    }
 end
 
-let loc txt = 
-  let open Location in
-  { loc = none; txt }
+let loc txt = { Location.loc= !default_loc; txt }
 
 let lidentloc_of_path p = loc & Untypeast.lident_of_path p
+
+let with_loc loc f = 
+  let back = !default_loc in
+  default_loc := loc;
+  let res = f () in
+  default_loc := back;
+  res
 
 module Path = struct
   open Longident
@@ -59,30 +68,30 @@ end
 module Exp = struct
 
   let ident lid p = 
-    { Dummy.exp with
-      exp_desc = Texp_ident (p, loc lid, Dummy.value_description) } 
+    { (Dummy.exp ()) with
+      exp_desc = Texp_ident (p, loc lid, Dummy.value_description ()) } 
 
   let let_ ?(recursive=false) vbs e =
-    { Dummy.exp with
+    { (Dummy.exp ()) with
       exp_desc = Texp_let((if recursive then Recursive else Nonrecursive),
                           vbs,
                           e)
     }
 
   let letmodule id mexpr e =
-    { Dummy.exp with 
+    { (Dummy.exp ()) with 
       exp_desc = Texp_letmodule (id, loc (Ident.name id), mexpr, e) }
 
   let app e les =
     match les with
     | [] -> e
     | _ ->
-        { Dummy.exp with
+        { (Dummy.exp ()) with
           exp_desc = Texp_apply(e, List.map (fun (l,e) -> l, Some e, Required (*?*)) les)
         }
 
   let some e =
-    { Dummy.exp with
+    { (Dummy.exp ()) with
       exp_desc = Texp_construct ( loc (Longident.Lident "Some"),
                                  { Types.cstr_name = "Some"
                                  ; cstr_res = Dummy.type_expr
@@ -95,16 +104,16 @@ module Exp = struct
                                  ; cstr_normal = 0
                                  ; cstr_generalized = false
                                  ; cstr_private = Public
-                                 ; cstr_loc = Location.none
+                                 ; cstr_loc = !default_loc
                                  ; cstr_attributes = [] },
                                  [e]) }
 end
 
 module Pat = struct
 
-  let desc ?(loc=Location.none) d = 
+  let desc d = 
     { pat_desc = d;
-      pat_loc = loc;
+      pat_loc = !default_loc;
       pat_extra = [];
       pat_type = Dummy.type_expr;
       pat_env = Dummy.env;
@@ -119,14 +128,14 @@ module MB = struct
                             ; mb_name = loc id.name
                             ; mb_expr = x
                             ; mb_attributes = []
-                            ; mb_loc = Location.none 
+                            ; mb_loc = !default_loc 
                             } 
 end
 
 module Mod = struct
   let of_module_expr_desc d = 
     { mod_desc = d;
-      mod_loc = Location.none;
+      mod_loc = !default_loc;
       mod_type = Dummy.mod_type;
       mod_env = Dummy.env;
       mod_attributes = [] }

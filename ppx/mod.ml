@@ -259,7 +259,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
                                        val_attributes = [] },
                                      false)) :: !derived_candidates;
         let case = { case with
-                     c_lhs = Forge.Pat.desc ~loc: case.c_lhs.pat_loc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})) }
+                     c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})))} 
         in
         { e with exp_desc = Texp_function (l, [case], e');
                  exp_attributes = ({txt=fid; loc= Ppxx.ghost e.exp_loc}, PStr []) :: e.exp_attributes }
