@@ -8,7 +8,7 @@ open Utils
 open List
 open Parsetree
 open Format
-open Compilerlibx
+open Compilerlib
 open Longident
 open Path
 
@@ -165,15 +165,18 @@ let from_structure str =
       | _ ->
           `Error (`String "spec must be an OCaml expression")
 
+let error loc = function
+  | `String s -> errorf "%a: %s" Location.format loc s
+  | `Failed_unmangle s -> 
+      errorf "%a: Illegal spec encoding: %S" Location.format loc s
+  | `Parse s ->
+      errorf "%a: Spec parse failed: %S" Location.format loc s
+  | `ParseExp (_, s) ->
+      errorf "%a: Spec parse failed: %s" Location.format loc s
+
 let from_ok loc = function
   | `Ok v -> v
-  | `Error (`String s) -> errorf "%a: %s" Location.format loc s
-  | `Error (`Failed_unmangle s) -> 
-      errorf "%a: Illegal spec encoding: %S" Location.format loc s
-  | `Error (`Parse s) ->
-      errorf "%a: Spec parse failed: %S" Location.format loc s
-  | `Error (`ParseExp (_, s)) ->
-      errorf "%a: Spec parse failed: %s" Location.format loc s
+  | `Error e -> error loc e
 
 let from_payload = function
   | PStr s -> from_structure s
@@ -429,18 +432,19 @@ let cand_direct env loc t3 =
   mark_not_aggressive
   & values_of_module ~recursive env lid path mdecl
 
+let unshadow env path = match Unshadow.check_module_path env path with
+  | `Accessible _lid -> path
+  | `Shadowed (id, id', p) ->
+      Unshadow.aliases := (id, id') :: !Unshadow.aliases;
+      p
+  | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+
 let cand_related env _loc ty = 
   let mods = related_modules env ty in
   let lmods = flip map mods & fun p ->
-    match Unshadow.check_module_path env p with
-    | `Accessible lid ->
-        let mdecl = Env.find_module p env in
-        (lid, p, mdecl)             
-    | `Shadowed (id, id', p) ->
-        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
-        let mdecl = Env.find_module p env in
-        (Untypeast.lident_of_path p, p, mdecl)             
-    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+    let p' = unshadow env p in
+    let mdecl = Env.find_module p env in
+    (Untypeast.lident_of_path p', p', mdecl)             
   in
   (* CR jfuruse: values_of_module should be memoized *)
   mark_not_aggressive
@@ -465,19 +469,13 @@ let cand_opened env loc x =
     eprintf "debug_resolve: cand_opened cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
-  let lids = flip map paths & fun path ->
-    match Unshadow.check_module_path env path with
-    | `Accessible lid -> lid
-    | `Shadowed (id, id', p) ->
-        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
-        Untypeast.lident_of_path p
-    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
-  in
-  concat & map2 (fun lid path ->
+  let paths' = map (unshadow env) paths in
+  concat & map2 (fun path path' ->
+    let lid = Untypeast.lident_of_path path' in
     cand_direct env loc
       (match x with
       | Just _ -> Just (lid, Some path)
-      | In _ -> In (lid, Some path))) lids paths
+      | In _ -> In (lid, Some path))) paths paths' 
 
 (* [%imp] : 'a M.ty
    type M.__imp_spec__ must exists and it is "typeclass"
@@ -531,16 +529,10 @@ let cand_typeclass env loc p_spec =
     eprintf "debug_resolve: cand_typeclass cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
-  let lids = flip map paths & fun path ->
-    match Unshadow.check_module_path env path with
-    | `Accessible lid -> lid
-    | `Shadowed (id, id', p) ->
-        Unshadow.aliases := (id, id') :: !Unshadow.aliases;
-        Untypeast.lident_of_path p
-    | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
-  in
-  concat & map2 (fun lid path ->
-    cand_direct env loc (Just (lid, Some path))) lids paths
+  let paths' = map (unshadow env) paths in
+  concat & map2 (fun path path' ->
+    let lid = Untypeast.lident_of_path path' in
+    cand_direct env loc (Just (lid, Some path))) paths paths'
     
 let cand_name rex f =
   filter (fun (lid, _, _, _) ->

@@ -12,15 +12,13 @@ val to_string : t -> string
 val to_mangled_string : t -> string
 (** convert [t] to its mangled string representation *)
 
-val from_ok :
-  Location.t ->
-  [< `Error of
-       [< `Failed_unmangle of string
-        | `Parse of string
-        | `ParseExp of 'a * string
-        | `String of string ]
-   | `Ok of 'b ] ->
-  'b
+val error :
+  Location.t
+  -> [< `Failed_unmangle of string
+     | `Parse of string
+     | `ParseExp of 'a * string
+     | `String of string ]
+  -> 'fail
 
 val from_payload :
   Parsetree.payload ->

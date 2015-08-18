@@ -1,3 +1,5 @@
+(* Same as typeclass5.ml, but using Implicits.Make2, which is slightly more efficient *)
+
 module type Show = sig
   (* Parameters must be properly listed. We cannot add parameters using include S *)
   type a 
@@ -10,7 +12,7 @@ module Show = struct
 
   type 'a s = (module Show with type a = 'a)
 
-  include Implicits.Make(struct
+  include Implicits.Make2(struct
     type 'a t = 'a s
   end)
 

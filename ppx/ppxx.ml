@@ -12,8 +12,8 @@ let ghost l = { l with loc_ghost = true }
     
 let at ?loc txt = 
   let loc = match loc with 
-      | None -> !Ast_helper.default_loc
-      | Some loc -> loc
+    | None -> !Ast_helper.default_loc
+    | Some loc -> loc
   in
   { txt; loc }
 
@@ -168,7 +168,7 @@ let debug_unif = ref false
 let run name mapper = 
   ppx_name := name;
 
-  let module Options = Compilerlibx.BytecompOptions(struct
+  let module Options = Compilerlib.BytecompOptions(struct
     let impl = impl mapper
     let intf = intf mapper
     let anonymous = anonymous mapper

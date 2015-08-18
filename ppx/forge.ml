@@ -16,9 +16,9 @@ module Dummy = struct
   let env = Env.empty
 
   let value_description = 
-    { val_type = type_expr;
-      val_kind = Val_reg;
-      val_loc = Location.none;
+    { val_type       = type_expr;
+      val_kind       = Val_reg;
+      val_loc        = Location.none;
       val_attributes = [] 
     }
 

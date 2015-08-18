@@ -1,6 +1,6 @@
 open Utils
 open Typedtree
-open Compilerlibx
+open Compilerlib
 open Longident (* has flatten *)
 open List (* has flatten *)
 open Format
@@ -40,7 +40,8 @@ let is_imp e =
   in
   match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
-  | [Some x] -> Some (Spec.from_ok e.exp_loc x)
+  | [Some (`Ok x)] -> Some x
+  | [Some (`Error err)] -> Spec.error e.exp_loc err
   | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
 (* derived candidates *)
@@ -283,5 +284,5 @@ module Map = struct
     Unshadow.aliases := [];
     let str = map_structure str in
     if !Ppxx.debug_resolve then eprintf "Unshadow...@.";
-    Unshadow.Map.map_structure str
+    Unshadow.map_structure !Unshadow.aliases str
 end

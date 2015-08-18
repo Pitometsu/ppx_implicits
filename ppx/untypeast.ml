@@ -1,3 +1,6 @@
+(*
+  This is a slightly modified version of tools/untypeast.ml of OCaml.
+*)
 (**************************************************************************)
 (*                                                                        *)
 (*                                OCaml                                   *)
