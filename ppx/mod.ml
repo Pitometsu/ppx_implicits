@@ -44,7 +44,7 @@ let is_imp e =
   | [Some (`Error err)] -> Spec.error e.exp_loc err
   | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
-(* derived candidates *)
+(* CR jfuruse: bad state... *)
 let derived_candidates = ref []
           
 let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> expression list list = function
@@ -259,7 +259,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
                                        val_attributes = [] },
                                      false)) :: !derived_candidates;
         let case = { case with
-                     c_lhs = Forge.Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})) }
+                     c_lhs = Forge.Pat.desc ~loc: case.c_lhs.pat_loc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})) }
         in
         { e with exp_desc = Texp_function (l, [case], e');
                  exp_attributes = ({txt=fid; loc= Ppxx.ghost e.exp_loc}, PStr []) :: e.exp_attributes }

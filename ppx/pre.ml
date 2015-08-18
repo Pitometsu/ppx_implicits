@@ -104,7 +104,8 @@ module TypeClass = struct
         | _ -> 
             Str.module_ ?loc:None & Mb.mk ?loc:None (at ?loc:None name)
               (Mod.structure ?loc:None 
-               & Str.type_ [gen_ty_module name ps]
+               & [%stri [@@@warning "-16"]]
+                 :: Str.type_ [gen_ty_module name ps]
                  :: Str.type_ [gen_ty_class ps]
                  :: spec
                  :: pack_unpack
