@@ -102,13 +102,14 @@ end
 
 module Pat = struct
 
-  let desc d = { pat_desc = d;
-                 pat_loc = Location.none;
-                 pat_extra = [];
-                 pat_type = Dummy.type_expr;
-                 pat_env = Dummy.env;
-                 pat_attributes = [];
-               }
+  let desc ?(loc=Location.none) d = 
+    { pat_desc = d;
+      pat_loc = loc;
+      pat_extra = [];
+      pat_type = Dummy.type_expr;
+      pat_env = Dummy.env;
+      pat_attributes = [];
+    }
 
   let var id = desc (Tpat_var (id, loc (Ident.name id)))
 end
