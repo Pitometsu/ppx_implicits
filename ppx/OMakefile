@@ -7,7 +7,7 @@ FILES[] =
     utils
     unshadow
     untypeast
-    compilerlibx
+    compilerlib
     ppxx
     forge
     unshadow

@@ -1,6 +1,6 @@
 open Utils
 open List
-open Compilerlibx
+open Compilerlib
 open Ident
 open Path
 (* open Format *)
@@ -37,10 +37,11 @@ let check_module_path env path =
   eprintf "check_module_path: %a@." Path.format path;
 *)
   check_module_path env path
-        
-let aliases = ref ([] : (Ident.t * Ident.t) list)
 
-module MapArg : TypedtreeMap.MapArgument = struct
+let aliases = ref ([]: (Ident.t * Ident.t) list)
+(* CR jfuruse: This is bizarre to have a ref which none of this module touches... *)
+  
+module MapArg(A : sig val aliases : (Ident.t * Ident.t) list end) : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
   open Typedtree
@@ -48,7 +49,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
   let enter_expression e = match e.exp_desc with
     | Texp_letmodule (id, a, b, e') ->
-        begin match assoc_opt id !aliases with
+        begin match assoc_opt id A.aliases with
         | None -> e
         | Some id' -> 
             let p = Pident id in
@@ -64,7 +65,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
 eprintf "module %a@." Ident.format mb.mb_id;
 *)
         si ::
-        begin match assoc_opt mb.mb_id !aliases with
+        begin match assoc_opt mb.mb_id A.aliases with
         | None -> []
         | Some id' -> 
             let p = Pident mb.mb_id in
@@ -74,7 +75,7 @@ eprintf "module %a@." Ident.format mb.mb_id;
         end
     | Tstr_recmodule mbs ->
         si :: flip filter_map mbs (fun mb ->
-          match assoc_opt mb.mb_id !aliases with
+          match assoc_opt mb.mb_id A.aliases with
           | None -> None
           | Some id' -> 
               let p = Pident mb.mb_id in
@@ -89,4 +90,7 @@ eprintf "module %a@." Ident.format mb.mb_id;
       with str_items = fold_right (fun si st -> structure_item si @ st) sis [] }
 end
 
-module Map = TypedtreeMap.MakeMap(MapArg)
+let map_structure aliases =
+  let module A = MapArg(struct let aliases = aliases end) in
+  let module Map = TypedtreeMap.MakeMap(A) in
+  Map.map_structure

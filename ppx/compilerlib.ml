@@ -1,36 +1,42 @@
+(* Extension of compilier_libs modules *)
+
 open List
 open Utils
 
 module Longident = struct
   include Longident
+
+  open Format
+    
   let format = Pprintast.default#longident
-  let to_string l = Format.ksprintf (fun x -> x) "%a" format l
+  let to_string l = ksprintf (fun x -> x) "%a" format l
 end
 
 module Ident = struct
   include Ident
-  let format_verbose ppf id = Format.fprintf ppf "%s/%d" id.name id.stamp
-  let format ppf id = Format.pp_print_string ppf id.name
+
+  open Format
+    
+  let format ppf id = pp_print_string ppf id.name
+  let format_verbose ppf id = fprintf ppf "%s/%d" id.name id.stamp
 end
 
 module Path = struct
   include Path
 
-  let rec format_verbose ppf =
-    let open Format in
-    function
-      | Pident id -> Ident.format_verbose ppf id
-      | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format_verbose p name n
-      | Papply (p1, p2) -> fprintf ppf "%a(%a)" format_verbose p1 format_verbose p2
+  open Format
 
-  let rec format ppf =
-    let open Format in
-    function
-      | Pident id -> Ident.format ppf id
-      | Pdot (p, name, _n) -> fprintf ppf "%a.%s" format p name
-      | Papply (p1, p2) -> fprintf ppf "%a(%a)" format p1 format p2
+  let rec format ppf = function
+    | Pident id -> Ident.format ppf id
+    | Pdot (p, name, _n) -> fprintf ppf "%a.%s" format p name
+    | Papply (p1, p2) -> fprintf ppf "%a(%a)" format p1 format p2
 
-  let to_string l = Format.ksprintf (fun x -> x) "%a" format l
+  let rec format_verbose ppf = function
+    | Pident id -> Ident.format_verbose ppf id
+    | Pdot (p, name, n) -> fprintf ppf "%a.%s__%d" format_verbose p name n
+    | Papply (p1, p2) -> fprintf ppf "%a(%a)" format_verbose p1 format_verbose p2
+
+  let to_string l = ksprintf (fun x -> x) "%a" format l
 end
   
 module Location = struct
@@ -38,8 +44,34 @@ module Location = struct
   let format = print_loc
 end
 
-module Types = struct
-  include Types
+module XTypes : sig
+  open Types
+  val repr_desc : type_expr -> type_desc
+  (** repr + desc *)
+    
+  val expand_repr_desc : Env.t -> type_expr -> type_desc
+  (** expand_head + repr + desc *)
+    
+  val with_snapshot : (unit -> 'a) -> 'a
+  (** Run the given function. Unifications caused by the function are undo-ed. *)
+    
+  val is_constr : Env.t -> type_expr -> (Path.t * type_expr list) option
+  (** Check the type is a Tconstr *)
+    
+  val is_option_type : Env.t -> type_expr -> type_expr option
+  (** Check the type is option *)
+    
+  val gen_vars : type_expr -> type_expr list
+  (** Generalized tvars *)
+    
+  val create_uniq_type : unit -> type_expr
+  (** Create a unique data type. Note that the result data type lacks definition. *)
+    
+  val close_gen_vars : type_expr -> unit
+  (** Unify genvars with unique types *)
+    
+end  = struct
+  open Types
   open Btype
   open Ctype
   let repr_desc ty = (repr ty).desc
@@ -73,7 +105,6 @@ module Types = struct
       *)
       Ctype.newty ( Tconstr ( Pident (Ident.create_persistent & "*uniq*" ^ string_of_int !cntr), [], ref Mnil ) )
 
-  (* Unify genvars with unique types *)
   let close_gen_vars ty =
     List.iter (fun gv ->
       match repr_desc gv with
@@ -82,6 +113,11 @@ module Types = struct
           (* eprintf "Closing %a@." Printtyp.type_expr gv *)
       | Tunivar _ -> ()
       | _ -> assert false) & gen_vars ty
+end
+
+module Types = struct
+  include Types
+  include XTypes
 end
 
 (* Pity! This is version dependent *)

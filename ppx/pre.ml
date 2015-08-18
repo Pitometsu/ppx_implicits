@@ -15,7 +15,7 @@ open Asttypes
 open Ast_mapper
 open Location
 open Utils
-open Compilerlibx
+open Compilerlib
 open List
 
 (* [@@typeclass] and [@@instance] *)
@@ -233,7 +233,10 @@ let extend super =
     match sitem.pstr_desc with
     | Pstr_extension (({txt="imp_spec"; loc}, pld), _) ->
         (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        let spec = Spec.(from_ok loc & from_payload pld) in
+        let spec = match Spec.from_payload pld with
+          | `Ok x -> x
+          | `Error err -> Spec.error loc err
+        in
         if spec = Spec.Type then 
           errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
             Location.format loc;
@@ -244,7 +247,10 @@ let extend super =
     match sitem.psig_desc with
     | Psig_extension (({txt="imp_spec"; loc}, pld), _) ->
         (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        let spec = Spec.(from_ok loc & from_payload pld) in
+        let spec = match Spec.from_payload pld with
+          | `Ok v -> v
+          | `Error err -> Spec.error loc err
+        in
         if spec = Spec.Type then 
           errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
             Location.format loc;
