@@ -18,6 +18,8 @@ module Num = struct
     let pack_opt ~_x = Some (Packed _x)
   end
 
+  [@@@warning "-16"] (* required for unpack_opt *)
+
   let unpack_opt ?_imp = match _imp with
     | None -> assert false
     | Some (Packed x) -> x
