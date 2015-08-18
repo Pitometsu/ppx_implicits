@@ -22,7 +22,9 @@ open List
 module TypeClass = struct
   open Longident
 
-  (* ex. obtain 'a' from the definition of module type Show *)
+  (* module type Show = sig type a val show : a -> string end
+     => [a]
+  *)
   let parameters sg = sort compare & concat_map (fun si ->
     match si.psig_desc with
     | Psig_type tds ->
@@ -32,7 +34,9 @@ module TypeClass = struct
           | _ -> None) tds
     | _ -> []) sg
 
-  (* ex. obtain show : a -> string from the definition of module type Show *)
+  (* module type Show = sig type a val show : a -> string end
+     => ["show", a -> string]
+  *)
   let values sg = filter_map (fun si ->
     match si.psig_desc with
       | Psig_value vdesc -> Some (vdesc.pval_name.txt, vdesc.pval_type)
@@ -40,12 +44,7 @@ module TypeClass = struct
 
   let add_newtypes = fold_right (fun s -> Exp.newtype ?loc:None s)
 
-  (* [%%imp_spec typeclass] *)
-  let spec =
-    let opened = 
-      [%expr typeclass] 
-    in
-    Str.extension ?loc:None (at "imp_spec", PStr [(Str.eval opened)])
+  let spec = [%stri [%%imp_spec typeclass] ]
 
   (* type 'a _module = (module Show with type a = 'a) *)
   let gen_ty_module name ps =
@@ -179,25 +178,18 @@ let extend super =
           pexp_attributes = [ (strloc, x) ] }
     | _ -> super.expr self e
   in
-  (* type __imp_spec__ = .. *)
+  (* type __imp_spec__ = private Spec_xxxx *)
   let forge_spec loc spec =
-    let mangled = Spec.to_mangled_string spec in                
-    { ptype_name = {txt = "__imp_spec__"; loc}
-    ; ptype_params = []
-    ; ptype_cstrs = []
-    ; ptype_kind = Ptype_variant [
-        { pcd_name = {txt=mangled; loc}
-        ; pcd_args = []
-        ; pcd_res = None
-        ; pcd_loc = loc
-        ; pcd_attributes = []
-        }
-      ]
-    ; ptype_private = Private (* How dare you want to use it? *)
-    ; ptype_manifest = None
-    ; ptype_attributes = []
-    ; ptype_loc= loc
-    }
+    let mangled = Spec.to_mangled_string spec in
+    Type.mk ~loc
+      ~kind: (Ptype_variant [ { pcd_name = {txt=mangled; loc}
+                              ; pcd_args = []
+                              ; pcd_res = None
+                              ; pcd_loc = loc
+                              ; pcd_attributes = []
+                              } ])
+      ~priv: Private
+      {txt = "__imp_spec__"; loc}
   in
   let has_typeclass_attr = function
     | {txt="typeclass"}, PStr [] -> true
@@ -205,7 +197,7 @@ let extend super =
     | _ -> false
   in
   let structure self sitems =
-    let sitems = concat_map (fun sitem ->
+    let sitems = flip concat_map sitems & fun sitem ->
       match sitem.pstr_desc with
       | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
           (* module type M = ... [@@typeclass] *)
@@ -216,46 +208,43 @@ let extend super =
       | Pstr_module mb ->
           (* module M = ... [@@instance Show] *)
           begin match 
-            filter_map (function 
+            flip filter_map mb.pmb_attributes & function 
               | ({txt="instance"}, 
                   PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt}, None) }, []) } ]) -> Some txt
               | ({txt="instance"}, _) -> assert false (* CR jfuruse: error *)
-              | _ -> None) mb.pmb_attributes
+              | _ -> None
           with
           | [] -> [ sitem ]
           | [lid] -> [sitem; TypeClass.instance lid mb]
           | _ -> assert false
           end
-      | _ -> [sitem]) sitems
+      | _ -> [sitem]
     in
     super.structure self sitems
   in 
+
+  let do_imp_spec loc pld f = match Spec.from_payload pld with
+    | `Error err -> Spec.error loc err
+    | `Ok Spec.Type ->
+        errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
+          Location.format loc
+    | `Ok spec -> f spec
+  in
+
   let structure_item self sitem = 
     match sitem.pstr_desc with
     | Pstr_extension (({txt="imp_spec"; loc}, pld), _) ->
         (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        let spec = match Spec.from_payload pld with
-          | `Ok x -> x
-          | `Error err -> Spec.error loc err
-        in
-        if spec = Spec.Type then 
-          errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
-            Location.format loc;
-        { sitem with pstr_desc = Pstr_type [ forge_spec loc spec ] }
+        do_imp_spec loc pld & fun spec -> 
+          { sitem with pstr_desc = Pstr_type [ forge_spec loc spec ] }
     | _ -> super.structure_item self sitem
   in
   let signature_item self sitem = 
     match sitem.psig_desc with
     | Psig_extension (({txt="imp_spec"; loc}, pld), _) ->
         (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        let spec = match Spec.from_payload pld with
-          | `Ok v -> v
-          | `Error err -> Spec.error loc err
-        in
-        if spec = Spec.Type then 
-          errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
-            Location.format loc;
-        { sitem with psig_desc = Psig_type [ forge_spec loc spec ] }
+        do_imp_spec loc pld & fun spec -> 
+          { sitem with psig_desc = Psig_type [ forge_spec loc spec ] }
     | _ -> super.signature_item self sitem
   in
   { super with expr; structure; structure_item; signature_item }

@@ -69,7 +69,7 @@ eprintf "module %a@." Ident.format mb.mb_id;
         | None -> []
         | Some id' -> 
             let p = Pident mb.mb_id in
-            [ { Dummy.structure_item 
+            [ { (Dummy.structure_item ())
                 with str_desc = Tstr_module (MB.module_binding id' & Forge.Mod.ident p)
               } ]
         end
@@ -79,7 +79,7 @@ eprintf "module %a@." Ident.format mb.mb_id;
           | None -> None
           | Some id' -> 
               let p = Pident mb.mb_id in
-              Some { Dummy.structure_item 
+              Some { (Dummy.structure_item ())
                      with str_desc = Tstr_module (MB.module_binding id' & Forge.Mod.ident p)
                    })
     | _ -> [si]
