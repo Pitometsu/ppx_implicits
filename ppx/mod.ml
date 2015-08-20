@@ -25,7 +25,7 @@ let rec extract_constraint_labels env ty =
 let rec extract_constraint_labels_aggressively env ty =
   let ty = Ctype.expand_head env ty in
   match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) ->
+  | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
       ([], ty)
       :: map
         (fun (cs, ty) -> (l,ty1)::cs, ty)
