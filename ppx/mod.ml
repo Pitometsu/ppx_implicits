@@ -7,30 +7,32 @@ open Format
 
 open Types
 
-let is_constraint_label l =
-  let len = String.length l in
-  if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
-  else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
-  else None
-
-(* Constraint labels must precede the other arguments *)
-let rec extract_constraint_labels env ty = 
-  let ty = Ctype.expand_head env ty in
-  match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) when is_constraint_label l <> None ->
-      let cs, ty = extract_constraint_labels env ty2 in
-      (l,ty1)::cs, ty
-  | _ -> [], ty
-
-let rec extract_constraint_labels_aggressively env ty =
-  let ty = Ctype.expand_head env ty in
-  match repr_desc ty with
-  | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
-      ([], ty)
-      :: map
-        (fun (cs, ty) -> (l,ty1)::cs, ty)
-        (extract_constraint_labels_aggressively env ty2)
-  | _ -> [[], ty]
+module KLabel = struct
+  let is_klabel l =
+    let len = String.length l in
+    if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
+    else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
+    else None
+  
+  (* Constraint labels must precede the other arguments *)
+  let rec KLabel.extract env ty = 
+    let ty = Ctype.expand_head env ty in
+    match repr_desc ty with
+    | Tarrow(l, ty1, ty2, _) when is_klabel l <> None ->
+        let cs, ty = extract env ty2 in
+        (l,ty1)::cs, ty
+    | _ -> [], ty
+  
+  let rec KLabel.extract_aggressively env ty =
+    let ty = Ctype.expand_head env ty in
+    match repr_desc ty with
+    | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
+        ([], ty)
+        :: map
+          (fun (cs, ty) -> (l,ty1)::cs, ty)
+          (extract_aggressively env ty2)
+    | _ -> [[], ty]
+end
     
 let is_imp e = 
   let imps = 
@@ -53,9 +55,9 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
       let cands =
         let cs = get_cands ty in
         flip concat_map cs & fun (lid, path, vdesc, aggressive) ->
-          if not aggressive then [(lid, path, vdesc, extract_constraint_labels env vdesc.val_type)]
+          if not aggressive then [(lid, path, vdesc, KLabel.extract env vdesc.val_type)]
           else map (fun cs_ty -> (lid, path, vdesc, cs_ty)) & 
-            extract_constraint_labels_aggressively env vdesc.val_type
+            KLabel.extract_aggressively env vdesc.val_type
       in
       flip concat_map cands & fun (lid,path,_vdesc,(cs,vty)) ->
          match
@@ -201,7 +203,7 @@ let is_none e = match e.exp_desc with
 (* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
-  | (l, Some e, Optional) when is_constraint_label l = Some `Optional ->
+  | (l, Some e, Optional) when KLabel.is_klabel l = Some `Optional ->
       begin match is_none e with
       | None -> a
       | Some ty ->
@@ -243,8 +245,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
             Location.format e.exp_loc);
         e
            
-    | Texp_function (l, [case], e') when is_constraint_label l <> None ->
-        (* If a pattern has a form l:x where [is_constraint_label l],
+    | Texp_function (l, [case], e') when KLabel.is_klabel l <> None ->
+        (* If a pattern has a form l:x where [KLabel.is_klabel l],
            then the value can be used as an instance of the same type.
 
            Here, the problem is that [leave_expression] does not take the same expression
