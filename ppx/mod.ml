@@ -15,15 +15,18 @@ module KLabel = struct
     else None
   
   (* Constraint labels must precede the other arguments *)
-  let rec KLabel.extract env ty = 
+  let rec extract env ty = 
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
     | Tarrow(l, ty1, ty2, _) when is_klabel l <> None ->
         let cs, ty = extract env ty2 in
         (l,ty1)::cs, ty
+    | Tarrow(l, ty1, ty2, x) ->
+        let cs, ty = extract env ty2 in
+        cs, { (Ctype.newty & Tarrow (l, ty1, ty, x)) with level = ty.level }
     | _ -> [], ty
   
-  let rec KLabel.extract_aggressively env ty =
+  let rec extract_aggressively env ty =
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
     | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
@@ -60,75 +63,77 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
             KLabel.extract_aggressively env vdesc.val_type
       in
       flip concat_map cands & fun (lid,path,_vdesc,(cs,vty)) ->
-         match
-           try Some (assoc path trace) with _ -> None
-         with
-         | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
-             (* recursive call and the type size is not strictly decreasing *)
-             if !Ppxx.debug_unif then begin
-               eprintf "Checking %a <> ... using %a ... oops"
-                 Printtyp.type_expr ty
-                 Path.format path;
-               eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
-                 Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
-             end;
-             []
+        match
+          try Some (assoc path trace) with _ -> None
+        with
+        | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
+            (* recursive call and the type size is not strictly decreasing *)
+            if !Ppxx.debug_unif then begin
+              eprintf "Checking %a <> ... using %a ... oops"
+              Printtyp.type_expr ty
+              Path.format path;
+              eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
+              Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+            end;
+            []
 
-         | _ ->
-             let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding is no longer useful. Replace instead of add? *)
+        | _ ->
+            let trace' = (path, ty) :: trace in (* CR jfuruse: Older binding of path is no longer useful. Replace instead of add? *)
 
-             let ity = Ctype.instance env ty in
+            let ity = Ctype.instance env ty in
         
-             let ivty, cs =
-               match Ctype.instance_list env (vty::map snd cs) with
-               | [] -> assert false
-               | ivty :: ictys ->
-                   ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
-             in
+            let ivty, cs =
+              match Ctype.instance_list env (vty::map snd cs) with
+              | [] -> assert false
+              | ivty :: ictys ->
+                  ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
+            in
 
-             with_snapshot & fun () ->
-               try
+            with_snapshot & fun () ->
+              try
 
-                 if !Ppxx.debug_unif then
-                   eprintf "Checking %a <> %a, using %a ..."
-                     Printtyp.type_expr ity
-                     Printtyp.type_expr ivty
-                     Path.format path;
+                if !Ppxx.debug_unif then
+                  eprintf "Checking %a <> %a, using %a ..."
+                  Printtyp.type_expr ity
+                  Printtyp.type_expr ivty
+                  Path.format path;
 
-                 begin match protect & fun () -> Ctype.unify env ity ivty with
-                 | `Ok _ ->
-                     if !Ppxx.debug_unif then
-                       eprintf " ok: %a@." Printtyp.type_expr ity
-                 | `Error (Ctype.Unify trace as e) ->
-                     if !Ppxx.debug_unif then begin
-                       eprintf " no@.";
-                       eprintf "   Reason: @[%a@]@."
-                         (fun ppf trace -> Printtyp.report_unification_error ppf
-                           env trace
-                           (fun ppf ->
-                             fprintf ppf "Hmmm ")
-                           (fun ppf ->
-                             fprintf ppf "with"))
-                         trace;
-                     end;
-                     raise e
-                 | `Error e ->
-                     eprintf "Ctype.unify raised strange exception %s@." (Printexc.to_string e);
-                     raise e
-                 end;
-                 let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
-                 flip map (resolve env get_cands tr_tys) & fun res ->
-                   let rec app res cs = match res, cs with
-                     | res, [] -> res, []
-                     | r::res, (l,_)::cs ->
-                         let res, args = app res cs in
-                         res, (l,r)::args
-                     | _ -> assert false
-                   in
-                   let res, args = app res cs in
-                   Forge.Exp.(app (ident lid path) args) :: res
-               with
-               | _ -> []
+                begin match protect & fun () -> Ctype.unify env ity ivty with
+                | `Ok _ ->
+                    if !Ppxx.debug_unif then
+                      eprintf " ok: %a@." Printtyp.type_expr ity
+                | `Error (Ctype.Unify trace as e) ->
+                    if !Ppxx.debug_unif then begin
+                      eprintf " no@.";
+                      eprintf "   Reason: @[%a@]@."
+                      (fun ppf trace -> Printtyp.report_unification_error ppf
+                        env trace
+                        (fun ppf ->
+                          fprintf ppf "Hmmm ")
+                        (fun ppf ->
+                          fprintf ppf "with"))
+                      trace;
+                    end;
+                    raise e
+                | `Error e ->
+                    eprintf "Ctype.unify raised strange exception %s@." (Printexc.to_string e);
+                    raise e
+                end;
+
+                (* Add the sub-problems *)
+                let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
+                flip map (resolve env get_cands tr_tys) & fun res ->
+                  let rec app res cs = match res, cs with
+                    | res, [] -> res, [] (* all the sub solutions are applied *)
+                    | r::res, (l,_)::cs ->
+                        let res, args = app res cs in
+                        res, (l,r)::args
+                    | _ -> assert false
+                  in
+                  let res, args = app res cs in
+                  Forge.Exp.(app (ident lid path) args) :: res
+              with
+              | _ -> []
 
 let resolve spec env loc ty = with_snapshot & fun () ->
   if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
