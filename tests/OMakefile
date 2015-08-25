@@ -14,20 +14,21 @@ OCamlRequire($(PPX))
 %.out.ml: %.ml $(PPX)
   $(PPX) -debug $< > $@
 
-Test_(name) =
-  $(name)$(OUT): $(name).ml $(PPX) implicits.cmo
+Test_(name, deps) =
+  CMOS=$(addsuffix .cmo, $(deps))
+  $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) implicits.cmo $(CMOS)
     mkdir_if_not_exists(out)
     $(PPX) -debug $(name).ml > out/$(name).ml
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -ppx $(PPX) implicits.cmo -o $(name)$(OUT) $(name).ml
+    ocamlc -ppx $(PPX) implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
   out/$(name).out: $(name)$(OUT)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
     ./$(name)$(OUT)
 
-  $(name)_test_ocamlfind$(OUT): $(name).ml implicits.cmo
+  $(name)_test_ocamlfind$(OUT): $(name).ml implicits.cmo $(CMOS)
     mkdir_if_not_exists(out)
-    ocamlfind ocamlc -package ppx_implicits implicits.cmo -o $(name)_test_ocamlfind$(OUT) $(name).ml
+    ocamlfind ocamlc -package ppx_implicits implicits.cmo $(CMOS) -o $(name)_test_ocamlfind$(OUT) $(name).ml
   out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(OUT)
     stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
     stderr = stdout
@@ -39,10 +40,14 @@ Test_(name) =
 # omake test_ocamlfind tests things using installed ppx_implicits
 .PHONY: test_ocamlfind
 
-Test(name) =
-  Test_($(name))
+Testx(name, deps) =
+  Test_($(name), $(deps))
   .DEFAULT: out/$(name).out
   test_ocamlfind: out/$(name)_test_ocamlfind.out
+  export
+
+Test(name)=
+  Testx($(name), $(EMPTY))
   export
 
 Test(imp)
@@ -66,11 +71,12 @@ Test(typeclass52)
 Test(multiparam)
 Test(multiparam2)
 Test(constraint)
-Test_(adm)
+Test_(adm, $(EMPTY))
 Test(xformat)
 Test(double_use)
 Test(fvar)
 Test(nomodule)
 Test(typeclass6)
 Test(kgap)
-
+Test(numdef)
+Testx(numuse, numdef)
