@@ -3,6 +3,8 @@ PPX=$(file ../ppx/ppx_implicits$(EXE))
 .SCANNER: scan-ocaml-%: $(PPX)
 OCamlRequire($(PPX))
 
+OCAMLDEPFLAGS= -ppx $(PPX)
+
 # OCAMLINCLUDES += ../lib ../ocaml
 
 # FILES[] =
@@ -80,3 +82,5 @@ Test(typeclass6)
 Test(kgap)
 Test(numdef)
 Testx(numuse, numdef)
+# Test(eq) # no working
+Test(prelude)
