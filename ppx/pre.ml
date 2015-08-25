@@ -138,7 +138,7 @@ module TypeClass = struct
        type __imp_instance__ = Show.__imp_spec__
      end
   *)
-  let instance lid mb =  
+  let instance lid mb ~instance_loc =  
     let cname = match lid with (* Show *)
       | Lident cname -> cname
       | Ldot (_, cname) -> cname
@@ -151,8 +151,9 @@ module TypeClass = struct
       | _ -> assert false (* CR jfuruse: error handling *)
     in
     let ps = parameters str in
-    Str.module_ ?loc:None & Mb.mk ?loc:None (at ?loc:None oname)
-    & Mod.structure ?loc:None 
+    with_gloc mb.pmb_loc & fun () ->
+      Str.module_ & Mb.mk (at ~loc:mb.pmb_name.loc oname)
+      & Mod.structure ~loc:mb.pmb_expr.pmod_loc
         [ Str.value ?loc:None Nonrecursive 
             [ Vb.mk ?loc:None 
                 (Pat.var ?loc:None "dict")
@@ -162,9 +163,8 @@ module TypeClass = struct
                      (at ?loc:None & Ldot (lid, "_module"))
                     & map (fun (p,_) -> Typ.constr ?loc:None (at ?loc:None & Ldot (Lident iname, p)) []) ps))
             ]
-        ; Str.type_ ?loc:None
-          [ Type.mk ?loc:None ~manifest:(Typ.constr ?loc:None (at ?loc:None & Ldot (Lident cname, "__imp_spec__")) []) (at ?loc:None "__imp_instance__")
-          ]
+        ; with_gloc instance_loc & fun () ->
+          Str.type_ [ Type.mk ~manifest:(Typ.constr (at & Ldot (Lident cname, "__imp_spec__")) []) (at "__imp_instance__") ]
         ]
 end
 
@@ -210,12 +210,16 @@ let extend super =
           begin match 
             flip filter_map mb.pmb_attributes & function 
               | ({txt="instance"}, 
-                  PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt}, None) }, []) } ]) -> Some txt
+                  PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt; loc}, None) }, []) } ]) -> Some (txt, loc)
               | ({txt="instance"}, _) -> assert false (* CR jfuruse: error *)
               | _ -> None
           with
           | [] -> [ sitem ]
-          | [lid] -> [sitem; TypeClass.instance lid mb]
+          | [ (lid, instance_loc) ] ->
+              [ sitem;
+                TypeClass.instance lid mb
+                  ~instance_loc
+              ]
           | _ -> assert false
           end
       | _ -> [sitem]
