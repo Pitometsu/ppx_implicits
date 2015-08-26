@@ -110,6 +110,13 @@ module EqFromOrd = struct
   let get_eq_class_opt ~_x = Ord.get_eq_class_opt _x
   type __imp_instance__ = Eq.__imp_spec__
 end
+(* CR jfuruse: NOT WORK WELL
+
+   No ... we have two ways to get Eq instance now...
+
+   EqIntInstance._dict
+   and get_eq_class_opt ~x:(Some OrdIntInstance._dict)
+*)
   
 module OrdInt = struct
   type a = int
@@ -138,8 +145,5 @@ module TestOrd = struct
   let f ?_imp:(_ : 'a Ord._class option) (x : 'a) y =
     let open Eq in
     Ord.compare x y = EQ
-    && x === y (* we need instance for 'a Eq._class option 
-                                       'a Eq._class
-                                       'a Ord._class option -> 'a Eq._class option
-                *)
+    && x === y (* We can use Eq using Ord *)
 end
