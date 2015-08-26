@@ -69,12 +69,13 @@ module Ord = struct
   [@@@warning "-16"]
   type 'a _module = (module Ord with type a = 'a)
   type 'a _class = Packed of 'a _module
-      [%%imp_spec typeclass]
+  [%%imp_spec typeclass]
 
   let get_eq_module (type a) : a _module -> a Eq._module = fun m ->
     let module M : Ord with type a = a = (val m) in
     (module M.Eq)
-      
+
+  (* Load it as an instance of Eq, not Ord! *)        
   let get_eq_class_opt (type a) : a _class option -> a Eq._class option = fun co ->
     match co with
     | None -> assert false
@@ -104,6 +105,7 @@ module Ord = struct
       let module M = (val (unpack_opt ?_imp : a _module)) in M.min
 end
 
+(* A magic way to get the instance of Eq from an instance of Ord *)
 module EqFromOrd = struct
   let get_eq_class_opt ~_x = Ord.get_eq_class_opt _x
   type __imp_instance__ = Eq.__imp_spec__
