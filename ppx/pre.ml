@@ -146,9 +146,13 @@ module TypeClass = struct
     in
     let iname = mb.pmb_name.txt in (* ShowInt *)
     let oname = iname ^ "Instance" in (* ShowIntInstance *)
-    let str = match mb.pmb_expr.pmod_desc with
+    let str =
+      let rec get_str me = match me.pmod_desc with
       | Pmod_structure str -> str
+      | Pmod_constraint (me, _) -> get_str me
       | _ -> assert false (* CR jfuruse: error handling *)
+      in
+      get_str mb.pmb_expr
     in
     let ps = parameters str in
     with_gloc mb.pmb_loc & fun () ->
@@ -211,7 +215,9 @@ let extend super =
             flip filter_map mb.pmb_attributes & function 
               | ({txt="instance"}, 
                   PStr [ { pstr_desc= Pstr_eval ( { pexp_desc= Pexp_construct ({txt; loc}, None) }, []) } ]) -> Some (txt, loc)
-              | ({txt="instance"}, _) -> assert false (* CR jfuruse: error *)
+              | ({txt="instance"; loc}, _) ->
+                  errorf "%a: Syntax error at the instance attribute: it must be [%%%%instance Path]" 
+                    Location.format loc
               | _ -> None
           with
           | [] -> [ sitem ]

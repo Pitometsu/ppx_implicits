@@ -82,5 +82,7 @@ Test(typeclass6)
 Test(kgap)
 Test(numdef)
 Testx(numuse, numdef)
-# Test(eq) # no working
 Test(prelude)
+Test(monad_hk)
+# Test(highk)
+Test(length_class)
