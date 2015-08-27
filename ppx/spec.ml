@@ -23,6 +23,7 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
+  | Type_ of core_type * Types.type_expr option ref * t2
   | Typeclass of Path.t option (* None at parsing, but must be filled with Some until the resolution *) 
 
 and 'a flagged = In of 'a | Just of 'a
@@ -31,7 +32,7 @@ let rec is_static = function
   | Opened _ -> true
   | Direct _ -> true
   | Related -> false
-  | Aggressive t2 | Name (_, _, t2) -> is_static t2
+  | Aggressive t2 | Name (_, _, t2) | Type_ (_, _, t2) -> is_static t2
   | Typeclass _ -> true
     
 let to_string = 
@@ -50,6 +51,8 @@ let to_string =
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
+    | Type_ (ct, _, x) ->
+        Printf.sprintf "(%s : %s)" (t2 x) (Format.ksprintf (fun x -> x) "%a" Pprintast.core_type ct)
     | Typeclass _ -> "typeclass"
   in
   t 
@@ -132,6 +135,7 @@ let from_expression e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
+      | Pexp_constraint (e, cty) -> Type_ (cty, ref None, t2 e)
       | Pexp_ident {txt=Lident "typeclass"} -> Typeclass None
       | _ -> 
           let flid = flag_lid e in
@@ -538,6 +542,9 @@ let cand_name rex f =
   filter (fun (lid, _, _, _) ->
     Re_pcre.pmatch ~rex & Longident.to_string lid) & f ()
 
+let cand_type_ env ty f =
+  filter (fun (_lid, _p, vdesc, _f) -> Ctype.moregeneral env false ty vdesc.val_type) & f ()
+
 let rec cand_static env loc = function
   | Related -> assert false
   | Aggressive x ->
@@ -545,6 +552,8 @@ let rec cand_static env loc = function
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
+  | Type_ (_, {contents=Some ty}, t2) -> cand_type_ env ty & fun () -> cand_static env loc t2
+  | Type_ (_, {contents=None}, _) -> assert false
   | Typeclass (Some p) -> cand_typeclass env loc p
   | Typeclass None -> assert false
 
@@ -554,6 +563,8 @@ let rec cand_dynamic env loc ty = function
       map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
   | Opened _ | Direct _ | Typeclass _ -> assert false
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
+  | Type_ (_, {contents=Some ty}, t2) -> cand_type_ env ty & fun () -> cand_dynamic env loc ty t2
+  | Type_ (_, {contents=None}, _) -> assert false
 
 type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
 
