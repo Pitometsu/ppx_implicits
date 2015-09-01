@@ -87,6 +87,15 @@ let derived ?_x:(_ : 'a M.t option) (x : 'a) =
 
 let () = derived [1;2;3]
     
+(*
+let () =
+  let ca = Custom_succ (Custom_zero) in
+  Format.eprintf (Format ( Custom ( ca, (fun () -> fun x -> x),
+                                    (Formatting_lit (Flush_newline, End_of_format))),
+  "%A@.")) "gabababa"
+*)
+  
+
 (* all we need now is a some filter which converts
 
   fprintf std_formatter "%A %A %A@." 1 1.2 [1;2;3]

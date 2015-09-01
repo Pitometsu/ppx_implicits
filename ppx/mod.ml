@@ -14,26 +14,27 @@ module KLabel = struct
     else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
     else None
   
+  (* Constraint labels must precede the other arguments *)
   let rec extract env ty = 
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
     | Tarrow(l, ty1, ty2, _) when is_klabel l <> None ->
-        let cs, ty, make = extract env ty2 in
-        (l,ty1)::cs, ty, make
+        let cs, ty = extract env ty2 in
+        (l,ty1)::cs, ty
     | Tarrow(l, ty1, ty2, x) ->
-        let cs, ty, make = extract env ty2 in
-        cs, { (Ctype.newty & Tarrow (l, ty1, ty, x)) with level = ty.level }, make
-    | _ -> [], ty, (fun x -> x)
+        let cs, ty = extract env ty2 in
+        cs, { (Ctype.newty & Tarrow (l, ty1, ty, x)) with level = ty.level }
+    | _ -> [], ty
   
   let rec extract_aggressively env ty =
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
     | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
-        ([], ty, (fun x -> x))
+        ([], ty)
         :: map
-          (fun (cs, ty, make) -> (l,ty1)::cs, ty, make)
+          (fun (cs, ty) -> (l,ty1)::cs, ty)
           (extract_aggressively env ty2)
-    | _ -> [[], ty, (fun x -> x)]
+    | _ -> [[], ty]
 end
     
 let is_imp e = 
@@ -58,10 +59,10 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
         let cs = get_cands ty in
         flip concat_map cs & fun (lid, path, vdesc, aggressive) ->
           if not aggressive then [(lid, path, vdesc, KLabel.extract env vdesc.val_type)]
-          else map (fun cs_ty_make -> (lid, path, vdesc, cs_ty_make)) & 
+          else map (fun cs_ty -> (lid, path, vdesc, cs_ty)) & 
             KLabel.extract_aggressively env vdesc.val_type
       in
-      flip concat_map cands & fun (lid,path,_vdesc,(cs,vty,makef)) ->
+      flip concat_map cands & fun (lid,path,_vdesc,(cs,vty)) ->
         match
           try Some (assoc path trace) with _ -> None
         with
@@ -130,7 +131,7 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
                     | _ -> assert false
                   in
                   let res, args = app res cs in
-                  Forge.Exp.(app (makef & ident lid path) args) :: res
+                  Forge.Exp.(app (ident lid path) args) :: res
               with
               | _ -> []
 

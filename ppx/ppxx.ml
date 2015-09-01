@@ -19,12 +19,8 @@ let at ?loc txt =
 
 let lid ?loc s = at ?loc & Longident.parse s
 
-let with_default_loc loc f = 
-  let back = !Ast_helper.default_loc in
-  Ast_helper.default_loc := loc;
-  let res = f () in
-  Ast_helper.default_loc := back;
-  res
+let with_loc = Ast_helper.with_default_loc
+let with_gloc l = Ast_helper.with_default_loc (ghost l)
 
 module Name = struct
   let make_unique =
