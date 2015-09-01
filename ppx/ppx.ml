@@ -15,6 +15,7 @@ let preconvert_signature sg =
   if !Ppxx.debug_pre then Pprintast.signature Format.std_formatter sg;
   sg
   
+(* CR jfuruse: It is not the case any more *)
 (* If the tool is ocamldep, we do not type-check *)
 let mapper = 
   let structure x str =
