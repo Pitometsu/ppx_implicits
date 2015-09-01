@@ -73,4 +73,5 @@ Test(fvar)
 Test(nomodule)
 Test(typeclass6)
 Test(kgap)
+Test(showc)
 
