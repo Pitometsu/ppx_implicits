@@ -8,11 +8,8 @@ module Show = struct
   let int = string_of_int
   let float = string_of_float
   let list ~_d:show xs = "[ " ^ String.concat "; " (List.map show xs) ^ " ]"
-  (* Currently a label starts with '_' is required to express instance
-     constraints. It is like => arrow of Haskell.
-
-     This special label may not be required, but we need to check 
-     whether there would no regression around the resolution or not.
+  (* A label starts with '_' is a constraint label,
+     which is like => arrow of Haskell.
    *)
 end
 
@@ -31,19 +28,22 @@ let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
   Let the compiler to create show functions for given type contexts by composing
   values defined in Show.  This is the idea of the value implicits.
 
-  [%imp M] means to create a value which matches with the current typing context
-  composing the values defined in M.
+  [%imp M] is an expression automatically composed from the values of moduel M
+  to match the current typing context.
 
+  Actually [%imp M] is expanded to (assert false)[@imp M] so that the vanilla
+  OCaml type checker can give a typing.
 *)
 
 let () = assert ([%imp Show] 1 = "1")
 let () = assert ([%imp Show] 1.0 = "1.")
 let () = assert ([%imp Show] [1;2] = "[ 1; 2 ]")
-  
+
 (*
 
-  Deriving value implicits.  You can defined higher order functions which take
-  implicit values from the outer scope:
+  Inherit value implicits by let.  
+  You can defined higher order functions which take implicit values 
+  from the outer scope:
 
 *)
 
@@ -75,15 +75,16 @@ let () = assert (show [%imp Show] [1;2] = "[ 1; 2 ]")
 
 (*
 
-  it looks like overloading... but still with explicit dispatch.
+  it looks like overloading... but still with explicit dispatch [%imp Show].
 
 *)
 
 (*
 
-  Closed extension.
+  Instance search space extension.
 
-  We can extend the recipe. Candidates are searched recursively into the sub-modules:
+  We can extend the instance space. At [%imp M], candidates are searched 
+  recursively into the sub-modules of M:
 
 *)
   
@@ -111,16 +112,15 @@ let () = assert (show_twice [%imp Show, Show''] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
 
-  Easier closed extension by module open
+  Easier instance space extension by module open
 
   Composing modules by include and module aliases are bit inefficient 
-  and listing more modules is bit boring. Any good idea to facilitate this?
+  and bit boring. Any good idea to facilitate this?
 
   Haskell uses module import to define the search space for type class instances
-  and we can borrow the idea: make use of open M.  [%imp Opened Show]  
-  (or some better syntax) seek child module Show defined in explicitly 
-  opened modules in the current context: if we have open X and X.Show exists,
-  X.Show is searched for [%imp Opened Show].
+  and we can borrow the idea: make use of open M.  [%imp opened Show]  
+  seeks child module Show defined in explicitly opened modules in the current context: if we have <open X> and X.Show exists,
+  X.Show is searched for [%imp opened Show].
 
 *)
 
@@ -147,25 +147,7 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 (*
 
-  Possible problem:
-
-  open X  (* x.ml, which has Show *)
-  module X = struct
-  ...
-  end 
-  
-  [%imp Opened Show]
-
-  Now X.Show is not accessible at the position of [%imp Opened Show]. 
-  ppx is a source based solution.  If a recipe module N.M for [%imp Opened M] is 
-  shadowed, it must warn or reject such shadowing.
-
-*)
-
-
-(*
-
-  Open extension:
+  Instance space by type:
 
   show and show_twice normally use [%imp Show] or [%imp opened Show], so writing 
   Show everytime is boring. It would be better if we can omit writing Show like:
@@ -181,20 +163,19 @@ let () = assert (show_twice [%imp X.Show, Y.Show] [1;2] = "[ 1; 2 ][ 1; 2 ]")
 
 module Z = struct
   module Show = struct
-    type 'a __imp__ = private 'a
     [%%imp_spec opened Show]        
-    external pack : _d:'a -> 'a __imp__ = "%identity"
-    (* private alias and %identity assure this wrapping is cost 0 *)
+    type 'a t = Packed of ('a -> string)
+    let pack ~_d = Packed _d
     let pack_opt ~_d = Some (pack _d)
   end
 end
     
-let show (type a) imp = let imp = (imp : a Z.Show.__imp__ :> a) in imp
+let show (Z.Show.Packed f) = f
 
 let () = assert (show (Z.Show.pack ~_d:X.Show.int) 1 = "1")
 
 (*
-  X.Show.pack ~_d:X.Show.int is actually automatically composable.
+  Z.Show.pack ~_d:X.Show.int is actually automatically composable.
 *)
 
 open Z
@@ -207,47 +188,46 @@ let () = assert (show [%imp opened Show] 1 = "1")
   We want to replace this [%imp opened Show] by [%imp].
 
   We introduce a conversion from [%imp] of type (t1, .., tn) X.Y.Z.t
-  to                             [%imp opened Y]
+  to                             [%imp spec]
+  where spec is defined in the module X.Y.Z by [%%imp_spec spec].
 
 *)
   
 let () = assert (show [%imp] 1 = "1")
+(* 
+
+is equilvanet with the following, since [%imp] has the type Z.Show.t
+and Z.Show has a declaration [%%imp_spec opened Show].
+
+*)
+let () = assert (show [%imp opened Show] 1 = "1")
+
+(* It also works with implicit inheritance: *)
+  
 let x_show_twice imp x = show imp x ^ show imp x
 let () = assert (x_show_twice [%imp] 1 = "11")
+(*
+
+is equivalent with
+
+*)
+let () = assert (x_show_twice [%imp opened Show] 1 = "11")
+  
+
 
 (*
 
-  What about module alias? 
+   Implicit applicaiton of [%imp] by the optional parameters.
 
-*)
-module W = struct
-  module Wohs = Z.Show
-
-  let show (type a) imp = let imp = (imp : a Wohs.__imp__ :> a) in imp
-
-  (*
-    
-    In this case, [%imp] : t Wohs.__imp__  is expanded to [%imp opened Show],
-    expanding the type alias.
-
-    If [%imp] : t X.__imp__   where X is fa functor parameter, what happens?
-    probably we should reject it.
-
-  *)
-end
-
-(*
-
-   Implicit applicaiton of [%imp] by the optional parameters
-
-   Omitting [%imp].  Writing [%imp] is now boring, but vanilla 
-   OCaml provides no way of omitting code... except the optional arguments!
+   Goal: omitting [%imp].  Writing [%imp] is now boring, but which 
+   vanilla OCaml functionality permits us omitting some code... 
+   the optional arguments!
 
 *)
 
-let show (type a) ?_x:imp = match imp with
+let show ?_x:imp = match imp with
   | None -> assert false
-  | Some imp -> (imp : (a -> string) Show.__imp__ :> (a -> string) ) 
+  | Some (Z.Show.Packed f) -> f
 
 let () = assert (show ~_x:[%imp] 1 = "1")
 
@@ -255,18 +235,18 @@ let () = assert (show ~_x:[%imp] 1 = "1")
    
   We now introduce a rule:
 
-  ?label:None  where None has a type X.Y.Z.__imp__, it is replaced by [%imp3].
-  Now __imp__ becomes a special name.
-
-*)
-
-let () = assert (show ?_x:None 1 = "1")
-
-(*
-
-  This is equivalent with
+  ?_label:None  is replaced by  ?_label:(Some [%imp]):
 
 *)
 
 let () = assert (show 1 = "1")
+let () = assert (show ?_x:None 1 = "1")
+
+(*
+
+  The above two are now equivalent with
+
+*)
+
+let () = assert (show ?_x:(Some [%imp]) 1 = "1")
 
