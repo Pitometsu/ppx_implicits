@@ -14,13 +14,13 @@ OCAMLDEPFLAGS= -ppx $(PPX)
 #    conv_test
 
 %.out.ml: %.ml $(PPX)
-  $(PPX) -debug $< > $@
+  $(PPX) -dump-typpx-untype $@ $<
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
   $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) implicits.cmo $(CMOS)
     mkdir_if_not_exists(out)
-    $(PPX) -debug $(name).ml > out/$(name).ml
+    $(PPX) -dump-typpx-untype out/$(name).ml $(name).ml
     ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
     ocamlc -ppx $(PPX) implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
   out/$(name).out: $(name)$(OUT)

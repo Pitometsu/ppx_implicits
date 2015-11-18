@@ -1,6 +1,6 @@
 open Utils
 open List
-open Compilerlib
+open Ppxx.Compilerlib
 open Ident
 open Path
 (* open Format *)

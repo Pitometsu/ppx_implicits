@@ -8,7 +8,7 @@ open Utils
 open List
 open Parsetree
 open Format
-open Compilerlib
+open Ppxx.Compilerlib
 open Longident
 open Path
 
@@ -456,7 +456,7 @@ let cand_opened env loc x =
     | In lid -> lid
   in
   let opens = get_opens env in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_opened opened paths@.";
     flip iter opens & eprintf "  %a@." Path.format
   end;
@@ -465,7 +465,7 @@ let cand_opened env loc x =
     & map (module_lids_in_open_path env [lid]) 
     & None :: map (fun x -> Some x) opens
   in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_opened cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
@@ -525,7 +525,7 @@ let cand_typeclass env loc p_spec =
           (find_modules s) (scrape_sg path env md)
   in
   let paths = find_modules & Env.summary env in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_typeclass cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
@@ -572,7 +572,7 @@ let candidates env loc = function
   | Or ts ->
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
-      if !Ppxx.debug_resolve then begin
+      if !Options.debug_resolve then begin
         eprintf "debug_resolve: static candidates@.";
         flip iter statics & fun (lid, path, _vdesc, _b) ->
           eprintf "  %a %a@." Longident.format lid Path.format path
