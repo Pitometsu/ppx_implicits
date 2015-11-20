@@ -1,10 +1,10 @@
 module M1 = struct
 
-
   module Show = struct
     let int = string_of_int
     let float = string_of_float
     let list ~_d xs = "[ " ^ String.concat "; " (List.map _d xs) ^ " ]"
+    let hoge ~_b ~_a (a,b) = "(" ^ _a a ^ ", " ^ _b b ^ ")"
   end
     
   module ShowClass = struct
@@ -19,8 +19,9 @@ module M1 = struct
   let show (ShowClass.Packed f) = f
   
   let () = assert (show [%imp] [1; 2; 3] = "[ 1; 2; 3 ]")
-
-
+  let () = assert (show [%imp] (1,2) = "(1, 2)")
+  let () = assert (show [%imp] (1,2.3) = "(1, 2.3)")
+  let () = assert (show [%imp] (1,true) = "(1, true)")
 end
 
 

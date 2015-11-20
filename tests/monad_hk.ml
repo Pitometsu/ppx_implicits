@@ -3,7 +3,7 @@
 module HK = struct
   type ('a, 'm) app (* encoding of 'a 'm *)
 end
-  
+
 module type Monad = sig
   type m
   val return : 'a -> ('a, m) HK.app

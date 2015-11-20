@@ -87,3 +87,5 @@ Test(monad_hk)
 # Test(highk)
 Test(length_class)
 Test(showc)
+Test(fcmod)
+
