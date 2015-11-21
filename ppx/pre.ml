@@ -7,15 +7,14 @@
     [@@instance]
 *)
 
-open Ast_helper
-open Ppxx (* extends some of Ast_helper *)
+open Ppxx.Helper
+open Ppxx.Compilerlib
 
 open Parsetree
 open Asttypes
 open Ast_mapper
 open Location
 open Utils
-open Compilerlib
 open List
 
 (* [@@typeclass] and [@@instance] *)
@@ -86,7 +85,7 @@ module TypeClass = struct
       constr (at ?loc:None & Lident "_module") 
       & map (fun ty -> constr ?loc:None (at ?loc:None & Lident ty) []) tys
     in
-    [%stri let [%p Pat.var ?loc:None n] =
+    [%stri let [%p Pat.var' ?loc:None n] =
         [%e add_newtypes tys 
             [%expr fun ?_imp -> 
                      let module M = (val (unpack_opt ?_imp : [%t paramed_s]))
@@ -160,7 +159,7 @@ module TypeClass = struct
       & Mod.structure ~loc:mb.pmb_expr.pmod_loc
         [ Str.value ?loc:None Nonrecursive 
             [ Vb.mk ?loc:None 
-                (Pat.var ?loc:None "dict")
+                (Pat.var' ?loc:None "dict")
                 (Exp.constraint_ ?loc:None 
                    (Exp.pack ?loc:None & Mod.ident' ?loc:None & Lident iname)
                    (Typ.constr ?loc:None 
