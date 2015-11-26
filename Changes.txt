@@ -1,5 +1,11 @@
-0.1.0
-=================
+# 0.2.0
+
+- use of typpx
+- made "aggressive" spec more aggressive, possible to take more function arguments as constraints
+- internal: added "type" spec to handle [%imp] in a cleaner way
+- added and fixed tests and examples
+
+# 0.1.0
 
 - policy is now called "spec"
 - Added related spec
@@ -8,8 +14,7 @@
 - Added [@@typeclass] and [@@instance] attributes for type class
 - ppx_implicits now understands byte-compiler options at its standalone execution
 
-0.0.1
-=====
+# 0.0.1
 
 * Initial release
 
