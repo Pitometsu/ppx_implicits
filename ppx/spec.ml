@@ -249,7 +249,7 @@ let from_module_type env mp loc mty =
         let default_instances =
           try
             let p = m#lookup_module "Instances" in
-            [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
+            [ Direct (In (Typpx.Untypeast.lident_of_path p, Some p)) ]
           with
           | Not_found -> []
         in
@@ -276,7 +276,7 @@ let _test_scrape_sg path env sg =
   match path with
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
-  let lid = Untypeast.lident_of_path path in      
+  let lid = Typpx.Untypeast.lident_of_path path in      
   eprintf "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
@@ -444,7 +444,7 @@ let cand_related env _loc ty =
   let lmods = flip map mods & fun p ->
     let p' = unshadow env p in
     let mdecl = Env.find_module p env in
-    (Untypeast.lident_of_path p', p', mdecl)             
+    (Typpx.Untypeast.lident_of_path p', p', mdecl)             
   in
   (* CR jfuruse: values_of_module should be memoized *)
   mark_not_aggressive
@@ -471,7 +471,7 @@ let cand_opened env loc x =
   end;
   let paths' = map (unshadow env) paths in
   concat & map2 (fun path path' ->
-    let lid = Untypeast.lident_of_path path' in
+    let lid = Typpx.Untypeast.lident_of_path path' in
     cand_direct env loc
       (match x with
       | Just _ -> Just (lid, Some path)
@@ -531,7 +531,7 @@ let cand_typeclass env loc p_spec =
   end;
   let paths' = map (unshadow env) paths in
   concat & map2 (fun path path' ->
-    let lid = Untypeast.lident_of_path path' in
+    let lid = Typpx.Untypeast.lident_of_path path' in
     cand_direct env loc (Just (lid, Some path))) paths paths'
     
 let cand_name rex f =

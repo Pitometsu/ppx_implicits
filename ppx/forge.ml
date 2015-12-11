@@ -47,7 +47,7 @@ end
 
 let loc txt = { Location.loc= !default_loc; txt }
 
-let lidentloc_of_path p = loc & Untypeast.lident_of_path p
+let lidentloc_of_path p = loc & Typpx.Untypeast.lident_of_path p
 
 let with_loc loc f = 
   let back = !default_loc in

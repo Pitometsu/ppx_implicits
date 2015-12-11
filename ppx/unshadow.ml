@@ -11,7 +11,7 @@ let rec check_module_path env path =
 (*
   eprintf "  checking %a@." Path.format_verbose path;
 *)
-  let lid = Untypeast.lident_of_path path in
+  let lid = Typpx.Untypeast.lident_of_path path in
   let path' = try Some (Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env) with _ -> None in 
   if Some path = path' then `Accessible lid
   else begin

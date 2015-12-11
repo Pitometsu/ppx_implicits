@@ -148,7 +148,7 @@ let resolve spec env loc ty = with_snapshot & fun () ->
   | [es] -> errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type:@ @[%a@]@]@.@[<2>Following possible resolutions:@ @[<v>%a@]@]"
       Location.format loc
       Printtyp.type_expr ty
-      (List.format "@," (Printast.expression 0)) (map Untypeast.untype_expression es)
+      (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
   | _ -> assert false (* we only resolve one instance at a time *)
 
 (* get the spec for [%imp] from its type *)

@@ -6,8 +6,6 @@ OCAMLPPFLAGS=
 FILES[] =
     options
     utils
-    unshadow
-    untypeast
     forge
     unshadow
     spec
