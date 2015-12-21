@@ -144,10 +144,11 @@ let from_expression e =
                     ["", e] ) -> 
           begin match get_lid e with
           | Some lid -> Just lid
-          | None -> failwith "just requires an argument"
+          | None -> errorf "%a: just requires an argument" Location.format e.pexp_loc
           end
       | Pexp_construct ({txt=lid}, None) -> In lid
-      | _ -> failwith "illegal spec expression"
+      | _ ->
+          errorf "%a: Illegal spec expression" Location.format e.pexp_loc
     in
     `Ok (t e)
   with
