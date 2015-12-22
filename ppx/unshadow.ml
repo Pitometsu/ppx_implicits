@@ -45,6 +45,8 @@ module MapArg(A : sig val aliases : (Ident.t * Ident.t) list end) : TypedtreeMap
   include TypedtreeMap.DefaultMapArgument
 
   open Typedtree
+
+  module Forge = Typpx.Forge
   open Forge
 
   let enter_expression e = match e.exp_desc with

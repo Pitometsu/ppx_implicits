@@ -6,7 +6,6 @@ OCAMLPPFLAGS=
 FILES[] =
     options
     utils
-    forge
     unshadow
     spec
     pre

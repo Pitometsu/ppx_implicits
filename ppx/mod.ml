@@ -7,6 +7,8 @@ open Format
 
 open Types
 
+module Forge = Typpx.Forge
+  
 module KLabel = struct
   let is_klabel l =
     let len = String.length l in
