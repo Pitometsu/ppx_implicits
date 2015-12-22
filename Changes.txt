@@ -1,9 +1,12 @@
 # 0.2.0
 
-- use of typpx
-- made "aggressive" spec more aggressive, possible to take more function arguments as constraints
-- internal: added "type" spec to handle [%imp] in a cleaner way
-- added and fixed tests and examples
+- Added -debug-resolve and -debug-unif options. PPX_IMPLICITS_DEBUG_RESOLVE and PPX_IMPLICITS_DEBUG_UNIF env vars are also usable.
+- Removed unused debug option Options.debug_pre
+- Spec failures are reported with locations
+- Use of typpx
+- Made "aggressive" spec more aggressive, possible to take more function arguments as constraints
+- Internal: added "type" spec to handle [%imp] in a cleaner way
+- Added and fixed tests and examples
 
 # 0.1.0
 
