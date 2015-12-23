@@ -1,8 +1,8 @@
 open Types
 
 type t = 
-  | Or of t2 list
-  | Type (** [%imp].  No allowed in [%%imp_spec] *)
+  | Or of t2 list (** [t2, .., t2]. Separated by commas *)
+  | Type (** Nothing but just [[%imp]].  No allowed in [[%%imp_spec]] *)
 
 and t2
 

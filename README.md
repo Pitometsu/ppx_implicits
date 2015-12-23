@@ -9,8 +9,6 @@ You can play with type classes and more with your vanilla OCaml compiler.
 
 # Limitation
 
-Before advertising, I should note that:
-
 ppx_implicits does not work with OCaml toplevel (REPL).
 Please use `ocamlc` or `ocamlopt`.
 
@@ -24,18 +22,20 @@ but it would need significant change of the REPL...
 
 # How to build
 
-```shell
-$ opam install omake ppx_tools
-$ hg clone https://bitbucket.org/camlspotter/ppx_implicits  # You need Mercurial
+`opam ppx_implicits`. Probably it may be not the latest version.
+
+The development version source code is available at
+`https://bitbucket.org/camlspotter/ppx_implicits`,
+but it is likely dependent on development versions of other dependent libraries:
+
+
+```shella
+$ hg clone https://bitbucket.org/camlspotter/ppx_implicits
 $ cd ppx_implicits
 $ cp OMakeroot.in OMakeroot
 $ omake
 $ omake install
 ```
-
-`omake` should build `ppx/ppx_implicits` then test files under `tests/`.
-
-`opam ppx_implicits` is possible but it is likely very old.
 
 # How to use
 
@@ -429,10 +429,10 @@ Under these conditions `[%imp]` is equilvalent with `[%imp SPEC]`.
 For example if `[%imp related]` has a type `'a M.t N.t -> O.t option`
 then its instances are obtained from module `M`, `N` and `O`.
 
-Not that types are unaliased in the current typing environment
+Note that types are unaliased in the current typing environment
 to get the module names for instances. For example if `M.t` is defined
-as `type t = P.t * Q.t` then module `M` is not considered as instance space but `P` and `Q`
-(if `P.t` and `Q.t` are not alias.).
+as `type t = P.t * Q.t` then module `M` is not considered as instance space
+but `P` and `Q` (if `P.t` and `Q.t` are not alias.).
 
 ## `aggressive(p)` spec
 

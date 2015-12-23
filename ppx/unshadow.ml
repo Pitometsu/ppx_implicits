@@ -1,6 +1,6 @@
 open Utils
 open List
-open Compilerlib
+open Ppxx.Compilerlib
 open Ident
 open Path
 (* open Format *)
@@ -11,7 +11,7 @@ let rec check_module_path env path =
 (*
   eprintf "  checking %a@." Path.format_verbose path;
 *)
-  let lid = Untypeast.lident_of_path path in
+  let lid = Typpx.Untypeast.lident_of_path path in
   let path' = try Some (Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env) with _ -> None in 
   if Some path = path' then `Accessible lid
   else begin
@@ -45,6 +45,8 @@ module MapArg(A : sig val aliases : (Ident.t * Ident.t) list end) : TypedtreeMap
   include TypedtreeMap.DefaultMapArgument
 
   open Typedtree
+
+  module Forge = Typpx.Forge
   open Forge
 
   let enter_expression e = match e.exp_desc with

@@ -1,21 +1,16 @@
-OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre
+OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre ppxx typpx
 
 OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
+    options
     utils
-    unshadow
-    untypeast
-    compilerlib
-    ppxx
-    forge
     unshadow
     spec
     pre
     tysize
     mod
-    compile
     ppx
 
 MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))

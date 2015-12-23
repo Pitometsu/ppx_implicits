@@ -3,9 +3,9 @@ open Typedtree
 val check_module_path 
       : Env.t 
       -> Path.t 
-      -> [ `Accessible of Longident.t (** Accessible via the returned Longident.t *)
-         | `Not_found of Path.t (** Error. The path is not in env *)
-         | `Shadowed of Ident.t * Ident.t * Path.t (** [`Shadowed (id, id', path)]: Ident [id] is shadowed. If [id] is aliased as [id'], then [id'] will be accessible as [path]. *)
+      -> [ `Accessible of Longident.t (*+ Accessible via the returned Longident.t *)
+         | `Not_found of Path.t (*+ Error. The path is not in env *)
+         | `Shadowed of Ident.t * Ident.t * Path.t (*+ [`Shadowed (id, id', path)]: Ident [id] is shadowed. If [id] is aliased as [id'], then [id'] will be accessible as [path]. *)
          ]
 (** [check_module_path env p] checks [p] is accessible in the environment [env]. 
     Here, "accessible" means the Longident [Untypeast.lident_of_path path] is

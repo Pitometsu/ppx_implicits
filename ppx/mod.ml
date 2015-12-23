@@ -1,12 +1,14 @@
 open Utils
 open Typedtree
-open Compilerlib
+open Ppxx.Compilerlib
 open Longident (* has flatten *)
 open List (* has flatten *)
 open Format
 
 open Types
 
+module Forge = Typpx.Forge
+  
 module KLabel = struct
   let is_klabel l =
     let len = String.length l in
@@ -68,7 +70,7 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
         with
         | Some ty' when not & Tysize.(lt (size ty) (size ty' )) ->
             (* recursive call and the type size is not strictly decreasing *)
-            if !Ppxx.debug_unif then begin
+            if !Options.debug_unif then begin
               eprintf "Checking %a <> ... using %a ... oops"
               Printtyp.type_expr ty
               Path.format path;
@@ -92,7 +94,7 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
             with_snapshot & fun () ->
               try
 
-                if !Ppxx.debug_unif then
+                if !Options.debug_unif then
                   eprintf "Checking %a <> %a, using %a ..."
                   Printtyp.type_expr ity
                   Printtyp.type_expr ivty
@@ -100,10 +102,10 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
 
                 begin match protect & fun () -> Ctype.unify env ity ivty with
                 | `Ok _ ->
-                    if !Ppxx.debug_unif then
+                    if !Options.debug_unif then
                       eprintf " ok: %a@." Printtyp.type_expr ity
                 | `Error (Ctype.Unify trace as e) ->
-                    if !Ppxx.debug_unif then begin
+                    if !Options.debug_unif then begin
                       eprintf " no@.";
                       eprintf "   Reason: @[%a@]@."
                       (fun ppf trace -> Printtyp.report_unification_error ppf
@@ -136,7 +138,7 @@ let rec resolve env get_cands : ((Path.t * type_expr) list * type_expr) list -> 
               | _ -> []
 
 let resolve spec env loc ty = with_snapshot & fun () ->
-  if !Ppxx.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
+  if !Options.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
   close_gen_vars ty;
   let get_cands =
     let f = Spec.candidates env loc spec in
@@ -148,7 +150,7 @@ let resolve spec env loc ty = with_snapshot & fun () ->
   | [es] -> errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type:@ @[%a@]@]@.@[<2>Following possible resolutions:@ @[<v>%a@]@]"
       Location.format loc
       Printtyp.type_expr ty
-      (List.format "@," (Printast.expression 0)) (map Untypeast.untype_expression es)
+      (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
   | _ -> assert false (* we only resolve one instance at a time *)
 
 (* get the spec for [%imp] from its type *)
@@ -262,14 +264,14 @@ module MapArg : TypedtreeMap.MapArgument = struct
         derived_candidates := (fid, (Longident.Lident fid, Path.Pident id, 
                                      { val_type = case.c_lhs.pat_type;
                                        val_kind = Val_reg;
-                                       val_loc = Ppxx.ghost case.c_lhs.pat_loc;
+                                       val_loc = Ppxx.Helper.ghost case.c_lhs.pat_loc;
                                        val_attributes = [] },
                                      false)) :: !derived_candidates;
         let case = { case with
-                     c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.ghost case.c_lhs.pat_loc})))} 
+                     c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
         in
         { e with exp_desc = Texp_function (l, [case], e');
-                 exp_attributes = ({txt=fid; loc= Ppxx.ghost e.exp_loc}, PStr []) :: e.exp_attributes }
+                 exp_attributes = ({txt=fid; loc= Ppxx.Helper.ghost e.exp_loc}, PStr []) :: e.exp_attributes }
 
     | _ -> match is_imp e with
     | None -> e
@@ -290,6 +292,6 @@ module Map = struct
   let map_structure str =
     Unshadow.aliases := [];
     let str = map_structure str in
-    if !Ppxx.debug_resolve then eprintf "Unshadow...@.";
+    if !Options.debug_resolve then eprintf "Unshadow...@.";
     Unshadow.map_structure !Unshadow.aliases str
 end

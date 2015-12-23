@@ -8,7 +8,7 @@ open Utils
 open List
 open Parsetree
 open Format
-open Compilerlib
+open Ppxx.Compilerlib
 open Longident
 open Path
 
@@ -144,10 +144,11 @@ let from_expression e =
                     ["", e] ) -> 
           begin match get_lid e with
           | Some lid -> Just lid
-          | None -> failwith "just requires an argument"
+          | None -> errorf "%a: just requires an argument" Location.format e.pexp_loc
           end
       | Pexp_construct ({txt=lid}, None) -> In lid
-      | _ -> failwith "illegal spec expression"
+      | _ ->
+          errorf "%a: Illegal spec expression" Location.format e.pexp_loc
     in
     `Ok (t e)
   with
@@ -249,7 +250,7 @@ let from_module_type env mp loc mty =
         let default_instances =
           try
             let p = m#lookup_module "Instances" in
-            [ Direct (In (Untypeast.lident_of_path p, Some p)) ]
+            [ Direct (In (Typpx.Untypeast.lident_of_path p, Some p)) ]
           with
           | Not_found -> []
         in
@@ -276,7 +277,7 @@ let _test_scrape_sg path env sg =
   match path with
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
-  let lid = Untypeast.lident_of_path path in      
+  let lid = Typpx.Untypeast.lident_of_path path in      
   eprintf "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
@@ -444,7 +445,7 @@ let cand_related env _loc ty =
   let lmods = flip map mods & fun p ->
     let p' = unshadow env p in
     let mdecl = Env.find_module p env in
-    (Untypeast.lident_of_path p', p', mdecl)             
+    (Typpx.Untypeast.lident_of_path p', p', mdecl)             
   in
   (* CR jfuruse: values_of_module should be memoized *)
   mark_not_aggressive
@@ -456,7 +457,7 @@ let cand_opened env loc x =
     | In lid -> lid
   in
   let opens = get_opens env in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_opened opened paths@.";
     flip iter opens & eprintf "  %a@." Path.format
   end;
@@ -465,13 +466,13 @@ let cand_opened env loc x =
     & map (module_lids_in_open_path env [lid]) 
     & None :: map (fun x -> Some x) opens
   in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_opened cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
   let paths' = map (unshadow env) paths in
   concat & map2 (fun path path' ->
-    let lid = Untypeast.lident_of_path path' in
+    let lid = Typpx.Untypeast.lident_of_path path' in
     cand_direct env loc
       (match x with
       | Just _ -> Just (lid, Some path)
@@ -525,13 +526,13 @@ let cand_typeclass env loc p_spec =
           (find_modules s) (scrape_sg path env md)
   in
   let paths = find_modules & Env.summary env in
-  if !Ppxx.debug_resolve then begin
+  if !Options.debug_resolve then begin
     eprintf "debug_resolve: cand_typeclass cand modules@.";
     flip iter paths & eprintf "  %a@." Path.format
   end;
   let paths' = map (unshadow env) paths in
   concat & map2 (fun path path' ->
-    let lid = Untypeast.lident_of_path path' in
+    let lid = Typpx.Untypeast.lident_of_path path' in
     cand_direct env loc (Just (lid, Some path))) paths paths'
     
 let cand_name rex f =
@@ -572,7 +573,7 @@ let candidates env loc = function
   | Or ts ->
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
-      if !Ppxx.debug_resolve then begin
+      if !Options.debug_resolve then begin
         eprintf "debug_resolve: static candidates@.";
         flip iter statics & fun (lid, path, _vdesc, _b) ->
           eprintf "  %a %a@." Longident.format lid Path.format path
