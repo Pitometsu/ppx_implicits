@@ -13,6 +13,10 @@ FILES[] =
     mod
     ppx
 
-MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+# This drops dependency of typpx
+# MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+
+targets=$(MyOCamlPPX ppx_implicits, $(FILES))
+MyOCamlFindPackage(ppx_implicits, $(targets))
 
 WithMerlin()
