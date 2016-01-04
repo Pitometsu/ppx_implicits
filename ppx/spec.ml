@@ -12,6 +12,25 @@ open Ppxx.Compilerlib
 open Longident
 open Path
 
+module Candidate = struct
+  type t = {
+    lid        : Longident.t;
+    path       : Path.t;
+    vdesc      : Types.value_description;
+    aggressive : bool
+  }
+
+  let uniq xs =
+    let tbl = Hashtbl.create 107 in
+    iter (fun x ->
+      try
+        let x' = Hashtbl.find tbl x.path in
+        Hashtbl.replace tbl x.path { x with aggressive = x.aggressive || x'.aggressive }
+      with
+      | Not_found -> Hashtbl.add tbl x.path x) xs;
+    Hashtbl.to_list tbl |> map snd
+end
+
 (** spec dsl *)
 type t = 
   | Or of t2 list
@@ -23,16 +42,21 @@ and t2 =
   | Aggressive of t2
   | Related
   | Name of string * Re.re * t2
-  | Typeclass of Path.t option (* None at parsing, but must be filled with Some until the resolution *) 
+  | Typeclass of Path.t option (* None at parsing, but must be filled with Some until the resolution *)
+  | Deriving of Longident.t (** [deriving M]. [M] must define [M.tuple], [M.object_] and [M.poly_variant] *)
 
 and 'a flagged = In of 'a | Just of 'a
 
+(* static : instance space is fixed
+   dynamic : instance space can be changed according to the target type
+*)
 let rec is_static = function
   | Opened _ -> true
   | Direct _ -> true
   | Related -> false
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
   | Typeclass _ -> true
+  | Deriving _ -> false
     
 let to_string = 
   let flagged f = function
@@ -51,6 +75,7 @@ let to_string =
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
     | Typeclass _ -> "typeclass"
+    | Deriving p -> Printf.sprintf "deriving %s" & Longident.to_string p
   in
   t 
 
@@ -133,6 +158,15 @@ let from_expression e =
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
       | Pexp_ident {txt=Lident "typeclass"} -> Typeclass None
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
+          begin match args with
+          | ["", e] -> 
+              begin match get_lid e with
+              | Some lid -> Deriving lid
+              | None -> errorf "deriving must take an module path" Location.format e.pexp_loc
+              end
+          | _ -> errorf "deriving must take just one argument"
+          end
       | _ -> 
           let flid = flag_lid e in
           begin match flid with
@@ -305,8 +339,7 @@ let scrape_sg _path env mdecl =
       eprintf "scraping failed: %s" & Printexc.to_string e;
       raise e
 
-let rec values_of_module ~recursive env lid path mdecl
-    : (Longident.t * Path.t * value_description) list =
+let rec values_of_module ~recursive env lid path mdecl : Candidate.t list =
   let m = new dummy_module env path mdecl.md_type in
   let sg = scrape_sg path env mdecl in
   flip2 fold_right sg [] & fun sitem st -> match sitem with
@@ -320,7 +353,7 @@ let rec values_of_module ~recursive env lid path mdecl
         try
           let vdesc = Env.find_value path env in
           (* eprintf "    VOM: %a@." Path.format_verbose path; *)
-          (lid, path, vdesc) :: st
+          { Candidate.lid; path; vdesc; aggressive= false }  :: st
         with
         | Not_found ->
             eprintf "VOM: %a but not found@." Path.format_verbose path;
@@ -414,8 +447,6 @@ let related_modules env ty =
       | Papply _ -> assert false)
   |> sort_uniq compare
 
-let mark_not_aggressive xs = flip map xs & fun (a,b,c) -> (a,b,c,false)
-    
 let cand_direct env loc t3 =
   let recursive, lid, popt = match t3 with
     | Just (lid, popt) -> false, lid, popt
@@ -430,8 +461,7 @@ let cand_direct env loc t3 =
         | Not_found -> errorf "%a: Unbound module %a." Location.format loc Longident.format lid
   in
   let mdecl = check_module env loc path in
-  mark_not_aggressive
-  & values_of_module ~recursive env lid path mdecl
+  values_of_module ~recursive env lid path mdecl
 
 let unshadow env path = match Unshadow.check_module_path env path with
   | `Accessible _lid -> path
@@ -448,8 +478,7 @@ let cand_related env _loc ty =
     (Typpx.Untypeast.lident_of_path p', p', mdecl)             
   in
   (* CR jfuruse: values_of_module should be memoized *)
-  mark_not_aggressive
-  & concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
+  concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
   
 let cand_opened env loc x =
   let lid = match x with
@@ -536,37 +565,78 @@ let cand_typeclass env loc p_spec =
     cand_direct env loc (Just (lid, Some path))) paths paths'
     
 let cand_name rex f =
-  filter (fun (lid, _, _, _) ->
-    Re_pcre.pmatch ~rex & Longident.to_string lid) & f ()
+  filter (fun x ->
+    Re_pcre.pmatch ~rex & Longident.to_string x.Candidate.lid) & f ()
 
-let rec cand_static env loc = function
-  | Related -> assert false
+let cand_deriving env loc ty lid =
+  let tuple, vd_tuple =
+    let lid = Ldot (lid, "tuple") in
+    try Env.lookup_value lid env with Not_found -> 
+      errorf "%a: %a is not defined." Location.format loc Longident.format lid
+  in
+  let object_, vd_object_ =
+    let lid = Ldot (lid, "object_") in
+    try Env.lookup_value lid env with Not_found -> 
+      errorf "%a: %a is not defined." Location.format loc Longident.format lid
+  in
+  let polymorphic_variant, vd_polymorphic_variant =
+    let lid = Ldot (lid, "polymorphic_variant") in
+    try Env.lookup_value lid env with Not_found -> 
+      errorf "%a: %a is not defined." Location.format loc Longident.format lid
+  in
+  let test form_check path vd =
+    let var_check path ty =
+      (* a magic func must have only one type variable, generalized *)
+      match gen_vars ty, Ctype.free_variables ty with
+      | [v], [] -> v
+      | _ ->
+          errorf "%a: %a's type must have only one type variable and it must be generalized." Location.format loc Path.format path
+    in
+    let v = var_check path vd.val_type in
+    with_snapshot & fun () ->
+      match Ctype.instance_list env [v; vd.val_type] with
+      | [v; vty] ->
+          Ctype.unify env ty vty;
+          form_check v;
+          (* return a candidate expr *)
+      | _ -> assert false
+  in
+  let form_check_tuple v = match expand_repr_desc env v with
+    | Ttuple _tys ->
+        (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple (d1,..,dn)] *)
+        Some (assert false)
+    | _ -> None
+  in
+  let form_check_object_ v = match expand_repr_desc env v with
+    | _ -> None
+  in
+  let form_check_polymorphic_variant v = match expand_repr_desc env v with
+    | _ -> None
+  in
+  filter_map (fun x -> x)
+    [ test form_check_tuple tuple vd_tuple;
+      test form_check_object_ object_ vd_object_;
+      test form_check_polymorphic_variant polymorphic_variant vd_polymorphic_variant ]
+  
+let rec cand_static env loc : t2 -> Candidate.t list = function
   | Aggressive x ->
-      map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_static env loc x
+      map (fun x -> { x with Candidate.aggressive = true }) & cand_static env loc x
   | Opened x -> cand_opened env loc x
   | Direct x -> cand_direct env loc x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
   | Typeclass (Some p) -> cand_typeclass env loc p
   | Typeclass None -> assert false
+  | spec when is_static spec -> assert false
+  | _ -> assert false
 
 let rec cand_dynamic env loc ty = function
   | Related -> cand_related env loc ty
-  | Aggressive x ->
-      map (fun (l,p,v,_f) -> (l,p,v,true)) & cand_dynamic env loc ty x
-  | Opened _ | Direct _ | Typeclass _ -> assert false
+  | Aggressive x -> map (fun x -> { x with Candidate.aggressive= true }) & cand_dynamic env loc ty x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
-
-type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
-
-let uniq xs =
-  let tbl = Hashtbl.create 107 in
-  iter (fun (l,p,v,f as x) ->
-    try
-      let (_, _, _, f') = Hashtbl.find tbl p in
-      Hashtbl.replace tbl p (l,p,v, f || f')
-    with
-    | Not_found -> Hashtbl.add tbl p x) xs;
-  Hashtbl.to_list tbl |> map snd
+  | Deriving lid -> cand_deriving env loc ty lid
+  | Opened _ | Direct _ | Typeclass _ ->
+      (* they are static *)
+      assert false
 
 let candidates env loc = function
   | Type -> assert false (* This should not happen *)
@@ -575,8 +645,8 @@ let candidates env loc = function
       let statics = concat & map (cand_static env loc) statics in
       if !Options.debug_resolve then begin
         eprintf "debug_resolve: static candidates@.";
-        flip iter statics & fun (lid, path, _vdesc, _b) ->
-          eprintf "  %a %a@." Longident.format lid Path.format path
+        flip iter statics & fun x ->
+          eprintf "  %a %a@." Longident.format x.Candidate.lid Path.format x.path
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
-      fun ty -> uniq & statics @ dynamics ty
+      fun ty -> Candidate.uniq & statics @ dynamics ty

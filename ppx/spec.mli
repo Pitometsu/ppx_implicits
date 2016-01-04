@@ -35,13 +35,21 @@ val from_module_type : Env.t -> Path.t -> Location.t -> module_type -> [> `Ok of
 val from_module_path : imp_loc: Location.t -> Env.t -> Path.t -> [> `Ok of t | `Error of [> `No_imp_spec of Location.t * Path.t ] ]
 (** get spec from a module path which has type __imp_spec__ = .. *)
 
-type result = Longident.t * Path.t * value_description * bool (* bool : aggressive *)
+module Candidate : sig
+  type t = {
+    lid        : Longident.t;
+    path       : Path.t;
+    vdesc      : value_description;
+    aggressive : bool
+  }
 
-val uniq : result list -> result list
+  val uniq : t list -> t list
+  (** Remove dupes *)
+end
 
 val candidates 
       : Env.t 
       -> Location.t 
       -> t 
       -> type_expr 
-      -> result list
+      -> Candidate.t list
