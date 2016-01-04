@@ -36,6 +36,16 @@ module List = struct
 
   let assoc_opt x xs = try Some (assoc x xs) with _ -> None
 
+  let partition_map f xs =
+    let rec part left right = function
+      | [] -> rev left, rev right
+      | x::xs ->
+          match f x with
+          | `Left v -> part (v::left) right xs
+          | `Right v -> part left (v::right) xs
+    in
+    part [] [] xs
+
   open Format   
   let rec format (sep : (unit, formatter, unit) format)  f ppf = function
     | [] -> ()

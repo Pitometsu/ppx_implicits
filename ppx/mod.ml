@@ -264,6 +264,23 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
   let is_function_id = String.is_prefix "__imp__function__"
 
+  module Ppxxx = struct
+    (* CR jfuruse: should be moved to Ppxx *)
+
+    let mark_expression txt e =
+      { e with
+        exp_attributes = ({txt; loc= Ppxx.Helper.ghost e.exp_loc}, Parsetree.PStr []) :: e.exp_attributes }
+        
+    let partition_expression_marks e f =
+      let g = function
+        | {txt}, Parsetree.PStr [] when f txt -> `Left txt
+        | a -> `Right a
+      in
+      let marks, exp_attributes = partition_map g e.exp_attributes in
+      marks,
+      { e with exp_attributes }
+  end
+    
   let enter_expression e = match e.exp_desc with
     | Texp_apply (f, args) ->
         (* resolve omitted ?_x arguments *)
@@ -296,22 +313,20 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let case = { case with
                      c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
         in
-        { e with exp_desc = Texp_function (l, [case], e');
-                 exp_attributes = ({txt=fid; loc= Ppxx.Helper.ghost e.exp_loc}, PStr []) :: e.exp_attributes }
+        Ppxxx.mark_expression fid { e with exp_desc = Texp_function (l, [case], e') }
 
     | _ ->
         match has_imp e with
         | None -> e
         | Some spec -> resolve_imp spec e.exp_env e.exp_loc e.exp_type
 
-  let leave_expression e = 
-    let ids, others = partition (function ({Location.txt}, Parsetree.PStr[]) -> is_function_id txt | _ -> false) e.exp_attributes in
-    match ids with
-    | [] -> e
-    | _::_::_ -> assert false 
-    | [({txt},_)] -> 
+  let leave_expression e =
+    match Ppxxx.partition_expression_marks e & fun txt -> is_function_id txt with
+    | [], e -> e
+    | [txt], e ->
         derived_candidates := List.filter (fun (fid, _) -> fid <> txt) !derived_candidates;
-        { e with exp_attributes = others }
+        e
+    | _ -> assert false
 end
 
 module Map = struct
