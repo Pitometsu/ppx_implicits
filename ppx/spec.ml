@@ -16,7 +16,8 @@ module Candidate = struct
   type t = {
     lid        : Longident.t;
     path       : Path.t;
-    vdesc      : Types.value_description;
+    expr       : Typedtree.expression;
+    type_      : Types.type_expr;
     aggressive : bool
   }
 
@@ -353,9 +354,10 @@ let rec values_of_module ~recursive env lid path mdecl : Candidate.t list =
       in
       begin
         try
-          let vdesc = Env.find_value path env in
+          let type_ = (Env.find_value path env).val_type in
+          let expr = Typpx.Forge.Exp.(ident lid path) in
           (* eprintf "    VOM: %a@." Path.format_verbose path; *)
-          { Candidate.lid; path; vdesc; aggressive= false }  :: st
+          { Candidate.lid; path; expr; type_; aggressive= false }  :: st
         with
         | Not_found ->
             eprintf "VOM: %a but not found@." Path.format_verbose path;

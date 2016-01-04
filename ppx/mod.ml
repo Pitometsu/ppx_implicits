@@ -66,11 +66,11 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
   | (trace,ty)::tr_tys ->
       let cands =
         let cs = get_cands ty in
-        flip concat_map cs & fun { Spec.Candidate.lid; path; vdesc; aggressive } ->
-          if not aggressive then [(lid, path, vdesc, KLabel.extract env vdesc.val_type)]
-          else map (fun cs_ty -> (lid, path, vdesc, cs_ty)) & KLabel.extract_aggressively env vdesc.val_type
+        flip concat_map cs & fun { Spec.Candidate.path; expr; type_; aggressive } ->
+          if not aggressive then [(path, expr, KLabel.extract env type_)]
+          else map (fun cs_ty -> (path, expr, cs_ty)) & KLabel.extract_aggressively env type_
       in
-      flip concat_map cands & fun (lid, path, _vdesc, (cs,vty)) ->
+      flip concat_map cands & fun (path, expr, (cs,vty)) ->
         match assoc_opt path trace with
         | Some ty' when not & Tysize.(lt (size ty) (size ty')) ->
             (* recursive call of path and the type size is not strictly decreasing *)
@@ -137,7 +137,7 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
                       | _ -> assert false
                     in
                     let res, args = app res cs in
-                    Forge.Exp.(app (ident lid path) args) :: res
+                    Forge.Exp.(app expr args) :: res
 
 (* CR jfuruse: bad state... *)
 let derived_candidates = ref []
@@ -302,13 +302,13 @@ module MapArg : TypedtreeMap.MapArgument = struct
            as here. Therefore we need small imperative trick. Attributes should be kept as they are...
         *)
         let fid = create_function_id () in
+        let lid = Longident.Lident fid in
         let id = Ident.create fid in
-        derived_candidates := (fid, { Spec.Candidate.lid = Longident.Lident fid;
-                                      path = Path.Pident id;
-                                      vdesc = { val_type = case.c_lhs.pat_type;
-                                                val_kind = Val_reg;
-                                                val_loc = Ppxx.Helper.ghost case.c_lhs.pat_loc;
-                                                val_attributes = [] };
+        let path = Path.Pident id in
+        derived_candidates := (fid, { Spec.Candidate.lid;
+                                      path;
+                                      expr = Typpx.Forge.Exp.(ident lid path); 
+                                      type_ = case.c_lhs.pat_type;
                                       aggressive = false } ) :: !derived_candidates;
         let case = { case with
                      c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
