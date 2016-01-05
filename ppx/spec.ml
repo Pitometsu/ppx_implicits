@@ -609,19 +609,13 @@ let cand_deriving env loc ty lid =
     | Ttuple tys ->
         (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple (d1,..,dn)] *)
         let len = length tys in
-        let ids =
-          let rec f st = function
-            | 0 -> st
-            | n -> 
-                let id = Ident.create (Printf.sprintf "__deriving__%d" n) in
-                f (id :: st) (n-1)
-          in
-          f [] len
-        in
+        let nums = let rec f st = function 0 -> st | n -> f (n::st) (n-1) in f [] len in
+        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+        let labels = map (Printf.sprintf "_d%d") nums in
         let tpl = Typpx.Forge.Exp.( tuple (map (fun id -> ident (Path.Pident id)) ids )) in
         let e = Typpx.Forge.Exp.(app (ident p_tuple) ["", tpl]) in
-        Some (fold_right (fun st id ->
-          Typpx.Forge.Exp.(fun_ ~label:(Printf.sprintf "_d%d" n) (Pat.var id) st)) e ids)
+        Some (fold_right2 (fun id label e ->
+          Typpx.Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e)
     | _ -> None
   in
   let form_check_object_ v = match expand_repr_desc env v with
@@ -631,9 +625,9 @@ let cand_deriving env loc ty lid =
     | _ -> None
   in
   filter_map (fun x -> x)
-    [ test form_check_tuple tuple vd_tuple;
-      test form_check_object_ object_ vd_object_;
-      test form_check_polymorphic_variant polymorphic_variant vd_polymorphic_variant ]
+    [ test form_check_tuple p_tuple vd_tuple;
+      test form_check_object_ p_object vd_object_;
+      test form_check_polymorphic_variant p_polymorphic_variant vd_polymorphic_variant ]
   
 let rec cand_static env loc : t2 -> Candidate.t list = function
   | Aggressive x ->
