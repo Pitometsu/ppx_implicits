@@ -564,10 +564,10 @@ let cand_name rex f =
   filter (fun x ->
     Re_pcre.pmatch ~rex & Longident.to_string x.Candidate.lid) & f ()
 
-let test_cand_deriving env loc ty path vd form_check =
+(* vd.val_type must have the form ~_d:Obj.t -> ty['a] *)
+let test_cand_deriving env loc ty path vd =
   let vty = vd.val_type in
   let dlabel, _dty, vty' =
-    (* vty must be ~_d:Obj.t -> ty['a] *)
     (* CR jfuruse: need a check dty = Obj.t *)
     match expand_repr_desc env vty with
     | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
@@ -575,23 +575,33 @@ let test_cand_deriving env loc ty path vd form_check =
         errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]" Location.format loc Path.format path Printtyp.type_scheme vty
   in
       
-  let var_check path ty =
+  let v =
     (* a magic func must have only one type variable, generalized *)
     (* [Ctype.free_variables] also returns generic variables *)
-    match gen_vars ty, Ctype.free_variables ty with
+    match gen_vars vty', Ctype.free_variables vty' with
     | [v], [v'] when v == v' -> v 
     | _ ->
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]" Location.format loc Path.format path Printtyp.type_scheme vty
+        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]" Location.format loc Path.format path Printtyp.type_scheme vty'
   in
-  let v = var_check path vty' in
 
-  with_snapshot & fun () ->
-    match Ctype.instance_list env [v; vty'] with
-    | [v; vty''] ->
+  match Ctype.instance_list env [v; vty'] with
+  | [v; vty''] ->
+      with_snapshot & fun () ->
+        (* tricky. by [repr v], we can keep what we want even after
+           the unification is undone *)
         Ctype.unify env ty vty'';
-        form_check dlabel v vty';
-        (* return a candidate expr *)
-    | _ -> assert false
+        (dlabel, Ctype.repr v, vty')
+  | _ -> assert false
+
+let obj_repr env loc e =
+  let obj_repr_path, _ = (* I trust it is Obj.repr *)
+    try
+      Env.lookup_value (Longident.(Ldot (Lident "Obj", "repr"))) env
+    with
+    | Not_found -> 
+        errorf "%a: Obj.repr is required but not accessible" Location.format loc
+  in
+  Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
 
 let cand_deriving_tuple env loc ty mlid =
   let lid = Ldot (mlid, "tuple") in
@@ -599,42 +609,34 @@ let cand_deriving_tuple env loc ty mlid =
     try Env.lookup_value lid env with Not_found -> 
       errorf "%a: %a is not defined." Location.format loc Longident.format lid
   in
-  test_cand_deriving env loc ty path vd & fun dlabel v temp_ty ->
-    match expand_repr_desc env v with
-    | Ttuple tys ->
-        (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
-        let obj_repr e =
-          let obj_repr_path, _ = (* I trust it is Obj.repr *)
-            try
-              Env.lookup_value (Longident.(Ldot (Lident "Obj", "repr"))) env
-            with
-            | Not_found -> 
-                errorf "%a: Obj.repr is required but not accessible" Location.format loc
-          in
-          Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
-        in
-        let len = length tys in
-        let nums = let rec f st = function 0 -> st | n -> f (n::st) (n-1) in f [] len in
-        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-        let labels = map (Printf.sprintf "_d%d") nums in
-        let tpl = Forge.Exp.( tuple (map (fun id -> with_env env & ident (Path.Pident id)) ids )) in
-        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, obj_repr tpl]) in
-        let type_ =
-          fold_right2 (fun label ty st ->
-            let ty' = Ctype.instance env temp_ty in
-            begin match Ctype.free_variables ty' with
-            | [v] -> Ctype.unify env ty v
-            | _ -> assert false
-            end;
-            Forge.Typ.arrow ~label ty' st) labels tys ty
-        in
-        Some {Candidate.lid;
-              path;
-              expr = fold_right2 (fun id label e ->
-                Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e;
-              type_;
-              aggressive = false}
-    | _ -> None
+  let dlabel, v, template_ty = test_cand_deriving env loc ty path vd in
+  match expand_repr_desc env v with
+  | Ttuple tys ->
+      (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
+      let len = length tys in
+      let nums = List.from_to 1 len in
+      let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+      let labels = map (Printf.sprintf "_d%d") nums in
+      let tpl = Forge.Exp.( tuple (map (fun id -> with_env env & ident (Path.Pident id)) ids )) in
+      let e = Forge.Exp.(app (with_env env & ident path) [dlabel, obj_repr env loc tpl]) in
+      let type_ =
+        (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
+        fold_right2 (fun label ty st ->
+          (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
+          let template_ty' = Ctype.instance env template_ty in
+          begin match Ctype.free_variables template_ty' with
+          | [v] -> Ctype.unify env ty v
+          | _ -> assert false
+          end;
+          Forge.Typ.arrow ~label template_ty' st) labels tys ty
+      in
+      Some { Candidate.lid;
+             path;
+             expr = fold_right2 (fun id label e ->
+               Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e;
+             type_;
+             aggressive = false}
+  | _ -> None
   
 let cand_deriving env loc ty mlid =
   filter_map (fun x -> x)

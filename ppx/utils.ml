@@ -55,6 +55,14 @@ module List = struct
   	f x
   	(fun ppf -> fprintf ppf sep)
   	(format sep f) xs
+
+  let from_to f t =
+    (* CR jfuruse: we should build from 'to' *)
+    let rec from_to st f t =
+      if f > t then rev st
+      else from_to (f::st) (f+1) t
+    in
+    from_to [] f t
 end 
 
 module String = struct
