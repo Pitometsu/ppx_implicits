@@ -39,7 +39,7 @@ module Candidate : sig
   type t = {
     lid        : Longident.t;          (** lid of candidate identifier. Used for [name] spec *)
     path       : Path.t;               (** path of candiidate identifier. Used for [uniq] *)
-    expr       : Typedtree.expression; (** candidate expression *)
+    expr       : Typedtree.expression; (** candidate expression maker *)
     type_      : type_expr;
     aggressive : bool
   }

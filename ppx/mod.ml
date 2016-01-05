@@ -9,44 +9,6 @@ open Format
 
 module Forge = Typpx.Forge
   
-module KLabel : sig
-
-  (** Constraint labels *)
-    
-  val is_klabel : label -> [`Normal | `Optional] option
-  val extract : Env.t -> type_expr -> (label * type_expr) list * type_expr
-  val extract_aggressively : Env.t -> type_expr -> ((label * type_expr) list * type_expr) list
-
-end = struct
-  let is_klabel l =
-    let len = String.length l in
-    if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
-    else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
-    else None
-  
-  (* Constraint labels must precede the other arguments *)
-  let rec extract env ty = 
-    let ty = Ctype.expand_head env ty in
-    match repr_desc ty with
-    | Tarrow(l, ty1, ty2, _) when is_klabel l <> None ->
-        let cs, ty = extract env ty2 in
-        (l,ty1)::cs, ty
-    | Tarrow(l, ty1, ty2, x) ->
-        let cs, ty = extract env ty2 in
-        cs, { (Ctype.newty & Tarrow (l, ty1, ty, x)) with level = ty.level }
-    | _ -> [], ty
-  
-  let rec extract_aggressively env ty =
-    let ty = Ctype.expand_head env ty in
-    match repr_desc ty with
-    | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
-        ([], ty)
-        :: map
-          (fun (cs, ty) -> (l,ty1)::cs, ty)
-          (extract_aggressively env ty2)
-    | _ -> [[], ty]
-end
-    
 (** Check [e [@imp ...]] for example, [assert false [@imp ...]] *)
 let has_imp e = 
   let imps = flip map e.exp_attributes & function 
@@ -67,8 +29,8 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
       let cands =
         let cs = get_cands ty in
         flip concat_map cs & fun { Spec.Candidate.path; expr; type_; aggressive } ->
-          if not aggressive then [(path, expr, KLabel.extract env type_)]
-          else map (fun cs_ty -> (path, expr, cs_ty)) & KLabel.extract_aggressively env type_
+          if not aggressive then [(path, expr, Klabel.extract env type_)]
+          else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
       in
       flip concat_map cands & fun (path, expr, (cs,vty)) ->
         match assoc_opt path trace with
@@ -140,6 +102,7 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
                     Forge.Exp.(app expr args) :: res
 
 (* CR jfuruse: bad state... *)
+(* CR jfuruse: confusing with deriving spec *)                      
 let derived_candidates = ref []
 
 let resolve spec env loc ty = with_snapshot & fun () ->
@@ -155,7 +118,7 @@ let resolve spec env loc ty = with_snapshot & fun () ->
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve env get_cands [([],ty)] with
-  | [[e]] -> e
+  | [[e]] -> Unshadow.Replace.replace e
   | [] ->
       errorf "@[<2>%a:@ no instance found for@ @[%a@]@]"
         Location.format loc
@@ -232,7 +195,7 @@ let is_none e = match e.exp_desc with
 (* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
-  | (l, Some e, Optional) when KLabel.is_klabel l = Some `Optional ->
+  | (l, Some e, Optional) when Klabel.is_klabel l = Some `Optional ->
       begin match is_none e with
       | None -> a (* explicitly applied *)
       | Some ty ->
@@ -294,8 +257,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
             Location.format e.exp_loc);
         e
            
-    | Texp_function (l, [case], e') when KLabel.is_klabel l <> None ->
-        (* If a pattern has a form l:x where [KLabel.is_klabel l],
+    | Texp_function (l, [case], e') when Klabel.is_klabel l <> None ->
+        (* If a pattern has a form l:x where [Klabel.is_klabel l],
            then the value can be used as an instance of the same type.
 
            Here, the problem is that [leave_expression] does not take the same expression
@@ -307,7 +270,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let path = Path.Pident id in
         derived_candidates := (fid, { Spec.Candidate.lid;
                                       path;
-                                      expr = Typpx.Forge.Exp.(ident lid path); 
+                                      expr = Typpx.Forge.Exp.(ident path); 
                                       type_ = case.c_lhs.pat_type;
                                       aggressive = false } ) :: !derived_candidates;
         let case = { case with
@@ -331,9 +294,12 @@ end
 
 module Map = struct
   include TypedtreeMap.MakeMap(MapArg)
+
   let map_structure str =
-    Unshadow.aliases := [];
+    (* This is tricky. Unshadow.reset () is placed here, knowing that
+       map_structure is the entry point for structure in TyPPX *)
+    Unshadow.reset ();
     let str = map_structure str in
     if !Options.debug_resolve then eprintf "Unshadow...@.";
-    Unshadow.map_structure !Unshadow.aliases str
+    Unshadow.Alias.insert str
 end
