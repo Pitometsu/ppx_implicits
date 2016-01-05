@@ -355,7 +355,7 @@ let rec values_of_module ~recursive env lid path mdecl : Candidate.t list =
       begin
         try
           let type_ = (Env.find_value path env).val_type in
-          let expr = Typpx.Forge.Exp.(ident lid path) in
+          let expr = Typpx.Forge.Exp.(ident path) in
           (* eprintf "    VOM: %a@." Path.format_verbose path; *)
           { Candidate.lid; path; expr; type_; aggressive= false }  :: st
         with
@@ -573,17 +573,17 @@ let cand_name rex f =
     Re_pcre.pmatch ~rex & Longident.to_string x.Candidate.lid) & f ()
 
 let cand_deriving env loc ty lid =
-  let tuple, vd_tuple =
+  let p_tuple, vd_tuple =
     let lid = Ldot (lid, "tuple") in
     try Env.lookup_value lid env with Not_found -> 
       errorf "%a: %a is not defined." Location.format loc Longident.format lid
   in
-  let object_, vd_object_ =
+  let p_object, vd_object_ =
     let lid = Ldot (lid, "object_") in
     try Env.lookup_value lid env with Not_found -> 
       errorf "%a: %a is not defined." Location.format loc Longident.format lid
   in
-  let polymorphic_variant, vd_polymorphic_variant =
+  let p_polymorphic_variant, vd_polymorphic_variant =
     let lid = Ldot (lid, "polymorphic_variant") in
     try Env.lookup_value lid env with Not_found -> 
       errorf "%a: %a is not defined." Location.format loc Longident.format lid
@@ -606,9 +606,22 @@ let cand_deriving env loc ty lid =
       | _ -> assert false
   in
   let form_check_tuple v = match expand_repr_desc env v with
-    | Ttuple _tys ->
+    | Ttuple tys ->
         (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple (d1,..,dn)] *)
-        Some (assert false)
+        let len = length tys in
+        let ids =
+          let rec f st = function
+            | 0 -> st
+            | n -> 
+                let id = Ident.create (Printf.sprintf "__deriving__%d" n) in
+                f (id :: st) (n-1)
+          in
+          f [] len
+        in
+        let tpl = Typpx.Forge.Exp.( tuple (map (fun id -> ident (Path.Pident id)) ids )) in
+        let e = Typpx.Forge.Exp.(app (ident p_tuple) ["", tpl]) in
+        Some (fold_right (fun st id ->
+          Typpx.Forge.Exp.(fun_ ~label:(Printf.sprintf "_d%d" n) (Pat.var id) st)) e ids)
     | _ -> None
   in
   let form_check_object_ v = match expand_repr_desc env v with
@@ -650,7 +663,7 @@ let candidates env loc = function
       if !Options.debug_resolve then begin
         eprintf "debug_resolve: static candidates@.";
         flip iter statics & fun x ->
-          eprintf "  %a %a@." Longident.format x.Candidate.lid Path.format x.path
+          eprintf "  %a@." Pprintast.expression (Typpx.Untypeast.untype_expression x.Candidate.expr)
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> Candidate.uniq & statics @ dynamics ty

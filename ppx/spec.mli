@@ -37,9 +37,9 @@ val from_module_path : imp_loc: Location.t -> Env.t -> Path.t -> [> `Ok of t | `
 
 module Candidate : sig
   type t = {
-    lid        : Longident.t; (** lid of candidate identifier *)
-    path       : Path.t; (** path of candiidate identifier *)
-    expr       : Typedtree.expression; (** candidate expression. Normally it is just [path] but deriving has a more complex expression *)
+    lid        : Longident.t;          (** lid of candidate identifier. Used for [name] spec *)
+    path       : Path.t;               (** path of candiidate identifier. Used for [uniq] *)
+    expr       : Typedtree.expression; (** candidate expression *)
     type_      : type_expr;
     aggressive : bool
   }
