@@ -1,10 +1,69 @@
 open Types
 
+(** spec dsl *)
 type t = 
-  | Or of t2 list (** [t2, .., t2]. Separated by commas *)
-  | Type (** Nothing but just [[%imp]].  No allowed in [[%%imp_spec]] *)
+  | Or of t2 list 
+    (** [t2, .., t2] *)
 
-and t2
+  | Type 
+    (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_spec] *)
+
+and t2 = 
+  | Opened of Longident.t flagged 
+    (** [opened M]
+
+        The values defined under module path [P.M] which is accessible as [M] 
+        by [open P] 
+    *)
+      
+  | Direct of (Longident.t * Path.t option) flagged
+    (** [P] or [just P]. 
+
+        [P] is for the values defined under module [P] and [P]'s sub-modules. 
+        [just P] is for values defined just under module [P] and values defined 
+        in its sub-modules are not considered. 
+    *)
+      
+  | Aggressive of t2 
+    (** [aggressive t2]. 
+
+        Even normal function arrows are considered as constraints. 
+    *)
+      
+  | Related 
+    (** [related]. 
+
+        The values defined under module [P] where data type defined in [P] appears 
+        in the type of the resolution target 
+    *)
+      
+  | Name of string * Re.re * t2
+    (** [name "rex" t2]. 
+
+        Constraint values only to those whose names match with the regular expression 
+    *)
+
+  | Typeclass of Path.t option
+    (** [typeclass]. 
+
+        Typeclass style resolution. The argument is None at parsing, but must be 
+        filled with Some until the resolution.
+
+        None at parsing, but must be filled with Some until the resolution 
+    *)
+      
+  | Deriving of Longident.t
+    (** [deriving M]. 
+
+        [M] must define [M.tuple], [M.object_] and [M.poly_variant] 
+    *)
+
+and 'a flagged = In of 'a | Just of 'a
+
+val is_static : t2 -> bool
+(** static : instance space is fixed
+    dynamic : instance space can be changed according to the target type
+*)
 
 val to_string : t -> string
 (** convert [t] to its string representation for [[%%imp_spec ...]] *)
@@ -20,37 +79,38 @@ val error :
      | `String of string ]
   -> 'fail
 
-val from_payload :
-  Parsetree.payload ->
-  [> `Error of
-       [> `ParseExp of Parsetree.expression * string | `String of string ]
-   | `Ok of t ]
+val from_payload : 
+  Parsetree.payload 
+  -> [> `Ok of t
+     |  `Error of [> `ParseExp of Parsetree.expression * string 
+                  |  `String of string ]
+     ]
 
-val from_type_decl : Path.t -> Location.t -> type_declaration -> t
+val from_type_decl : Location.t -> Path.t -> Types.type_declaration -> t
 (** get spec from type __imp_spec__ = .. *)
 
-val from_module_type : Env.t -> Path.t -> Location.t -> module_type -> [> `Ok of t | `Error of [> `No_imp_spec of Location.t * Path.t ] ]
+val from_module_type : 
+  Env.t -> Location.t -> Path.t -> module_type 
+  -> [> `Ok of t 
+     |  `Error of [> `No_imp_spec of Location.t * Path.t ] 
+     ]
 (** get spec from a module type which has type __imp_spec__ = .. *)
 
-val from_module_path : imp_loc: Location.t -> Env.t -> Path.t -> [> `Ok of t | `Error of [> `No_imp_spec of Location.t * Path.t ] ]
+val from_module_path : 
+  Env.t -> Location.t -> Path.t 
+  -> [> `Ok of t 
+     |  `Error of [> `No_imp_spec of Location.t * Path.t ] 
+     ]
 (** get spec from a module path which has type __imp_spec__ = .. *)
 
-module Candidate : sig
-  type t = {
-    lid        : Longident.t;          (** lid of candidate identifier. Used for [name] spec *)
-    path       : Path.t;               (** path of candiidate identifier. Used for [uniq] *)
-    expr       : Typedtree.expression; (** candidate expression maker *)
-    type_      : type_expr;
-    aggressive : bool
-  }
-
-  val uniq : t list -> t list
-  (** Remove dupes *)
-end
-
-val candidates 
-      : Env.t 
-      -> Location.t 
-      -> t 
-      -> type_expr 
-      -> Candidate.t list
+(** Build an empty type env except mp module with the given module type *)
+class dummy_module :
+  Env.t ->
+  Path.t ->
+  Types.module_type ->
+  object
+    method lookup_module : string -> Path.t
+    method lookup_type   : string -> Path.t * type_declaration
+    method lookup_value  : string -> Path.t
+  end
+  

@@ -28,7 +28,7 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
   | (trace,ty)::tr_tys ->
       let cands =
         let cs = get_cands ty in
-        flip concat_map cs & fun { Spec.Candidate.path; expr; type_; aggressive } ->
+        flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
           if not aggressive then [(path, expr, Klabel.extract env type_)]
           else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
       in
@@ -105,15 +105,15 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
 (* CR jfuruse: confusing with deriving spec *)                      
 let derived_candidates = ref []
 
-let resolve spec env loc ty = with_snapshot & fun () ->
+let resolve env loc spec ty = with_snapshot & fun () ->
 
   if !Options.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
 
   close_gen_vars ty;
 
   let get_cands =
-    let f = Spec.candidates env loc spec in
-    fun ty -> Spec.Candidate.uniq & f ty @ map snd !derived_candidates
+    let f = Candidate.candidates env loc spec in
+    fun ty -> Candidate.uniq & f ty @ map snd !derived_candidates
   in
 
   (* CR jfuruse: Only one value at a time so far *)
@@ -149,10 +149,10 @@ let imp_type_spec env loc ty =
                 errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]"
                   Location.format loc
           in
-          `Ok (Spec.from_type_decl p td.type_loc td)
+          `Ok (Spec.from_type_decl td.type_loc p td)
       | Pdot (mp, _, _) -> 
           (* <mp>.__imp_spec__ must exist *)
-          begin match Spec.from_module_path ~imp_loc:loc env mp with
+          begin match Spec.from_module_path env loc mp with
           | `Ok x -> `Ok x
           | `Error (`No_imp_spec (mp_loc, mp)) ->
               errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_spec SPEC].@ %a: module %a is defined here.@]"
@@ -180,9 +180,9 @@ let get_spec spec env loc ty = match spec with
   | _ -> spec
     
 
-let resolve_imp spec env loc ty =
+let resolve_imp env loc spec ty =
   let spec = get_spec spec env loc ty in
-  resolve spec env loc ty
+  resolve env loc spec ty
 
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
@@ -207,11 +207,11 @@ let resolve_arg loc env a = match a with
                   (* CR jfuruse: we can have ambiguous resolution
                      for t option and t *)
                   (* Try just [%imp] first *)
-                  resolve spec env loc e.exp_type
+                  resolve env loc spec e.exp_type
                  with
                  | _ ->
                      (* If above failed, try Some [%imp] *)
-                     Forge.Exp.some & resolve spec env loc ty
+                     Forge.Exp.some & resolve env loc spec ty
                end,
                Optional)
           end
@@ -268,11 +268,12 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let lid = Longident.Lident fid in
         let id = Ident.create fid in
         let path = Path.Pident id in
-        derived_candidates := (fid, { Spec.Candidate.lid;
+        derived_candidates := (fid, { Candidate.lid;
                                       path;
                                       expr = Typpx.Forge.Exp.(ident path); 
                                       type_ = case.c_lhs.pat_type;
-                                      aggressive = false } ) :: !derived_candidates;
+                                      aggressive = false } ) 
+                              :: !derived_candidates;
         let case = { case with
                      c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
         in
@@ -281,7 +282,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | _ ->
         match has_imp e with
         | None -> e
-        | Some spec -> resolve_imp spec e.exp_env e.exp_loc e.exp_type
+        | Some spec -> resolve_imp e.exp_env e.exp_loc spec e.exp_type
 
   let leave_expression e =
     match Ppxxx.partition_expression_marks e & fun txt -> is_function_id txt with
