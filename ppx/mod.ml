@@ -1,4 +1,4 @@
-open Utils
+open Ppxx.Utils
 open Ppxx.Compilerlib
 open Typedtree
 open Types

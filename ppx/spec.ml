@@ -4,7 +4,7 @@
   OCaml type definitions.
 
 *)
-open Utils
+open Ppxx.Utils
 open List
 open Format
 

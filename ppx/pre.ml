@@ -7,14 +7,13 @@
     [@@instance]
 *)
 
+open Ppxx.Utils
 open Ppxx.Helper
 open Ppxx.Compilerlib
 
 open Parsetree
 open Asttypes
 open Ast_mapper
-open Location
-open Utils
 open List
 
 (* [@@typeclass] and [@@instance] *)

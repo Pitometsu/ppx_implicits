@@ -1,4 +1,4 @@
-open Utils
+open Ppxx.Utils
 open List
 open Ppxx.Compilerlib
 open Ident

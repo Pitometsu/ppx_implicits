@@ -1,6 +1,6 @@
 (** Constraint labels *)
   
-open Utils
+open Ppxx.Utils
 open Ppxx.Compilerlib
 open Types
 open List

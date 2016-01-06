@@ -1,6 +1,6 @@
 (* Size of type *)
 
-open Utils
+open Ppxx.Utils
 
 open Types
 open Btype
