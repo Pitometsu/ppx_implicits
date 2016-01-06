@@ -3,21 +3,18 @@ open List
 open Ppxx.Compilerlib
 open Ident
 open Path
+open Typpx
 (* open Format *)
 
 let conv_ident id = "__" ^ id.name ^ "__" ^ string_of_int id.stamp
 
 let rec check_module_path env path =
-(*
-  eprintf "  checking %a@." Path.format_verbose path;
-*)
-  let lid = Typpx.Untypeast.lident_of_path path in
+  (* !!% "  checking %a@." Path.format_verbose path; *)
+  let lid = Untypeast.lident_of_path path in
   let path' = try Some (Env.lookup_module ~load:true (* CR jfuruse: ? *) lid env) with _ -> None in 
   if Some path = path' then `Accessible lid
   else begin
-(*
-    eprintf "    shadowed: found %a@." (Option.format Path.format_verbose) path';
-*)
+  (* !!% "    shadowed: found %a@." (Option.format Path.format_verbose) path'; *)
     match path with
     | Pident id -> 
         let n = conv_ident id in
@@ -32,12 +29,6 @@ let rec check_module_path env path =
     | _ -> assert false
   end
 
-let check_module_path env path =
-(*
-  eprintf "check_module_path: %a@." Path.format path;
-*)
-  check_module_path env path
-
 let aliases = ref ([]: (Ident.t * Ident.t) list)
 (* CR jfuruse: This is bizarre to have a ref which none of this module touches... *)
 
@@ -49,7 +40,7 @@ module Replace = struct
     
     open Typedtree
     
-    module Forge = Typpx.Forge
+    module Forge = Forge
     
     let enter_expression e = match e.exp_desc with
       | Texp_ident (p, {loc}, vd) ->
@@ -62,11 +53,11 @@ module Replace = struct
               | `Shadowed (id, id', p) ->
                   aliases := (id, id') :: !aliases;
                   let p = Path.Pdot (p, n, i) in
-                  let lid = Typpx.Untypeast.lident_of_path p in
+                  let lid = Untypeast.lident_of_path p in
                   { e with exp_desc = Texp_ident (p, {txt=lid; loc}, vd) }
               end
           | Path.Pident _ ->
-              let lid = Typpx.Untypeast.lident_of_path p in
+              let lid = Untypeast.lident_of_path p in
               begin
                 try
                   let p', _ = Env.lookup_value lid env in
@@ -109,7 +100,6 @@ module Alias = struct
   
     open Typedtree
   
-    module Forge = Typpx.Forge
     open Forge
   
     let enter_expression e = match e.exp_desc with

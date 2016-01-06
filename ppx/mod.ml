@@ -252,9 +252,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
     | Texp_function (l, _::_::_, _) when l <> "" ->
         (* Eeek, label with multiple cases? *)
-        warn (fun () ->
-          eprintf "%a: Unexpected label with multiple function cases"
-            Location.format e.exp_loc);
+        warnf "%a: Unexpected label with multiple function cases"
+          Location.format e.exp_loc;
         e
            
     | Texp_function (l, [case], e') when Klabel.is_klabel l <> None ->
