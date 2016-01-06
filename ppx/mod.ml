@@ -287,7 +287,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     match Ppxxx.partition_expression_marks e & fun txt -> is_function_id txt with
     | [], e -> e
     | [txt], e ->
-        derived_candidates := List.filter (fun (fid, _) -> fid <> txt) !derived_candidates;
+        derived_candidates := filter (fun (fid, _) -> fid <> txt) !derived_candidates;
         e
     | _ -> assert false
 end

@@ -6,7 +6,6 @@
 *)
 open Ppxx.Utils
 open List
-open Format
 
 open Ppxx.Compilerlib
 open Longident
@@ -17,23 +16,23 @@ open Typpx
 
 open Spec
 
-  type t = {
-    lid        : Longident.t;
-    path       : Path.t;
-    expr       : Typedtree.expression;
-    type_      : Types.type_expr;
-    aggressive : bool
-  }
+type t = {
+  lid        : Longident.t;
+  path       : Path.t;
+  expr       : Typedtree.expression;
+  type_      : Types.type_expr;
+  aggressive : bool
+}
 
-  let uniq xs =
-    let tbl = Hashtbl.create 107 in
-    iter (fun x ->
-      try
-        let x' = Hashtbl.find tbl x.path in
-        Hashtbl.replace tbl x.path { x with aggressive = x.aggressive || x'.aggressive }
-      with
-      | Not_found -> Hashtbl.add tbl x.path x) xs;
-    Hashtbl.to_list tbl |> map snd
+let uniq xs =
+  let tbl = Hashtbl.create 107 in
+  iter (fun x ->
+    try
+      let x' = Hashtbl.find tbl x.path in
+      Hashtbl.replace tbl x.path { x with aggressive = x.aggressive || x'.aggressive }
+    with
+    | Not_found -> Hashtbl.add tbl x.path x) xs;
+  Hashtbl.to_list tbl |> map snd
 
 let scrape_sg _path env mdecl = 
   try
@@ -47,7 +46,7 @@ let scrape_sg _path env mdecl =
     | _ -> assert false
   with
   | e -> 
-      eprintf "scraping failed: %s" & Printexc.to_string e;
+      !!% "scraping failed: %s" & Printexc.to_string e;
       raise e
 
 let rec values_of_module ~recursive env lid path mdecl : t list =
@@ -57,18 +56,18 @@ let rec values_of_module ~recursive env lid path mdecl : t list =
   | Sig_value (id, _vdesc) ->
       let lid = Ldot (lid, Ident.name id) in
       let path = try m#lookup_value & Ident.name id with Not_found ->
-        eprintf "VOM m#lookup_value %s not found@." & Ident.name id;
+        !!% "VOM m#lookup_value %s not found@." & Ident.name id;
         assert false
       in
       begin
         try
           let type_ = (Env.find_value path env).val_type in
           let expr = Forge.Exp.(with_env env & ident path) in
-          (* eprintf "    VOM: %a@." Path.format_verbose path; *)
+          (* !!% "    VOM: %a@." Path.format_verbose path; *)
           { lid; path; expr; type_; aggressive= false }  :: st
         with
         | Not_found ->
-            eprintf "VOM: %a but not found@." Path.format_verbose path;
+            !!% "VOM: %a but not found@." Path.format_verbose path;
             assert false
       end
   | Sig_module (id, moddecl, _) when recursive -> 
@@ -92,9 +91,7 @@ let rec get_opens = function
 
 let get_opens env = get_opens & Env.summary env
 
-let rec dump_summary =
-  let open Format in
-  function
+let rec dump_summary = function
   | Env.Env_empty -> ()
   | Env_value (s, _, _)
   | Env_extension (s, _, _)
@@ -102,9 +99,9 @@ let rec dump_summary =
   | Env_class (s, _, _)
   | Env_cltype (s, _, _)
   | Env_functor_arg (s, _) -> dump_summary s
-  | Env_type (s, id, _) -> eprintf "type %a@." Ident.format id; dump_summary s
-  | Env_module (s, id, _) -> eprintf "module %a@." Ident.format id; dump_summary s
-  | Env_open (s, path) -> eprintf "open %a@." Path.format path; dump_summary s
+  | Env_type (s, id, _) -> !!% "type %a@." Ident.format id; dump_summary s
+  | Env_module (s, id, _) -> !!% "module %a@." Ident.format id; dump_summary s
+  | Env_open (s, path) -> !!% "open %a@." Path.format path; dump_summary s
 
 let _dump_summary env = dump_summary & Env.summary env
   
@@ -123,7 +120,7 @@ let module_lids_in_open_path env lids = function
         with
         | _ -> None)
   | Some open_ ->
-      (*  eprintf "open %a@." Path.format open_; *)
+      (*  !!% "open %a@." Path.format open_; *)
       let mdecl = Env.find_module open_ env in (* It should succeed *)
       let sg = scrape_sg open_ env mdecl in
       let env = Env.open_signature Asttypes.Fresh open_ sg Env.empty in
@@ -172,16 +169,16 @@ let _test_scrape_sg path env sg =
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
   let lid = Typpx.Untypeast.lident_of_path path in      
-  eprintf "SCRAPE SG %a@." Path.format_verbose path;
+  !!% "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
         let lid = Ldot (lid, id.Ident.name) in
         let popt = try Some (fst (Env.lookup_value lid env)) with _ -> None in
-        eprintf "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
+        !!% "  value %a  >> %a@." Ident.format_verbose id (Option.format Path.format_verbose) popt
     | Sig_module (id, _moddecl, _) ->
-        eprintf "  module %a@." Ident.format_verbose id
+        !!% "  module %a@." Ident.format_verbose id
     | Sig_type (id, _, _) -> 
-        eprintf "  type %a@." Ident.format_verbose id
+        !!% "  type %a@." Ident.format_verbose id
     | _ -> ()
     
 let cand_direct env loc t3 =
@@ -216,8 +213,8 @@ let cand_opened env loc x =
   in
   let opens = get_opens env in
   if !Options.debug_resolve then begin
-    eprintf "debug_resolve: cand_opened opened paths@.";
-    flip iter opens & eprintf "  %a@." Path.format
+    !!% "debug_resolve: cand_opened opened paths@.";
+    flip iter opens & !!% "  %a@." Path.format
   end;
   let paths = 
     concat 
@@ -225,8 +222,8 @@ let cand_opened env loc x =
     & None :: map (fun x -> Some x) opens
   in
   if !Options.debug_resolve then begin
-    eprintf "debug_resolve: cand_opened cand modules@.";
-    flip iter paths & eprintf "  %a@." Path.format
+    !!% "debug_resolve: cand_opened cand modules@.";
+    flip iter paths & !!% "  %a@." Path.format
   end;
   concat & map (fun path ->
     let lid = Typpx.Untypeast.lident_of_path path in
@@ -284,8 +281,8 @@ let cand_typeclass env loc p_spec =
   in
   let paths = find_modules & Env.summary env in
   if !Options.debug_resolve then begin
-    eprintf "debug_resolve: cand_typeclass cand modules@.";
-    flip iter paths & eprintf "  %a@." Path.format
+    !!% "debug_resolve: cand_typeclass cand modules@.";
+    flip iter paths & !!% "  %a@." Path.format
   end;
   concat & map (fun path ->
     let lid = Typpx.Untypeast.lident_of_path path in
@@ -294,35 +291,6 @@ let cand_typeclass env loc p_spec =
 let cand_name rex f =
   filter (fun x ->
     Re_pcre.pmatch ~rex & Longident.to_string x.lid) & f ()
-
-(* vd.val_type must have the form ~_d:Obj.t -> ty['a] *)
-let test_cand_deriving env loc ty path vd =
-  let vty = vd.val_type in
-  let dlabel, _dty, vty' =
-    (* CR jfuruse: need a check dty = Obj.t *)
-    match expand_repr_desc env vty with
-    | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
-    | _ -> 
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]" Location.format loc Path.format path Printtyp.type_scheme vty
-  in
-      
-  let v =
-    (* a magic func must have only one type variable, generalized *)
-    (* [Ctype.free_variables] also returns generic variables *)
-    match gen_vars vty', Ctype.free_variables vty' with
-    | [v], [v'] when v == v' -> v 
-    | _ ->
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]" Location.format loc Path.format path Printtyp.type_scheme vty'
-  in
-
-  match Ctype.instance_list env [v; vty'] with
-  | [v; vty''] ->
-      with_snapshot & fun () ->
-        (* tricky. by [repr v], we can keep what we want even after
-           the unification is undone *)
-        Ctype.unify env ty vty'';
-        (dlabel, Ctype.repr v, vty')
-  | _ -> assert false
 
 let obj_repr env loc e =
   let obj_repr_path, _ = (* I trust it is Obj.repr *)
@@ -334,13 +302,48 @@ let obj_repr env loc e =
   in
   Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
 
-let cand_deriving_tuple env loc ty mlid =
-  let lid = Ldot (mlid, "tuple") in
+(* vd.val_type must have the form ~_d:Obj.t -> ty['a] *)
+let test_cand_deriving env loc ty lid =
   let path, vd = 
     try Env.lookup_value lid env with Not_found -> 
       errorf "%a: %a is not defined." Location.format loc Longident.format lid
   in
-  let dlabel, v, template_ty = test_cand_deriving env loc ty path vd in
+  let vty = vd.val_type in
+  let dlabel, _dty, vty' =
+    (* CR jfuruse: need a check dty = Obj.t *)
+    match expand_repr_desc env vty with
+    | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
+    | _ -> 
+        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]"
+          Location.format loc
+          Path.format path
+          Printtyp.type_scheme vty
+  in
+      
+  let v =
+    (* a magic func must have only one type variable, generalized *)
+    (* [Ctype.free_variables] also returns generic variables *)
+    match gen_vars vty', Ctype.free_variables vty' with
+    | [v], [v'] when v == v' -> v 
+    | _ ->
+        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]"
+          Location.format loc
+          Path.format path
+          Printtyp.type_scheme vty'
+  in
+
+  match Ctype.instance_list env [v; vty'] with
+  | [v; vty''] ->
+      with_snapshot & fun () ->
+        (* tricky. by [repr v], we can keep what we want even after
+           the unification is undone *)
+        Ctype.unify env ty vty'';
+        (path, dlabel, Ctype.repr v, vty')
+  | _ -> assert false
+
+let cand_deriving_tuple env loc ty mlid =
+  let lid = Ldot (mlid, "tuple") in
+  let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
   match expand_repr_desc env v with
   | Ttuple tys ->
       (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
@@ -368,6 +371,63 @@ let cand_deriving_tuple env loc ty mlid =
              type_;
              aggressive = false}
   | _ -> None
+  
+  
+let cand_deriving_polymorphic_variant env loc ty mlid =
+  let lid = Ldot (mlid, "polymorphic_variant") in
+  let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
+  match expand_repr_desc env v with
+  | Tvariant rdesc ->
+      let rdesc = Btype.row_repr rdesc in
+      if not rdesc.row_closed then begin
+        warnf "@[<2>%a: %a cannot be used as an instance since the raw type %a is open.@]"
+          Location.format loc
+          Path.format path
+          Printtyp.type_scheme v;
+        None
+      end else begin
+        (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.polymorphic_variant ~_d:(Obj.repr ((l1,v1,d1),..,(ln,vn,dn)))] *)
+        let fields = rdesc.row_fields in
+        let len = length fields in
+        let nums = List.from_to 1 len in
+        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+        let labels = map (Printf.sprintf "_d%d") nums in
+        let tpl =
+          let open Forge.Exp in
+          tuple (map2 (fun id (l,_) ->
+            let hash = Btype.hash_variant l in
+            tuple [ string l;
+                    int hash;
+                    with_env env & ident (Path.Pident id) ]) ids fields)
+        in
+        assert false
+      end
+        
+      
+        
+(*
+      let tpl = Forge.Exp.( tuple (map (fun id -> with_env env & ident (Path.Pident id)) ids )) in
+      let e = Forge.Exp.(app (with_env env & ident path) [dlabel, obj_repr env loc tpl]) in
+      let type_ =
+        (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
+        fold_right2 (fun label ty st ->
+          (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
+          let template_ty' = Ctype.instance env template_ty in
+          begin match Ctype.free_variables template_ty' with
+          | [v] -> Ctype.unify env ty v
+          | _ -> assert false
+          end;
+          Forge.Typ.arrow ~label template_ty' st) labels tys ty
+      in
+      Some { lid;
+             path;
+             expr = fold_right2 (fun id label e ->
+               Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e;
+             type_;
+             aggressive = false}
+*)
+  | _ -> None
+  
   
 let cand_deriving env loc ty mlid =
   filter_map (fun x -> x)
@@ -401,9 +461,9 @@ let candidates env loc = function
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
       if !Options.debug_resolve then begin
-        eprintf "debug_resolve: static candidates@.";
+        !!% "debug_resolve: static candidates@.";
         flip iter statics & fun x ->
-          eprintf "  %a@." Pprintast.expression (Typpx.Untypeast.untype_expression x.expr)
+          !!% "  %a@." Pprintast.expression (Typpx.Untypeast.untype_expression x.expr)
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty

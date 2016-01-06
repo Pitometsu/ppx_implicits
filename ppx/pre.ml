@@ -201,7 +201,7 @@ let extend super =
   let structure self sitems =
     let sitems = flip concat_map sitems & fun sitem ->
       match sitem.pstr_desc with
-      | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
+      | Pstr_modtype mtd when exists has_typeclass_attr mtd.pmtd_attributes ->
           (* module type M = ... [@@typeclass] *)
           (* CR jfuruse: need to remove [@@typeclass] *)
           [ sitem
