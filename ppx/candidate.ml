@@ -302,15 +302,19 @@ let obj_repr env loc e =
   in
   Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
 
-(* vd.val_type must have the form ~_d:Obj.t -> ty['a] *)
+let exit_then_none f = try f () with Exit -> None
+
+(* vd.val_type must have the form ~_d:Obj.t list -> ty['a] *)
 let test_cand_deriving env loc ty lid =
-  let path, vd = 
+  let path, vd =
+    (* CR jfuruse: this can be called more than once for one instance resolution *)
     try Env.lookup_value lid env with Not_found -> 
-      errorf "%a: %a is not defined." Location.format loc Longident.format lid
+      warnf "%a: %a is not defined." Location.format loc Longident.format lid;
+      raise Exit
   in
   let vty = vd.val_type in
   let dlabel, _dty, vty' =
-    (* CR jfuruse: need a check dty = Obj.t *)
+    (* CR jfuruse: need a check dty = Obj.t list *)
     match expand_repr_desc env vty with
     | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
     | _ -> 
@@ -342,98 +346,115 @@ let test_cand_deriving env loc ty lid =
   | _ -> assert false
 
 let cand_deriving_tuple env loc ty mlid =
-  let lid = Ldot (mlid, "tuple") in
-  let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
-  match expand_repr_desc env v with
-  | Ttuple tys ->
-      (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
-      let len = length tys in
-      let nums = List.from_to 1 len in
-      let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-      let labels = map (Printf.sprintf "_d%d") nums in
-      let tpl = Forge.Exp.( tuple (map (fun id -> with_env env & ident (Path.Pident id)) ids )) in
-      let e = Forge.Exp.(app (with_env env & ident path) [dlabel, obj_repr env loc tpl]) in
-      let type_ =
-        (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
-        fold_right2 (fun label ty st ->
-          (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
-          let template_ty' = Ctype.instance env template_ty in
-          begin match Ctype.free_variables template_ty' with
-          | [v] -> Ctype.unify env ty v
-          | _ -> assert false
-          end;
-          Forge.Typ.arrow ~label template_ty' st) labels tys ty
-      in
-      Some { lid;
-             path;
-             expr = fold_right2 (fun id label e ->
-               Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e;
-             type_;
-             aggressive = false}
-  | _ -> None
+  exit_then_none & fun () ->
+    let lid = Ldot (mlid, "tuple") in
+    let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
+    match expand_repr_desc env v with
+    | Ttuple tys ->
+        (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
+        let nums = List.from_to 1 (length tys) in
+        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+        let labels = map (Printf.sprintf "_d%d") nums in
+        let ds = Forge.Exp.( list env & map (fun id -> obj_repr env loc & with_env env & ident (Path.Pident id)) ids ) in
+        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
+        let expr = fold_right2 (fun id label e ->
+          Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e
+        in
+        let type_ =
+          (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
+          fold_right2 (fun label ty st ->
+            (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
+            let template_ty' = Ctype.instance env template_ty in
+            begin match Ctype.free_variables template_ty' with
+            | [v] -> Ctype.unify env ty v
+            | _ -> assert false
+            end;
+            Forge.Typ.arrow ~label template_ty' st) labels tys ty
+        in
+        Some { lid; path; expr; type_; aggressive = false}
+    | _ -> None
   
   
 let cand_deriving_polymorphic_variant env loc ty mlid =
-  let lid = Ldot (mlid, "polymorphic_variant") in
-  let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
-  match expand_repr_desc env v with
-  | Tvariant rdesc ->
-      let rdesc = Btype.row_repr rdesc in
-      if not rdesc.row_closed then begin
-        warnf "@[<2>%a: %a cannot be used as an instance since the raw type %a is open.@]"
-          Location.format loc
-          Path.format path
-          Printtyp.type_scheme v;
-        None
-      end else begin
-        (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.polymorphic_variant ~_d:(Obj.repr ((l1,v1,d1),..,(ln,vn,dn)))] *)
-        let fields = rdesc.row_fields in
-        let len = length fields in
-        let nums = List.from_to 1 len in
-        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-        let labels = map (Printf.sprintf "_d%d") nums in
-        let tpl =
-          let open Forge.Exp in
-          tuple (map2 (fun id (l,_) ->
-            let hash = Btype.hash_variant l in
-            tuple [ string l;
-                    int hash;
-                    with_env env & ident (Path.Pident id) ]) ids fields)
-        in
-        assert false
-      end
-        
-      
-        
-(*
-      let tpl = Forge.Exp.( tuple (map (fun id -> with_env env & ident (Path.Pident id)) ids )) in
-      let e = Forge.Exp.(app (with_env env & ident path) [dlabel, obj_repr env loc tpl]) in
-      let type_ =
-        (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
-        fold_right2 (fun label ty st ->
-          (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
-          let template_ty' = Ctype.instance env template_ty in
-          begin match Ctype.free_variables template_ty' with
-          | [v] -> Ctype.unify env ty v
-          | _ -> assert false
-          end;
-          Forge.Typ.arrow ~label template_ty' st) labels tys ty
-      in
-      Some { lid;
-             path;
-             expr = fold_right2 (fun id label e ->
-               Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e;
-             type_;
-             aggressive = false}
+  exit_then_none & fun () ->
+    let lid = Ldot (mlid, "polymorphic_variant") in
+    let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
+    match expand_repr_desc env v with
+    | Tvariant rdesc ->
+        let rdesc = Btype.row_repr rdesc in
+(* I guess we do not need it
+        if not rdesc.row_closed then begin
+          warnf "@[<2>%a: %a cannot be used as an instance since the raw type %a is open.@]"
+            Location.format loc
+            Path.format path
+            Printtyp.type_scheme v;
+          raise Exit
+        end;
 *)
+        (* Note: Not all fields have types *)
+        let fields =   
+          let fields =
+            map (function
+              | (l, Rpresent tyo) -> l, tyo
+              | (l, _) ->
+                  warnf "@[<2>%a: %a cannot be used as an instance since the raw type %a has inappropriate field type %s@]"
+                    Location.format loc
+                    Path.format path
+                    Printtyp.type_scheme v
+                    l;
+                  raise Exit) rdesc.row_fields
+          in
+          let len = length fields in
+          let nums = List.from_to 1 len in
+          let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+          let dlabels = map (Printf.sprintf "_d%d") nums in
+          combine fields & combine ids dlabels
+        in
+        let ds =
+          let open Forge.Exp in
+          list env & map (fun ((l,tyo),(id,_dlabel)) ->
+            let hash = Btype.hash_variant l in
+            (* CR jfuruse: of course we should have Forge.Exp.{string,int} *)
+            tuple [ untyped (Ppxx.Helper.Exp.string l);
+                    untyped (Ppxx.Helper.Exp.int hash);
+                    match tyo with
+                    | None -> none env
+                    | Some _ ->
+                        some env & obj_repr env loc & with_env env & ident & Path.Pident id ])
+                   fields
+        in
+        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
+        (* from here, we discard 0 ary constructors *)
+        let fields = filter_map (function
+          | ((_, None), _) -> None
+          | ((l, Some ty), x) -> Some ((l, ty), x)) fields
+        in
+        let expr = fold_right (fun (_, (id,dlabel)) e ->
+          Forge.(Exp.fun_ ~label:dlabel (Pat.var id) e)) fields e
+        in
+        let type_ =
+          (* _d1:ty1 -> .. -> _dn:tyn -> ty, removing 0 ary constructors *)
+          (* CR jfuruse: tag label and type label are confusing! *)
+          fold_right (fun ((_, ty), (_, dlabel)) st ->
+            (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
+            let template_ty' = Ctype.instance env template_ty in
+            begin match Ctype.free_variables template_ty' with
+            | [v] -> Ctype.unify env ty v
+            | _ -> assert false
+            end;
+            Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty
+        in
+        Format.eprintf "candidate deriving PV: %a@."
+          Printtyp.type_scheme type_;
+        Some { lid; path; expr; type_; aggressive = false}
   | _ -> None
   
   
 let cand_deriving env loc ty mlid =
   filter_map (fun x -> x)
     [ cand_deriving_tuple env loc ty mlid;
-      (* test form_check_object_ p_object vd_object_; *)
-      (* test form_check_polymorphic_variant p_polymorphic_variant vd_polymorphic_variant *) ]
+      cand_deriving_polymorphic_variant env loc ty mlid;
+    ]
   
 let rec cand_static env loc : t2 -> t list = function
   | Aggressive x ->
@@ -467,4 +488,3 @@ let candidates env loc = function
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty
-

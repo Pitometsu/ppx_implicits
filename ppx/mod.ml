@@ -38,10 +38,14 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
             (* recursive call of path and the type size is not strictly decreasing *)
             if !Options.debug_unif then begin
               eprintf "Checking %a <> ... using %a ... oops"
-              Printtyp.type_expr ty
-              Path.format path;
-              eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
-              Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+                Printtyp.type_expr ty
+                Path.format path;
+              eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+                Path.format path
+                Printtyp.type_expr ty'
+                (Tysize.(to_string & size ty'))
+                Printtyp.type_expr ty
+                (Tysize.(to_string & size ty));
             end;
 
             []
@@ -211,7 +215,7 @@ let resolve_arg loc env a = match a with
                  with
                  | _ ->
                      (* If above failed, try Some [%imp] *)
-                     Forge.Exp.some & resolve env loc spec ty
+                     Forge.Exp.some env & resolve env loc spec ty
                end,
                Optional)
           end
