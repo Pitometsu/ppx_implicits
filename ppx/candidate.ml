@@ -346,6 +346,7 @@ let test_cand_deriving env loc ty lid =
   | _ -> assert false
 
 let cand_deriving_tuple env loc ty mlid =
+  let open Ctype in
   exit_then_none & fun () ->
     let lid = Ldot (mlid, "tuple") in
     let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
@@ -364,9 +365,9 @@ let cand_deriving_tuple env loc ty mlid =
           (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
           fold_right2 (fun label ty st ->
             (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
-            let template_ty' = Ctype.instance env template_ty in
-            begin match Ctype.free_variables template_ty' with
-            | [v] -> Ctype.unify env ty v
+            let template_ty' = instance env template_ty in
+            begin match free_variables template_ty' with
+            | [v] -> unify env ty v
             | _ -> assert false
             end;
             Forge.Typ.arrow ~label template_ty' st) labels tys ty
@@ -376,6 +377,7 @@ let cand_deriving_tuple env loc ty mlid =
   
   
 let cand_deriving_polymorphic_variant env loc ty mlid =
+  let open Ctype in
   exit_then_none & fun () ->
     let lid = Ldot (mlid, "polymorphic_variant") in
     let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
@@ -437,9 +439,9 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
           (* CR jfuruse: tag label and type label are confusing! *)
           fold_right (fun ((_, ty), (_, dlabel)) st ->
             (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
-            let template_ty' = Ctype.instance env template_ty in
-            begin match Ctype.free_variables template_ty' with
-            | [v] -> Ctype.unify env ty v
+            let template_ty' = instance env template_ty in
+            begin match free_variables template_ty' with
+            | [v] -> unify env ty v
             | _ -> assert false
             end;
             Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty
