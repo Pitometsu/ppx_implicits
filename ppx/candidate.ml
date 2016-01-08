@@ -345,6 +345,17 @@ let test_cand_deriving env loc ty lid =
         (path, dlabel, Ctype.repr v, vty')
   | _ -> assert false
 
+let make_id_labels n = 
+  let nums = List.from_to 1 n in
+  let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+  let labels = map (Printf.sprintf "_d%d") nums in
+  ids, labels
+
+(* konstraint abstractions *)    
+let kabs fields e = 
+  fold_right (fun (_, (id,dlabel)) e ->
+    Forge.(Exp.fun_ ~label:dlabel (Pat.var id) e)) fields e
+
 let cand_deriving_tuple env loc ty mlid =
   let open Ctype in
   exit_then_none & fun () ->
@@ -353,24 +364,26 @@ let cand_deriving_tuple env loc ty mlid =
     match expand_repr_desc env v with
     | Ttuple tys ->
         (* Build [fun ~_l1:d1 .. ~_ln:dn -> M.tuple ~_d:(Obj.repr (d1,..,dn))] *)
-        let nums = List.from_to 1 (length tys) in
-        let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-        let labels = map (Printf.sprintf "_d%d") nums in
-        let ds = Forge.Exp.( list env & map (fun id -> obj_repr env loc & with_env env & ident (Path.Pident id)) ids ) in
-        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
-        let expr = fold_right2 (fun id label e ->
-          Forge.(Exp.fun_ ~label (Pat.var id) e)) ids labels e
+        let fields = 
+          let ids, labels = make_id_labels & length tys in
+          combine tys & combine ids labels
         in
+        let ds =
+          let open Forge.Exp in
+          list env & map (fun (_,(id,_)) -> obj_repr env loc & with_env env & ident (Path.Pident id)) fields
+        in
+        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
+        let expr = kabs fields e in
         let type_ =
           (* _d1:ty1 -> .. -> _dn:tyn -> ty *)
-          fold_right2 (fun label ty st ->
+          fold_right (fun (ty,(_,label)) st ->
             (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
             let template_ty' = instance env template_ty in
             begin match free_variables template_ty' with
             | [v] -> unify env ty v
             | _ -> assert false
             end;
-            Forge.Typ.arrow ~label template_ty' st) labels tys ty
+            Forge.Typ.arrow ~label template_ty' st) fields ty
         in
         Some { lid; path; expr; type_; aggressive = false}
     | _ -> None
@@ -406,10 +419,7 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
                     l;
                   raise Exit) rdesc.row_fields
           in
-          let len = length fields in
-          let nums = List.from_to 1 len in
-          let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-          let dlabels = map (Printf.sprintf "_d%d") nums in
+          let ids, dlabels = make_id_labels & length fields in
           combine fields & combine ids dlabels
         in
         let ds =
@@ -431,9 +441,7 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
           | ((_, None), _) -> None
           | ((l, Some ty), x) -> Some ((l, ty), x)) fields
         in
-        let expr = fold_right (fun (_, (id,dlabel)) e ->
-          Forge.(Exp.fun_ ~label:dlabel (Pat.var id) e)) fields e
-        in
+        let expr = kabs fields e in
         let type_ =
           (* _d1:ty1 -> .. -> _dn:tyn -> ty, removing 0 ary constructors *)
           (* CR jfuruse: tag label and type label are confusing! *)
@@ -477,10 +485,7 @@ let cand_deriving_object env loc ty mlid =
         end;
         let fields = 
           let fields = map (fun (l, _, ty) -> (l,ty)) fields in
-          let len = length fields in
-          let nums = List.from_to 1 len in
-          let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
-          let dlabels = map (Printf.sprintf "_d%d") nums in
+          let ids, dlabels = make_id_labels & length fields in
           combine fields & combine ids dlabels
         in
         let ds =
@@ -494,9 +499,7 @@ let cand_deriving_object env loc ty mlid =
                    fields
         in
         let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
-        let expr = fold_right (fun (_, (id,dlabel)) e ->
-          Forge.(Exp.fun_ ~label:dlabel (Pat.var id) e)) fields e
-        in
+        let expr = kabs fields e in
         let type_ =
           (* _d1:ty1 -> .. -> _dn:tyn -> ty, removing 0 ary constructors *)
           (* CR jfuruse: tag label and type label are confusing! *)
