@@ -450,10 +450,74 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
   | _ -> None
   
   
+(* 
+Very good tutorial about OCaml Object internals:
+
+http://ambassadortothecomputers.blogspot.jp/2010/03/inside-ocaml-objects.html 
+*)
+
+let cand_deriving_object env loc ty mlid =
+  let open Btype in
+  let open Ctype in
+  exit_then_none & fun () ->
+    let lid = Ldot (mlid, "object_") in
+    let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
+    match expand_repr_desc env v with
+    | Tobject (fields, _) ->
+        let fields, _tvar (*probably?*) = flatten_fields fields in
+        let fields = map (fun (l,fk,ty) -> (l,field_kind_repr fk,ty)) fields in
+        if exists (fun (_,fk,_) -> fk <> Fpresent) fields then begin
+          warnf "@[<2>%a: %a cannot be used as an instance since the object type %a has a non-present method.@]"
+            Location.format loc
+            Path.format path
+            Printtyp.type_scheme v;
+          raise Exit
+        end;
+        let fields = 
+          let fields = map (fun (l, _, ty) -> (l,ty)) fields in
+          let len = length fields in
+          let nums = List.from_to 1 len in
+          let ids = map (fun i -> Ident.create (Printf.sprintf "__deriving__%d" i)) nums in
+          let dlabels = map (Printf.sprintf "_d%d") nums in
+          combine fields & combine ids dlabels
+        in
+        let ds =
+          let open Forge.Exp in
+          list env & map (fun ((l,_ty),(id,_dlabel)) ->
+            let hash = Obj.magic & CamlinternalOO.public_method_label l in
+            (* CR jfuruse: of course we should have Forge.Exp.{string,int} *)
+            tuple [ untyped (Ppxx.Helper.Exp.string l);
+                    untyped (Ppxx.Helper.Exp.int hash);
+                    obj_repr env loc & with_env env & ident & Path.Pident id ])
+                   fields
+        in
+        let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
+        let expr = fold_right (fun (_, (id,dlabel)) e ->
+          Forge.(Exp.fun_ ~label:dlabel (Pat.var id) e)) fields e
+        in
+        let type_ =
+          (* _d1:ty1 -> .. -> _dn:tyn -> ty, removing 0 ary constructors *)
+          (* CR jfuruse: tag label and type label are confusing! *)
+          fold_right (fun ((_, ty), (_, dlabel)) st ->
+            (* no need to undo the unification since template_ty has no free tyvar but one generalized tvar *)
+            let template_ty' = instance env template_ty in
+            begin match free_variables template_ty' with
+            | [v] -> unify env ty v
+            | _ -> assert false
+            end;
+            Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty
+        in
+        Format.eprintf "candidate deriving PV: %a@."
+          Printtyp.type_scheme type_;
+        Some { lid; path; expr; type_; aggressive = false}
+  | _ -> None
+  
+  
 let cand_deriving env loc ty mlid =
   filter_map (fun x -> x)
     [ cand_deriving_tuple env loc ty mlid;
       cand_deriving_polymorphic_variant env loc ty mlid;
+      cand_deriving_object env loc ty mlid;
     ]
   
 let rec cand_static env loc : t2 -> t list = function
