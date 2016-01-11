@@ -37,10 +37,10 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
         | Some ty' when not & Tysize.(lt (size ty) (size ty')) ->
             (* recursive call of path and the type size is not strictly decreasing *)
             if !Options.debug_unif then begin
-              eprintf "Checking %a <> ... using %a ... oops"
+              eprintf "  Checking %a <> ... using %a ... oops"
                 Printtyp.type_expr ty
                 Path.format path;
-              eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+              eprintf "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
                 Path.format path
                 Printtyp.type_expr ty'
                 (Tysize.(to_string & size ty'))
@@ -64,33 +64,37 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
             in
 
             with_snapshot & fun () ->
-              if !Options.debug_unif then
-                eprintf "Checking %a <> %a, using %a ..."
+              if !Options.debug_unif then begin
+                eprintf "  Checking %a <> %a, using %a ..."
                   Printtyp.type_expr ity
                   Printtyp.type_expr ivty
                   Path.format path;
-
+              end;
               match protect & fun () -> Ctype.unify env ity ivty with
               | `Error (Ctype.Unify utrace) ->
                   if !Options.debug_unif then begin
-                    eprintf " no@.";
-                    eprintf "   Reason: @[%a@]@."
+                    eprintf "    no@.";
+                    eprintf "      Reason: @[%a@]@."
                       (fun ppf utrace -> Printtyp.report_unification_error ppf
                         env utrace
                         (fun ppf -> fprintf ppf "Hmmm ")
                         (fun ppf -> fprintf ppf "with"))
                       utrace;
+(*
+                    eprintf "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
+                    eprintf "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
+*)
                   end;
                   [] (* no solution *)
                       
               | `Error e ->
                   (* CR jfuruse: this is unexpected therefore should fail ppx *)
-                  eprintf "Ctype.unify raised strange exception %s@." (Printexc.to_string e);
+                  eprintf "  Ctype.unify raised strange exception %s@." (Printexc.to_string e);
                   [] (* no solution *)
                       
               | `Ok _ ->
                   if !Options.debug_unif then
-                    eprintf " ok: %a@." Printtyp.type_expr ity;
+                    eprintf "    ok: %a@." Printtyp.type_expr ity;
                   
                   (* Add the sub-problems *)
                   let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in

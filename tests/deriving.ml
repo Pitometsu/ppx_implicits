@@ -37,6 +37,9 @@ module Show = struct
           let d : Obj.t -> string = Obj.magic d in
           let a = Obj.field v 1 in
           "`" ^ l ^ " (" ^ d a ^ ")"
+
+  let object_ ~_ds:(_ds : (string * int * Obj.t) list) (_v : 'a) : string =
+    "<obj>"
 end
 
 module Base = struct
@@ -51,10 +54,6 @@ let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (4
 let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (42,42,(42,42))) "(42,42,(42,42))"
 let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] `Foo) "`Foo"
 let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (`Foo 1)) "`Foo (1)"
-let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (`Foo (1, 2))) "`Foo ((1,2))" (* not cool but this is how it works *)
-
-(* requires a closed type... *)
-let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (`Foo (1, `Bar) : [`Foo of (int * [`Bar])])) "`Foo ((1,`Bar))"
-
-(* we need generalization of deriving instances *)
+let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (`Foo (1, 2))) "`Foo ((1,2))" (* parens are not cool but this is how it works *)
 let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (`Foo (1, `Bar) )) "`Foo ((1,`Bar))"
+let () = eqcheck ([%imp aggressive(name "show" related), deriving Show, Base] (object method x = 1 end)) "<obj>"
