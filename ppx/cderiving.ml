@@ -1,9 +1,3 @@
-(*
-
-  Instance search space specification DSL, magling to and back from
-  OCaml type definitions.
-
-*)
 open Ppxx.Utils
 open List
 

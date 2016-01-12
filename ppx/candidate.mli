@@ -12,9 +12,15 @@ type t = {
 val uniq : t list -> t list
 (** Remove dupes *)
 
+val values_of_module
+  : recursive:bool
+  -> Env.t
+  -> Longident.t
+  -> Path.t
+  -> Types.module_declaration
+  -> t list
+
 val cand_direct : Env.t -> Location.t -> ([`In | `Just] * Longident.t * Path.t option) -> t list
-val cand_related : Env.t -> Location.t -> Types.type_expr -> t list
 val cand_opened : Env.t -> Location.t -> ([`In | `Just] * Longident.t) -> t list
-val cand_typeclass : Env.t -> Location.t -> Path.t -> t list
 val cand_name : Re.re -> (unit -> t list) -> t list
   

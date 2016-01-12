@@ -254,16 +254,16 @@ let rec cand_static env loc : t2 -> t list = function
   | Opened (f,x) -> cand_opened env loc (f,x)
   | Direct (f,x,popt) -> cand_direct env loc (f,x,popt)
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Typeclass (Some p) -> cand_typeclass env loc p
+  | Typeclass (Some p) -> Ctypeclass.cand_typeclass env loc p
   | Typeclass None -> assert false
   | spec when is_static spec -> assert false
   | _ -> assert false
 
 let rec cand_dynamic env loc ty = function
-  | Related -> cand_related env loc ty
+  | Related -> Crelated.cand_related env loc ty
   | Aggressive x -> map (fun x -> { x with aggressive= true }) & cand_dynamic env loc ty x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
-  | Deriving lid -> Deriving.cand_deriving env loc ty lid
+  | Deriving lid -> Cderiving.cand_deriving env loc ty lid
   | Opened _ | Direct _ | Typeclass _ ->
       (* they are static *)
       assert false

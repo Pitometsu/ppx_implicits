@@ -9,7 +9,9 @@ FILES[] =
     unshadow
     klabel
     candidate
-    deriving
+    crelated
+    ctypeclass
+    cderiving
     spec
     pre
     tysize
