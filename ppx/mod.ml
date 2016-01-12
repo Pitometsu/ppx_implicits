@@ -120,7 +120,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   close_gen_vars ty;
 
   let get_cands =
-    let f = Candidate.candidates env loc spec in
+    let f = Spec.candidates env loc spec in
     fun ty -> Candidate.uniq & f ty @ map snd !derived_candidates
   in
 

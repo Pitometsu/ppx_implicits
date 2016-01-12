@@ -4,10 +4,12 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
+    utils
     options
     unshadow
     klabel
     candidate
+    deriving
     spec
     pre
     tysize

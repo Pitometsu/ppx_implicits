@@ -9,14 +9,14 @@ type t =
     (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_spec] *)
 
 and t2 = 
-  | Opened of Longident.t flagged 
+  | Opened of [`In | `Just] * Longident.t
     (** [opened M]
 
         The values defined under module path [P.M] which is accessible as [M] 
         by [open P] 
     *)
       
-  | Direct of (Longident.t * Path.t option) flagged
+  | Direct of [`In | `Just] * Longident.t * Path.t option
     (** [P] or [just P]. 
 
         [P] is for the values defined under module [P] and [P]'s sub-modules. 
@@ -57,8 +57,6 @@ and t2 =
 
         [M] must define [M.tuple], [M.object_] and [M.poly_variant] 
     *)
-
-and 'a flagged = In of 'a | Just of 'a
 
 val is_static : t2 -> bool
 (** static : instance space is fixed
@@ -103,14 +101,9 @@ val from_module_path :
      ]
 (** get spec from a module path which has type __imp_spec__ = .. *)
 
-(** Build an empty type env except mp module with the given module type *)
-class dummy_module :
-  Env.t ->
-  Path.t ->
-  Types.module_type ->
-  object
-    method lookup_module : string -> Path.t
-    method lookup_type   : string -> Path.t * type_declaration
-    method lookup_value  : string -> Path.t
-  end
-  
+val candidates 
+  : Env.t 
+    -> Location.t 
+    -> t 
+    -> type_expr 
+    -> Candidate.t list
