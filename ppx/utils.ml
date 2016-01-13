@@ -67,3 +67,47 @@ object
     | _ -> assert false
     
 end
+
+let exit_then d f = try f () with Exit -> d
+
+let mangle s = 
+  let len = String.length s in
+  let b = Buffer.create len in
+  for i = 0 to len - 1 do
+    let c = String.unsafe_get s i in
+    match c with
+    | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c
+    | '_' -> Buffer.add_string b "__"
+    | _ -> 
+        Buffer.add_char b '_';
+        Buffer.add_string b & Printf.sprintf "%02x" & Char.code c
+  done;
+  Buffer.contents b
+
+(* CR jfuruse: need tests *)
+let unmangle s = 
+  try
+    let len = String.length s in
+    let b = Buffer.create len in
+    let rec f i = 
+      if i = len then ()
+      else begin
+        let c = String.unsafe_get s i in
+        match c with
+        | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c; f & i+1
+        | '_' -> 
+            begin match s.[i+1] with
+            | '_' -> Buffer.add_char b '_'; f & i+2
+            | _ ->
+                let hex = String.sub s (i+1) 2 in
+                let c = Char.chr & int_of_string & "0x" ^ hex in
+                Buffer.add_char b c;
+                f & i+3
+            end
+        | _ -> raise Exit
+      end
+    in
+    f 0;
+    `Ok (Buffer.contents b)
+  with
+  | Failure s -> `Error (`Failed_unmangle s)

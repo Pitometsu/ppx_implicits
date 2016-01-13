@@ -27,10 +27,10 @@ and t2 =
   | Aggressive of t2 (** [aggressive t2]. Even normal function arrows are considered as constraints. *)
   | Related (** [related]. The values defined under module [P] where data type defined in [P] appears in the type of the resolution target *)
   | Name of string * Re.re * t2 (** [name "rex" t2]. Constraint values only to those whose names match with the regular expression *)
-  | Typeclass of Path.t option (** [typeclass]. Typeclass style resolution. The argument is None at parsing, but must be filled with Some until the resolution.
-  None at parsing, but must be filled with Some until the resolution *) 
+  | Typeclass of Path.t option (** [typeclass]. Typeclass style resolution. The argument is None at parsing, but must be filled with Some until the resolution. *) 
   | Deriving of Longident.t (** [deriving M]. [M] must define [M.tuple], [M.object_] and [M.poly_variant] *)
-
+  | PPXDerive of string * Cppxderive.t (** [ppxderive ([%...] : ty)]. *)
+      
 let rec is_static = function
   | Opened _ -> true
   | Direct _ -> true
@@ -38,6 +38,7 @@ let rec is_static = function
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
   | Typeclass _ -> true
   | Deriving _ -> false
+  | PPXDerive _ -> false
     
 let to_string = 
   let rec t = function
@@ -55,69 +56,27 @@ let to_string =
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
     | Typeclass _ -> "typeclass"
     | Deriving p -> Printf.sprintf "deriving %s" & Longident.to_string p
+    | PPXDerive (s, _) -> s
   in
   t 
 
 let prefix = "Spec_"
 let prefix_len = String.length prefix
 
-(* convert an arbitrary string to Lexer.identchar's
-   '_' is a special char. 
- *)
-let mangle s = 
-  let len = String.length s in
-  let b = Buffer.create len in
-  Buffer.add_string b prefix;
-  for i = 0 to len - 1 do
-    let c = String.unsafe_get s i in
-    match c with
-    | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c
-    | '_' -> Buffer.add_string b "__"
-    | _ -> 
-        Buffer.add_char b '_';
-        Buffer.add_string b & Printf.sprintf "%02x" & Char.code c
-  done;
-  Buffer.contents b
-
-let to_mangled_string x = mangle & to_string x
+let to_mangled_string x = prefix ^ Utils.mangle (to_string x)
 
 (* CR jfuruse: need tests *)
 let unmangle s = 
-  try
-    if not & String.is_prefix prefix s then raise Exit
-    else
-      let s = String.sub s prefix_len (String.length s - prefix_len) in
-      let len = String.length s in
-      let b = Buffer.create len in
-      let rec f i = 
-        if i = len then ()
-        else begin
-          let c = String.unsafe_get s i in
-          match c with
-          | 'A'..'Z' | 'a'..'z' | '0'..'9' | '\'' -> Buffer.add_char b c; f & i+1
-          | '_' -> 
-              begin match s.[i+1] with
-              | '_' -> Buffer.add_char b '_'; f & i+2
-              | _ ->
-                  let hex = String.sub s (i+1) 2 in
-                  let c = Char.chr & int_of_string & "0x" ^ hex in
-                  Buffer.add_char b c;
-                  f & i+3
-              end
-          | _ -> raise Exit
-        end
-      in
-      f 0;
-      `Ok (Buffer.contents b)
-  with
-  | Failure s -> `Error (`Failed_unmangle s)
+  if not & String.is_prefix prefix s then assert false; (* CR jfuruse: better error *)
+  let s = String.sub s prefix_len (String.length s - prefix_len) in
+  Utils.unmangle s
 
 let from_string s = 
   let lexbuf = Lexing.from_string s in
   try `Ok (Parser.parse_expression Lexer.token lexbuf) with
   | _ -> `Error (`Parse s)
 
-let from_expression e = 
+let from_expression env e = 
   try
     let get_lid e = match e.pexp_desc with
       | Pexp_construct ({txt=lid}, None) -> Some lid
@@ -146,6 +105,12 @@ let from_expression e =
               end
           | _ -> errorf "deriving must take just one argument"
           end
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "ppxderive"} }, args ) ->
+          begin match args with
+          | ["", e] ->
+              PPXDerive (Pprintast.string_of_expression e, Cppxderive.parse env e)
+          | _ -> errorf "derive must take just one argument"
+          end
       | _ -> 
           let f,lid = flag_lid e in
           Direct (f, lid, None)
@@ -164,7 +129,7 @@ let from_expression e =
   with
   | Failure s -> `Error (`ParseExp (e, s))
 
-let from_structure str =
+let from_structure env str =
   match str with
   | [] -> `Ok Type
   | _::_::_ -> 
@@ -172,7 +137,7 @@ let from_structure str =
   | [sitem] ->
       match sitem.pstr_desc with
       | Pstr_eval (e, _) ->
-          from_expression e
+          from_expression env e
       | _ ->
           `Error (`String "spec must be an OCaml expression")
 
@@ -189,8 +154,8 @@ let from_ok loc = function
   | `Ok v -> v
   | `Error e -> error loc e
 
-let from_payload = function
-  | PStr s -> from_structure s
+let from_payload env = function
+  | PStr s -> from_structure env s
   | _ -> `Error (`String "spec must be an OCaml expression")
 
 (* typed world *)
@@ -206,14 +171,21 @@ let fix_typeclass _loc p = function
       in
       Or (map f t2s)
     
-let from_type_decl loc p = function
+let from_type_decl env loc p = function
   | { type_params = []
     ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->
       let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
       fix_typeclass loc p
       & from_ok loc
-      & unmangle id.Ident.name >>= from_string >>= from_expression
+      & unmangle id.Ident.name >>= from_string >>= from_expression env
+  | { type_params = _
+    ; type_kind = Type_variant [ { cd_id= id; cd_args = ctys; cd_res = None; cd_loc = loc} ]
+    ; type_manifest = None } ->
+      let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v in
+      fix_typeclass loc p
+      & from_ok loc
+      & unmangle id.Ident.name >>= from_string >>= from_expression env
   | _ -> 
       errorf "%a: Illegal data type definition for __imp_spec__. [%%%%imp_spec SPEC] must be used." Location.format loc
 
@@ -223,7 +195,7 @@ let from_module_type env loc mp mty =
   try
     let p, td = m#lookup_type "__imp_spec__" in
     (* Add mp.Instances as the default recipes *)
-    match from_type_decl loc p td with
+    match from_type_decl env loc p td with
     | Type -> assert false
     | Or t2s ->
         let default_instances =
@@ -264,6 +236,7 @@ let rec cand_dynamic env loc ty = function
   | Aggressive x -> map (fun x -> { x with aggressive= true }) & cand_dynamic env loc ty x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
   | Deriving lid -> Cderiving.cand_deriving env loc ty lid
+  | PPXDerive (_,t) -> Cppxderive.cand_derive env loc t ty
   | Opened _ | Direct _ | Typeclass _ ->
       (* they are static *)
       assert false

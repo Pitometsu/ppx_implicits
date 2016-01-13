@@ -12,6 +12,7 @@ FILES[] =
     crelated
     ctypeclass
     cderiving
+    cppxderive
     spec
     pre
     tysize

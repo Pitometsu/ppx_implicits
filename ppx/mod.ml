@@ -12,7 +12,7 @@ module Forge = Typpx.Forge
 (** Check [e [@imp ...]] for example, [assert false [@imp ...]] *)
 let has_imp e = 
   let imps = flip map e.exp_attributes & function 
-    | {txt="imp"}, payload -> Some (Spec.from_payload payload)
+    | {txt="imp"}, payload -> Some (Spec.from_payload e.exp_env payload)
     | _ -> None
   in
   match flip filter imps & function Some _ -> true | None -> false with
@@ -157,7 +157,7 @@ let imp_type_spec env loc ty =
                 errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]"
                   Location.format loc
           in
-          `Ok (Spec.from_type_decl td.type_loc p td)
+          `Ok (Spec.from_type_decl env td.type_loc p td)
       | Pdot (mp, _, _) -> 
           (* <mp>.__imp_spec__ must exist *)
           begin match Spec.from_module_path env loc mp with

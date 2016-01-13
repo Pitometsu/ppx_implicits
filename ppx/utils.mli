@@ -14,3 +14,13 @@ class dummy_module
        method lookup_type   : string -> Path.t * Types.type_declaration
        method lookup_value  : string -> Path.t
      end
+
+val exit_then : 'a -> (unit -> 'a) -> 'a
+(** if Exit is raised, catch it and return the default *)
+
+val mangle : string -> string
+(** convert an arbitrary string to Lexer.identchar's
+   '_' is a special char. 
+*)
+
+val unmangle : string -> [> `Ok of string | `Error of [> `Failed_unmangle of string ] ]

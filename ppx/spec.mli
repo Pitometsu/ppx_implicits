@@ -58,6 +58,8 @@ and t2 =
         [M] must define [M.tuple], [M.object_] and [M.poly_variant] 
     *)
 
+  | PPXDerive of string * Cppxderive.t (** [ppxderive ([%...] : ty)]. *)
+
 val is_static : t2 -> bool
 (** static : instance space is fixed
     dynamic : instance space can be changed according to the target type
@@ -77,14 +79,15 @@ val error :
      | `String of string ]
   -> 'fail
 
-val from_payload : 
-  Parsetree.payload 
+val from_payload :
+  Env.t
+  -> Parsetree.payload 
   -> [> `Ok of t
      |  `Error of [> `ParseExp of Parsetree.expression * string 
                   |  `String of string ]
      ]
 
-val from_type_decl : Location.t -> Path.t -> Types.type_declaration -> t
+val from_type_decl : Env.t -> Location.t -> Path.t -> Types.type_declaration -> t
 (** get spec from type __imp_spec__ = .. *)
 
 val from_module_type : 

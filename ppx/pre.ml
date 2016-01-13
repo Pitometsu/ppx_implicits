@@ -231,7 +231,7 @@ let extend super =
     super.structure self sitems
   in 
 
-  let do_imp_spec loc pld f = match Spec.from_payload pld with
+  let do_imp_spec loc pld f = match Spec.from_payload Env.empty (* dummy *) pld with
     | `Error err -> Spec.error loc err
     | `Ok Spec.Type ->
         errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"

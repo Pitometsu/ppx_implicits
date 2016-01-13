@@ -3,8 +3,8 @@ open Typedtree
 
 type t = {
   lid        : Longident.t; (** lid of candidate identifier. Used for [name] spec *)
-  path       : Path.t;      (** path of candiidate identifier. Used for [uniq] *)
-  expr       : expression;  (** candidate expression maker *)
+  path       : Path.t;      (** path of candiidate identifier. Used for [uniq] and recursive call size check *)
+  expr       : expression;         (** candidate expression maker *)
   type_      : type_expr;
   aggressive : bool
 }

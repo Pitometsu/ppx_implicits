@@ -1,3 +1,5 @@
+open Utils
+
 open Ppxx.Utils
 open List
 
@@ -20,8 +22,6 @@ let obj_repr env loc e =
         errorf "%a: Obj.repr is required but not accessible" Location.format loc
   in
   Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
-
-let exit_then_none f = try f () with Exit -> None
 
 (* vd.val_type must have the form ~_d:Obj.t list -> ty['a] *)
 let test_cand_deriving env loc ty lid =
@@ -96,7 +96,7 @@ let build_type getty env template_ty fields ty_return =
     Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty_return
 
 let cand_deriving_tuple env loc ty mlid =
-  exit_then_none & fun () ->
+  exit_then None & fun () ->
     let lid = Ldot (mlid, "tuple") in
     let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
     match expand_repr_desc env v with
@@ -115,7 +115,7 @@ let cand_deriving_tuple env loc ty mlid =
   
   
 let cand_deriving_polymorphic_variant env loc ty mlid =
-  exit_then_none & fun () ->
+  exit_then None & fun () ->
     let lid = Ldot (mlid, "polymorphic_variant") in
     let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
     match expand_repr_desc env v with
@@ -177,7 +177,7 @@ http://ambassadortothecomputers.blogspot.jp/2010/03/inside-ocaml-objects.html
 let cand_deriving_object env loc ty mlid =
   let open Btype in
   let open Ctype in
-  exit_then_none & fun () ->
+  exit_then None & fun () ->
     let lid = Ldot (mlid, "object_") in
     let path, dlabel, v, template_ty = test_cand_deriving env loc ty lid in
     match expand_repr_desc env v with
