@@ -58,7 +58,7 @@ and t2 =
         [M] must define [M.tuple], [M.object_] and [M.poly_variant] 
     *)
 
-  | PPXDerive of string * Cppxderive.t (** [ppxderive ([%...] : ty)]. *)
+  | PPXDerive of Parsetree.expression * Parsetree.core_type * type_expr option (** [ppxderive ([%...] : ty)]. *)
 
 val is_static : t2 -> bool
 (** static : instance space is fixed

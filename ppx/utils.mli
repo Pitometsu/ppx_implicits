@@ -24,3 +24,5 @@ val mangle : string -> string
 *)
 
 val unmangle : string -> [> `Ok of string | `Error of [> `Failed_unmangle of string ] ]
+
+val (>>=) : [< `Error of 'a | `Ok of 'b ] -> ('b -> ([> `Error of 'a ] as 'c)) -> 'c

@@ -18,6 +18,13 @@ type t = {
 }
 
 (* (xxx : ty) *)
+let parse0 p =
+  let open Parsetree in
+  match p.pexp_desc with
+  | Pexp_constraint (e, cty) -> e, cty
+  | _ -> assert false (* CR jfuruse: better error *)
+      
+(* (xxx : ty) *)
 let parse env p =
   let open Parsetree in
   (* CR jfuruse: this is crazy *)      

@@ -111,3 +111,5 @@ let unmangle s =
     `Ok (Buffer.contents b)
   with
   | Failure s -> `Error (`Failed_unmangle s)
+
+let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
