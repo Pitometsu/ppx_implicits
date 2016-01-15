@@ -13,6 +13,7 @@ FILES[] =
     ctypeclass
     cderiving
     cppxderive
+    typeencode
     spec
     pre
     tysize

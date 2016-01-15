@@ -182,15 +182,25 @@ let extend super =
   in
   (* type __imp_spec__ = private Spec_xxxx *)
   let forge_spec loc spec =
-    let mangled = Spec.to_mangled_string spec in
+    let encoded = Typeencode.encode
+      (* CR jfuruse: Ugly... *)
+      & match Spec.expression_from_string & Spec.to_string spec with
+      | `Ok e -> e
+      | _ -> assert false
+    in
+    (* Wierd but to get tyvars from Parsedtree.core_type, 
+       we first "type" it. *)
+    let ty = Typetexp.transl_simple_type Env.empty false encoded in
+    let tvars = Ctype.free_variables ty.Typedtree.ctyp_type in
+    let ctvars = map (fun ty -> match (Ctype.repr ty).Types.desc with
+      | Types.Tvar (Some n) -> Typ.var n
+      | _ -> assert false) tvars
+    in
     Type.mk ~loc
-      ~kind: (Ptype_variant [ { pcd_name = {txt=mangled; loc}
-                              ; pcd_args = []
-                              ; pcd_res = None
-                              ; pcd_loc = loc
-                              ; pcd_attributes = []
-                              } ])
+      ~params:(map (fun x -> (x,Invariant)) ctvars)
+      ~kind: Ptype_abstract
       ~priv: Private
+      ~manifest: encoded
       {txt = "__imp_spec__"; loc}
   in
   let has_typeclass_attr = function

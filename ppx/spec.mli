@@ -68,6 +68,8 @@ val is_static : t2 -> bool
 val to_string : t -> string
 (** convert [t] to its string representation for [[%%imp_spec ...]] *)
 
+val expression_from_string : string -> [> `Ok of Parsetree.expression | `Error of [> `Parse of string ]]
+  
 val to_mangled_string : t -> string
 (** convert [t] to its mangled string representation *)
 

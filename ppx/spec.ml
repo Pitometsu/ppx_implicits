@@ -68,155 +68,6 @@ let expression_from_string s =
   try `Ok (Parser.parse_expression Lexer.token lexbuf) with
   | _ -> `Error (`Parse s)
 
-module Hack = struct
-  open Ppxx.Helper.Typ
-  open Parsetree
-
-  module Encode = struct
-    let string : string -> core_type = fun s ->
-      variant [Rtag (Utils.mangle s, [], true, [])] Closed None
-        
-    let node : string -> core_type list -> core_type = fun s -> function
-      | []  -> variant [Rtag (s, [], true, [])] Closed None
-      | [x] -> variant [Rtag (s, [], false, [x])] Closed None
-      | xs  -> variant [Rtag (s, [], false, [tuple xs])] Closed None
-  
-    let in_just = function
-      | `In -> node "_In" []
-      | `Just -> node "_Just" []
-  
-    let longident l = string & Longident.to_string l
-      
-    let rec t2 = function
-      | Direct (ij, l, _) ->
-          node "_Direct" [ in_just ij; longident l]
-      | Opened (ij, l) ->
-          node "_Opened" [ in_just ij; longident l]
-      | Related -> node "_Related" []
-      | Aggressive x -> node "_Aggressive" [t2 x]
-      | Name (s, _re, x) -> node "_Name" [string s; t2 x]
-      | Typeclass _ -> node "_Typeclass" []
-      | Deriving l -> node "_Deriving" [longident l]
-      | PPXDerive (s, ty, _) -> node "_PPXDerive" [string (Pprintast.string_of_expression s); ty]
-  
-    let t = function
-      | Type -> assert false
-      | Or [] -> assert false
-      | Or t2s ->
-          let xs = map t2 t2s in
-          let get_row_fields cty = match cty.ptyp_desc with
-            | Ptyp_variant (rfs, _, _) -> rfs
-            | _ -> assert false
-          in
-          variant (concat_map get_row_fields xs) Closed None
-  end
-
-  module Decode = struct
-    let (>>=) = Utils.(>>=)
-    let ok x = `Ok x
-      
-    let desc cty = cty.ptyp_desc
-
-    let string cty = match desc cty with
-      | Ptyp_variant ([Rtag (ms, [], true, [])], Closed, None) ->
-          Utils.unmangle ms
-      | _ -> `Error (`Expected "string")
-        
-    let node cty = match desc cty with
-      | Ptyp_variant ([Rtag (s, [], true, [])], Closed, None) -> `Ok (s, [])
-      | Ptyp_variant ([Rtag (s, [], false, [cty])], Closed, None) ->
-          begin match desc cty with
-          | Ptyp_tuple ctys -> `Ok (s, ctys)
-          | _ -> `Ok (s, [cty])
-          end
-      | _ -> `Error (`Expected "node")
-
-    let in_just cty = match desc cty with
-      | Ptyp_variant ([Rtag ("_In", [], true, [])], Closed, None) -> `Ok `In
-      | Ptyp_variant ([Rtag ("_Just", [], true, [])], Closed, None) -> `Ok `Just
-      | _ -> `Error (`Expected "In/Just")
-
-    let longident cty = match desc cty with
-      | Ptyp_variant ([Rtag (ms, [], true, [])], Closed, None) ->
-          Utils.unmangle ms >>= fun s ->
-          (try ok & Longident.parse s with _ -> `Error (`Expected "longident"))
-      | _ -> `Error (`Expected "longident")
-
-    let rec t2 cty = node cty >>= function
-      | "_Direct", [ij; lid] ->
-          in_just ij >>= fun ij ->
-          longident lid >>= fun lid ->
-          ok & Direct (ij, lid, None)
-      | "_Direct", _ -> `Error (`SyntaxError "Direct requires 2 args")
-      | "_Opened", [ij; lid] ->
-          in_just ij >>= fun ij ->
-          longident lid >>= fun lid ->
-          ok & Opened (ij, lid)
-      | "_Opened", _ -> `Error (`SyntaxError "Opened requires 2 args")
-      | "_Related", [] -> ok Related
-      | "_Related", _ -> `Error (`SyntaxError "Related cannot have args")
-      | "_Aggressive", [x] ->
-          t2 x >>= fun x -> ok & Aggressive x
-      | "_Aggressive", _ -> `Error (`SyntaxError "Aggressive requires 1 arg")
-      | "_Name", [s; x] ->
-          string s >>= fun s ->
-          t2 x >>= fun x ->
-          ok & Name (s, Re_pcre.regexp s, x)
-      | "_Name", _ -> `Error (`SyntaxError "Name requires 2 args")
-      | "_Typeclass", [] -> ok & Typeclass None
-      | "_Typeclass", _ -> `Error (`SyntaxError "Typeclass cannot have arg")
-      | "_Deriving", [l] ->
-          longident l >>= fun l -> ok & Deriving l
-      | "_Deriving", _ -> `Error (`SyntaxError "Deriving requires 1 arg")
-      | "_PPXDerive", [s; ty] ->
-          string s >>= fun s ->
-          expression_from_string s >>= fun e ->
-          ok & PPXDerive (e, ty, None)
-      | "_PPXDerive", _ -> `Error (`SyntaxError "PPXDerive requires 2 args")
-      | s, _ -> `Error (`SyntaxError ("Unknown keyword: " ^ s))
-
-    let rec mapM f = function
-      | [] -> ok []
-      | x::xs ->
-          f x >>= fun y ->
-          mapM f xs >>= fun ys ->
-          ok & y :: ys
-          
-    let t cty = match desc cty with
-      | Ptyp_variant (xs, Closed, None) ->
-          begin mapM t2 (map (fun x -> variant [x] Closed None) xs) >>= function
-            | [] -> `Error (`SyntaxError "spec requires more than one component")
-            | xs -> ok & Or xs
-          end
-      | _ -> `Error (`SyntaxError "strange spec")
-  end
-end
-
-(*
-let to_core_type =
-  let open Ppxx.Helper.Typ in
-  let rec t = function
-    | Type -> assert false
-    | Or [] -> assert false
-    | Or xs -> variant (map t2 xs) Closed None
-  and t2 = function
-    | Direct (`In, l, _) ->
-        (* [`_Direct of [`_In] * l]  *)
-        
-        unary "in" & string & Longident.to_string l
-    | Direct (`Just, l, _) -> unary "just" & string & Longident.to_string l
-    | Opened (`In, l) -> unary "opened" Printf.sprintf "opened (%s)" & Longident.to_string l
-    | Opened (`Just, l) -> Printf.sprintf "opened (just %s)" & Longident.to_string l
-    | Related -> "related"
-    | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
-    | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
-    | Typeclass _ -> "typeclass"
-    | Deriving p -> Printf.sprintf "deriving %s" & Longident.to_string p
-    | PPXDerive (s, _) -> s
-  in
-  t 
-*)
-      
 let prefix = "Spec_"
 let prefix_len = String.length prefix
 
@@ -261,10 +112,9 @@ let from_expression _env e =
           end
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "ppxderive"} }, args ) ->
           begin match args with
-          | ["", e] ->
-              let e, cty = Cppxderive.parse0 e in
+          | ["", {pexp_desc = Pexp_constraint (e, cty)}] ->
               PPXDerive (e, cty, None)
-          | _ -> errorf "derive must take just one argument"
+          | _ -> errorf "derive must take just one argument with a type constraint"
           end
       | _ -> 
           let f,lid = flag_lid e in
@@ -327,7 +177,9 @@ let fix_typeclass _loc p = function
       Or (map f t2s)
 
 (* CR jfuruse: >>= for Utils.(>>=) *)    
-let from_type_decl env loc p = let open Utils in function
+let from_type_decl env loc p =
+  let open Utils.Result in
+  function
   | { type_params = []
     ; type_kind = Type_variant [ { cd_id= id; cd_args = []; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->

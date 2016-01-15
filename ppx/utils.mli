@@ -25,4 +25,16 @@ val mangle : string -> string
 
 val unmangle : string -> [> `Ok of string | `Error of [> `Failed_unmangle of string ] ]
 
-val (>>=) : [< `Error of 'a | `Ok of 'b ] -> ('b -> ([> `Error of 'a ] as 'c)) -> 'c
+module Result : sig
+  val (>>=) : [< `Error of 'a | `Ok of 'b ] -> ('b -> ([> `Error of 'a ] as 'c)) -> 'c
+  val ok : 'a -> [> `Ok of 'a ]
+  val return : 'a -> [> `Ok of 'a ]
+  val error : 'a -> [> `Error of 'a ]
+  val protect : (unit -> 'a) -> [> `Error of [> `Exn of exn ] | `Ok of 'a ]
+  val map_error : ('a -> 'b) ->
+    [< `Error of 'a | `Ok of 'c ] ->
+    [> `Error of 'b | `Ok of 'c ]
+  val mapM : ('a -> [< `Error of 'b | `Ok of 'c ]) ->
+    'a list -> [ `Error of 'b | `Ok of 'c list ]
+end
+

@@ -112,4 +112,18 @@ let unmangle s =
   with
   | Failure s -> `Error (`Failed_unmangle s)
 
-let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
+module Result = struct
+  let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
+  let ok x = `Ok x
+  let return = ok
+  let error x = `Error x
+  let protect f = try `Ok (f ()) with e -> `Error (`Exn e)
+  let map_error f = function
+    | `Ok v -> `Ok v
+    | `Error e -> `Error (f e)
+  let rec mapM f = function
+    | [] -> ok []
+    | x::xs ->
+        f x >>= fun y -> mapM f xs >>= fun ys -> return (y :: ys)
+end
+  
