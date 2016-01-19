@@ -9,7 +9,7 @@ module ShowClass : sig
   type 'a t = Packed of ('a -> string)
   [%%imp_spec ppxderive ([%derive.show: _] : 'a -> string)]
   module Instances : sig
-    val pack : _x:'a -> 'a t
+    val pack : _x:('a -> string) -> 'a t
   end
 end = struct
   type 'a t = Packed of ('a -> string)

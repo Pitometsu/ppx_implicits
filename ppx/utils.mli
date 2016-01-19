@@ -18,11 +18,23 @@ class dummy_module
 val exit_then : 'a -> (unit -> 'a) -> 'a
 (** if Exit is raised, catch it and return the default *)
 
+module Result : sig
+  type ('a, 'err) t = [`Ok of 'a | `Error of 'err]
+  val from_ok : ('err -> 'a) -> ('a, 'err) t -> 'a
+  module Monad : sig
+    val (>>=) : ('a, 'err) t -> ('a -> ('b, 'err) t) -> ('b, 'err) t
+  end
+end
+
+val from_ok : ('err -> 'a) -> ('a, 'err) Result.t -> 'a
+
 val mangle : string -> string
 (** convert an arbitrary string to Lexer.identchar's
    '_' is a special char. 
 *)
 
-val unmangle : string -> [> `Ok of string | `Error of [> `Failed_unmangle of string ] ]
+val unmangle : string -> (string, [> `Failed_unmangle of string ]) Result.t
 
-val (>>=) : [< `Error of 'a | `Ok of 'b ] -> ('b -> ([> `Error of 'a ] as 'c)) -> 'c
+val expression_from_string : string -> (Parsetree.expression, [> `Parse of string ]) Result.t
+
+val tvars_of_core_type : Parsetree.core_type -> string list

@@ -14,6 +14,7 @@ FILES[] =
     cderiving
     cppxderive
     spec
+    specconv
     pre
     tysize
     mod

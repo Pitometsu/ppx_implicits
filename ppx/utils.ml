@@ -70,6 +70,24 @@ end
 
 let exit_then d f = try f () with Exit -> d
 
+module Result = struct
+  type ('a, 'err) t =
+    [ `Ok of 'a
+    | `Error of 'err
+    ]
+
+  let from_ok f = function
+    | `Ok v -> v
+    | `Error e -> f e
+
+  module Monad = struct
+    let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
+  end
+
+end
+
+let from_ok = Result.from_ok
+
 let mangle s = 
   let len = String.length s in
   let b = Buffer.create len in
@@ -110,6 +128,28 @@ let unmangle s =
     f 0;
     `Ok (Buffer.contents b)
   with
-  | Failure s -> `Error (`Failed_unmangle s)
+  | Failure e -> `Error (`Failed_unmangle (s ^ ": " ^ e))
 
-let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
+let expression_from_string s = 
+  let lexbuf = Lexing.from_string s in
+  try `Ok (Parser.parse_expression Lexer.token lexbuf) with
+  | _ -> `Error (`Parse s)
+
+let tvars_of_core_type cty =
+  (* Using mapper for iterator is redundant, but easiest way *)
+  let open Ast_mapper in
+  let open Parsetree in
+  let vars = ref [] in
+  let extend super =
+    let typ self ty =
+      match ty.ptyp_desc with
+      | Ptyp_var s ->
+          if not & mem s !vars then vars := s :: !vars;
+          ty
+      | _ -> super.typ self ty
+    in
+    { super with typ }
+  in
+  let m = extend default_mapper in
+  ignore & m.typ m cty;
+  !vars

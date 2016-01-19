@@ -12,13 +12,13 @@ module Forge = Typpx.Forge
 (** Check [e [@imp ...]] for example, [assert false [@imp ...]] *)
 let has_imp e = 
   let imps = flip map e.exp_attributes & function 
-    | {txt="imp"}, payload -> Some (Spec.from_payload e.exp_env payload)
+    | {txt="imp"}, payload -> Some (Specconv.from_payload e.exp_env payload)
     | _ -> None
   in
   match flip filter imps & function Some _ -> true | None -> false with
   | [] -> None
   | [Some (`Ok x)] -> Some x
-  | [Some (`Error err)] -> Spec.error e.exp_loc err
+  | [Some (`Error err)] -> Specconv.error e.exp_loc err
   | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
 type trace = (Path.t * type_expr) list
@@ -157,10 +157,10 @@ let imp_type_spec env loc ty =
                 errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]"
                   Location.format loc
           in
-          `Ok (Spec.from_type_decl env td.type_loc p td)
+          `Ok (Specconv.from_type_decl env td.type_loc p td)
       | Pdot (mp, _, _) -> 
           (* <mp>.__imp_spec__ must exist *)
-          begin match Spec.from_module_path env loc mp with
+          begin match Specconv.from_module_path env loc mp with
           | `Ok x -> `Ok x
           | `Error (`No_imp_spec (mp_loc, mp)) ->
               errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_spec SPEC].@ %a: module %a is defined here.@]"

@@ -68,40 +68,6 @@ val is_static : t2 -> bool
 val to_string : t -> string
 (** convert [t] to its string representation for [[%%imp_spec ...]] *)
 
-val to_mangled_string : t -> string
-(** convert [t] to its mangled string representation *)
-
-val error :
-  Location.t
-  -> [< `Failed_unmangle of string
-     | `Parse of string
-     | `ParseExp of 'a * string
-     | `String of string ]
-  -> 'fail
-
-val from_payload :
-  Env.t
-  -> Parsetree.payload 
-  -> [> `Ok of t
-     |  `Error of [> `ParseExp of Parsetree.expression * string 
-                  |  `String of string ]
-     ]
-
-val from_type_decl : Env.t -> Location.t -> Path.t -> Types.type_declaration -> t
-(** get spec from type __imp_spec__ = .. *)
-
-val from_module_type : 
-  Env.t -> Location.t -> Path.t -> module_type 
-  -> [> `Ok of t 
-     |  `Error of [> `No_imp_spec of Location.t * Path.t ] 
-     ]
-(** get spec from a module type which has type __imp_spec__ = .. *)
-
-val from_module_path : 
-  Env.t -> Location.t -> Path.t 
-  -> [> `Ok of t 
-     |  `Error of [> `No_imp_spec of Location.t * Path.t ] 
-     ]
 (** get spec from a module path which has type __imp_spec__ = .. *)
 
 val candidates 

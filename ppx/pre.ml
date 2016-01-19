@@ -182,10 +182,12 @@ let extend super =
   in
   (* type __imp_spec__ = private Spec_xxxx *)
   let forge_spec loc spec =
-    let mangled = Spec.to_mangled_string spec in
+    let mangled, ctys = Specconv.mangle spec in
+    let tvars = Utils.tvars_of_core_type & Typ.tuple ctys in
     Type.mk ~loc
+      ~params: (map (fun x -> (Typ.var x, Invariant)) tvars)
       ~kind: (Ptype_variant [ { pcd_name = {txt=mangled; loc}
-                              ; pcd_args = []
+                              ; pcd_args = ctys
                               ; pcd_res = None
                               ; pcd_loc = loc
                               ; pcd_attributes = []
@@ -231,8 +233,8 @@ let extend super =
     super.structure self sitems
   in 
 
-  let do_imp_spec loc pld f = match Spec.from_payload Env.empty (* dummy *) pld with
-    | `Error err -> Spec.error loc err
+  let do_imp_spec loc pld f = match Specconv.from_payload Env.empty (* dummy *) pld with
+    | `Error err -> Specconv.error loc err
     | `Ok Spec.Type ->
         errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
           Location.format loc

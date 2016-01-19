@@ -10,39 +10,25 @@ open Ppxx.Compilerlib
 open Typedtree
 open Types
 
-type t = {
-  temp_path : Path.t;
-  temp_expr : Parsetree.core_type -> Parsetree.expression;
-  temp_tvar : type_expr; (* The type variable appear in temp_type *)
-  temp_type : type_expr;
-}
+(* CR jfuruse: this is crazy *)      
+let fake_path e = 
+  let open Parsetree in
+  Path.Pident (Ident.create_persistent & Utils.mangle & Pprintast.string_of_expression e)
 
-(* (xxx : ty) *)
-let parse0 p =
+let instance_template e cty = 
+  let open Ast_mapper in
   let open Parsetree in
-  match p.pexp_desc with
-  | Pexp_constraint (e, cty) -> e, cty
-  | _ -> assert false (* CR jfuruse: better error *)
-      
-(* (xxx : ty) *)
-let parse env p =
-  let open Parsetree in
-  (* CR jfuruse: this is crazy *)      
-  let temp_path = Path.Pident (Ident.create_persistent & Utils.mangle & Pprintast.string_of_expression p) in 
-  match p.pexp_desc with
-  | Pexp_constraint (e, cty) ->
-      let temp_expr cty =
-        let open Ast_mapper in
-        let extend super =
-          let typ self ty = match ty.ptyp_desc with
-            | Ptyp_any -> cty
-            | _ -> super.typ self ty
-          in
-          { super with typ }
-        in
-        let mapper = extend default_mapper in
-        mapper.expr mapper e
-      in
+  let extend super =
+    let typ self ty = match ty.ptyp_desc with
+      | Ptyp_any -> cty
+      | _ -> super.typ self ty
+    in
+    { super with typ }
+  in
+  let mapper = extend default_mapper in
+  mapper.expr mapper e
+
+(*
       let {Typedtree.ctyp_type= temp_type} =
         try Typetexp.transl_simple_type env true cty with _ -> assert false (* CR jfuruse: better error *)
       in
@@ -53,9 +39,14 @@ let parse env p =
       in
       { temp_path; temp_expr; temp_tvar; temp_type }
   | _ -> assert false (* CR jfuruse: better error *)
-      
-let cand_derive env loc temp ty =
-  let ttvar, ttype = match Ctype.instance_list env [temp.temp_tvar; temp.temp_type] with
+*)
+    
+let cand_derive env loc e temp_ty ty =
+  let temp_tvar = match Ctype.free_variables temp_ty with
+    | [tvar] -> tvar
+    | _ -> assert false (* CR jfuruse: error handling *)
+  in
+  let ttvar, ttype = match Ctype.instance_list env [temp_tvar; temp_ty] with
     | [ttvar; ttype] -> ttvar, ttype
     | _ -> assert false
   in
@@ -84,9 +75,10 @@ let cand_derive env loc temp ty =
               Printtyp.type_scheme ttvar;
             raise Exit
         end;
-        [ { Candidate.lid= Typpx.Untypeast.lident_of_path temp.temp_path;
-            path= temp.temp_path;
-            expr= Typpx.Forge.Exp.untyped (temp.temp_expr cty);
+        let path = fake_path e in
+        [ { Candidate.lid= Typpx.Untypeast.lident_of_path path;
+            path= path;
+            expr= Typpx.Forge.Exp.untyped (instance_template e cty);
             type_= ttype;
             aggressive = false } ]
     | _ -> []
