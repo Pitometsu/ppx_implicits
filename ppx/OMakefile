@@ -27,3 +27,8 @@ targets=$(MyOCamlPPX ppx_implicits, $(FILES))
 MyOCamlFindPackage(ppx_implicits, $(targets))
 
 WithMerlin()
+
+.PHONY:doc
+
+doc:
+    ocamlfind ocamldoc -html $(PREFIXED_OCAMLPACKS) spec.mli

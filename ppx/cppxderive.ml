@@ -8,11 +8,9 @@ open Utils
 open Ppxx.Utils
 open Ppxx.Compilerlib
 open Typedtree
-open Types
 
 (* CR jfuruse: this is crazy *)      
 let fake_path e = 
-  let open Parsetree in
   Path.Pident (Ident.create_persistent & Utils.mangle & Pprintast.string_of_expression e)
 
 let instance_template e cty = 

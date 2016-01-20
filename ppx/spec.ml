@@ -85,7 +85,8 @@ let rec cand_dynamic env loc ty = function
       (* CR jfuruse: error handling *)
       let {Typedtree.ctyp_type= ty'} = Typetexp.transl_simple_type env false cty in
       cand_dynamic env loc ty (PPXDerive (e,cty,Some ty'))
-  | PPXDerive (_e,_cty,Some _ty) -> assert false
+  | PPXDerive (e, _cty, Some temp_ty) ->
+      Cppxderive.cand_derive env loc e temp_ty ty 
   | Opened _ | Direct _ | Typeclass _ ->
       (* they are static *)
       assert false
