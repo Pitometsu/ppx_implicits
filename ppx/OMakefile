@@ -4,15 +4,31 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
-    options
     utils
+    options
     unshadow
+    klabel
+    candidate
+    crelated
+    ctypeclass
+    cderiving
+    cppxderive
     spec
+    specconv
     pre
     tysize
     mod
     ppx
 
-MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+# This drops dependency of typpx
+# MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+
+targets=$(MyOCamlPPX ppx_implicits, $(FILES))
+MyOCamlFindPackage(ppx_implicits, $(targets))
 
 WithMerlin()
+
+.PHONY:doc
+
+doc:
+    ocamlfind ocamldoc -html $(PREFIXED_OCAMLPACKS) spec.mli

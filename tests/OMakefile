@@ -88,4 +88,5 @@ Test(monad_hk)
 Test(length_class)
 Test(showc)
 Test(fcmod)
-
+Test(deriving)
+Test(ppxderive)

@@ -7,14 +7,13 @@
     [@@instance]
 *)
 
+open Ppxx.Utils
 open Ppxx.Helper
 open Ppxx.Compilerlib
 
 open Parsetree
 open Asttypes
 open Ast_mapper
-open Location
-open Utils
 open List
 
 (* [@@typeclass] and [@@instance] *)
@@ -183,10 +182,12 @@ let extend super =
   in
   (* type __imp_spec__ = private Spec_xxxx *)
   let forge_spec loc spec =
-    let mangled = Spec.to_mangled_string spec in
+    let mangled, ctys = Specconv.mangle spec in
+    let tvars = Utils.tvars_of_core_type & Typ.tuple ctys in
     Type.mk ~loc
+      ~params: (map (fun x -> (Typ.var x, Invariant)) tvars)
       ~kind: (Ptype_variant [ { pcd_name = {txt=mangled; loc}
-                              ; pcd_args = []
+                              ; pcd_args = ctys
                               ; pcd_res = None
                               ; pcd_loc = loc
                               ; pcd_attributes = []
@@ -202,7 +203,7 @@ let extend super =
   let structure self sitems =
     let sitems = flip concat_map sitems & fun sitem ->
       match sitem.pstr_desc with
-      | Pstr_modtype mtd when List.exists has_typeclass_attr mtd.pmtd_attributes ->
+      | Pstr_modtype mtd when exists has_typeclass_attr mtd.pmtd_attributes ->
           (* module type M = ... [@@typeclass] *)
           (* CR jfuruse: need to remove [@@typeclass] *)
           [ sitem
@@ -232,8 +233,8 @@ let extend super =
     super.structure self sitems
   in 
 
-  let do_imp_spec loc pld f = match Spec.from_payload pld with
-    | `Error err -> Spec.error loc err
+  let do_imp_spec loc pld f = match Specconv.from_payload Env.empty (* dummy *) pld with
+    | `Error err -> Specconv.error loc err
     | `Ok Spec.Type ->
         errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
           Location.format loc
