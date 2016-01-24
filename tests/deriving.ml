@@ -1,5 +1,5 @@
 module Show = struct
-  let tuple ~_ds:(ds : Obj.t list) (vs : 'a) : string =
+  let tuple ~_ds:(ds : Obj.t list) : 'a -> string = fun vs ->
     let vs = Obj.repr vs in
     assert (Obj.is_block vs);
     let s = List.length ds in
@@ -12,7 +12,7 @@ module Show = struct
     in
     "(" ^ String.concat "," (List.mapi f ds) ^ ")"
 
-  let polymorphic_variant ~_ds:(ds : (string * int * Obj.t option) list) (v : 'a) : string =
+  let polymorphic_variant ~_ds:(ds : (string * int * Obj.t option) list) : 'a -> string = fun v ->
     let v = Obj.repr v in
     if Obj.is_int v then
       let h : int = Obj.magic v in
@@ -38,7 +38,7 @@ module Show = struct
           let a = Obj.field v 1 in
           "`" ^ l ^ " (" ^ d a ^ ")"
 
-  let object_ ~_ds:(_ds : (string * int * Obj.t) list) (_v : 'a) : string =
+  let object_ ~_ds:(_ds : (string * int * Obj.t) list) : 'a -> string = fun _v ->
     "<obj>"
 end
 
