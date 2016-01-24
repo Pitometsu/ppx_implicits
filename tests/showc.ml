@@ -3,6 +3,7 @@ module M1 = struct
   module Show = struct
     let int = string_of_int
     let float = string_of_float
+    let bool = string_of_bool
     let list ~_d xs = "[ " ^ String.concat "; " (List.map _d xs) ^ " ]"
     let hoge ~_b ~_a (a,b) = "(" ^ _a a ^ ", " ^ _b b ^ ")"
   end

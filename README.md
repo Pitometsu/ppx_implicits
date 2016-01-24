@@ -3,43 +3,45 @@
 In short,
 
 * ppx_implicits provides implicit values and type classes to OCaml.
-* NOT a compiler modification but a PPX preprocessor. Enjoy overloading with your official OCaml compiler (4.02.3), today!!
-
-You can play with type classes and more with your vanilla OCaml compiler. 
+* NOT a compiler modification but a PPX preprocessor. You can play type classes and etc with your official OCaml compiler (4.02.3).
 
 # Limitation
-
-Before advertising, I should note that:
 
 ppx_implicits does not work with OCaml toplevel (REPL).
 Please use `ocamlc` or `ocamlopt`.
 
-This is due to the limitation of PPX framework, which cannot pass big information from
-preprocessing of one compilation unit to another. In the toplevel, the compilation unit
-is each toplevel expression and `ppx_implicits` cannot share important typing information
+This is due to the limitation of PPX framework,
+which cannot pass big information from preprocessing of one compilation unit
+to another.
+In the toplevel, the compilation unit is each toplevel expression
+and `ppx_implicits` cannot share important typing information
 between toplevel expressions. 
-
-This could be fixed by keeping one PPX process running throughout an REPL session,
-but it would need significant change of the REPL...
+This could be fixed by keeping one PPX process running
+throughout an REPL session, but it would need significant change of the REPL...
 
 # How to build
 
+`opam install ppx_implicits`. Probably it may be not the latest version.
+
+The development version source code is available at
+`https://bitbucket.org/camlspotter/ppx_implicits`,
+but it is likely dependent on development versions of other libraries:
+
+
 ```shell
-$ opam install omake ppx_tools
-$ hg clone https://bitbucket.org/camlspotter/ppx_implicits  # You need Mercurial
+$ hg clone https://bitbucket.org/camlspotter/ppx_implicits
 $ cd ppx_implicits
 $ cp OMakeroot.in OMakeroot
 $ omake
 $ omake install
 ```
 
-`omake` should build `ppx/ppx_implicits` then test files under `tests/`.
-
-`opam ppx_implicits` is possible but it is likely very old.
-
 # How to use
 
-Add `-ppx ppx_implicits` to your compiler commands.
+Add `-package ppx_implicits` to your `ocamlfind` calls.
+
+If you do not use `ocamlfind`,
+add `-ppx ppx_implicits` to your compiler commands.
 
 # Type class
 
@@ -68,10 +70,12 @@ class Show a where
 A module type definition with attribute `[@@typeclass]` defines
 a module of the same name. The values declared in the signature are
 available as values in the module. In the above example, `ppx_implicits`
-defines a value named `Show.show`. It has the following type:
+defines a module named `Show` with a value `show`. Its signature is:
 
 ```ocaml
-val show : ?_imp: 'a Show._class -> 'a -> string
+module Show : sig
+  val show : ?_imp: 'a Show._class -> 'a -> string
+end
 ```
 
 Optional arguements labeled with `?_xxx` are considered
@@ -152,7 +156,7 @@ main = do
 ## Overloading is first class
 
 You can define a new overloaded value from one defined with `[@@typeclass]`.
-So far, manual wiring of dictionary dispatching is required
+So far, manual wiring of constraint labels is required,
 either by explicit applications of dispatch `show ?_imp x`
 or by an explicit type annotation:
 
@@ -180,6 +184,8 @@ They are similar to the following Haskell code:
 show_twice :: Show a => a -> string
 show_twice x = show x ++ show x
 ```
+
+This explicit wiring is unfortunate but currently necessary in ppx_implicits.
 
 # Implicit values
 
@@ -429,10 +435,10 @@ Under these conditions `[%imp]` is equilvalent with `[%imp SPEC]`.
 For example if `[%imp related]` has a type `'a M.t N.t -> O.t option`
 then its instances are obtained from module `M`, `N` and `O`.
 
-Not that types are unaliased in the current typing environment
+Note that types are unaliased in the current typing environment
 to get the module names for instances. For example if `M.t` is defined
-as `type t = P.t * Q.t` then module `M` is not considered as instance space but `P` and `Q`
-(if `P.t` and `Q.t` are not alias.).
+as `type t = P.t * Q.t` then module `M` is not considered as instance space
+but `P` and `Q` (if `P.t` and `Q.t` are not alias.).
 
 ## `aggressive(p)` spec
 

@@ -8,7 +8,8 @@ WithOMy=true
 
 #| The prefix. Equal to the PREFIX environment variable
 try
-  PREFIX=$(getenv PREFIX)
+  if $(not $(defined PREFIX)):
+    PREFIX=$(getenv PREFIX)
 default
   eprintln(Specify PREFIX or prefix environment variable.)
   exit 1 
@@ -21,6 +22,63 @@ mkdir_if_not_exists(dir) =
   if $(not $(test -e $(dir))):
     mkdir -p $(dir) 
   return
+
+#| filter list
+#  example::
+#     is_url(file) =
+#       match $(file)
+#       case $'://'
+#         return true
+#       default
+#         return false
+# 
+#     DOWNLOAD_URLS[]=$(list_filter $(fun x, $(is_url $(x))), $(URLS))
+list_filter(pred, list) =
+  result=
+  foreach(x, $(list))
+    if $(apply $(pred), $(x))
+      result+=$(x)
+      export
+    export
+  return $(result)
+
+# Common phonies
+# ==================================================================
+.PHONY: all install uninstall clean veryclean
+
+# Directories
+# =====================================================================
+
+#| The build root directory  
+BIG_ROOT=$(dir .)
+
+# Installation mark files
+# =======================================================================
+
+#| To enable the installation mark files, you must define INSTALLED path variable
+# for the mark file directory like INSTALLED=$(BIG_ROOT)/installed and make sure
+# the directory $(INSTALLED) exists. This preparation must be done outside of 
+# this OMyMakefile.
+
+#|Returns the installation mark files of $(packs)
+Installed(packs) = 
+  if $(defined INSTALLED)
+      return $(addprefix $(INSTALLED)/, $(packs))
+  else
+      return $(array) # empty
+
+#|Create md5 sum file of files $(targets)
+CreateCheckSum(pack, targets)=
+    chan=$(fopen $(pack), w)
+    fprintln($(chan), $(string $(targets)))
+    fprintln($(chan), $(string $(digest $(targets))))
+    close($(chan))
+
+#|Create $(Installed $(pack)) file from the digests of $(targets)
+CreateInstalled(pack, targets)=
+    if $(defined INSTALLED)
+        println(dump md5 $(INSTALLED)/$(pack))
+        CreateCheckSum($(INSTALLED)/$(pack), $(targets))
 
 # OCaml 
 # ========================================================================
@@ -45,16 +103,16 @@ OCAMLFIND_DESTDIR= $(shell ocamlfind printconf destdir)
 OCAMLFIND_QUERY(name) = 
     return $(shell ocamlfind query $(name))
 
-#|Set NATIVE_ENABLED false locally if a project does not requre opt compilation.
+#|You can set NATIVE_ENABLED false locally if a project does not requre opt compilation.
 NATIVE_SHARED_ENABLED = $(OCAMLOPT_EXISTS)
 
 #|BYTE_ENABLED = true by default
 BYTE_ENABLED = true
 
-#|The default warning and errors. If you want to use different warning and error switches, use redefine the variable.
+#|The default warning and errors. If you want to use different warning and error switches, redefine the variable.
 OCAMLFLAGS = -g 
 
-#|Warnings not to be printed separted with space
+#|Warnings not to be printed, separted with space
 OCAMLWARNING_IGNORE[] = 3 4 9 40 42 44 45 48
 
 #|Warnings treated as non errors
@@ -65,9 +123,9 @@ OCAMLWARNING_NON_ERROR[] = 4 9 40 42 44 45 48
 OCAMLWARNING_STOP_AT_ERROR_WARNING=false
 
 #|The maximum warning value.
-# This is the maximum warning ID NOT of the current OCaml compiler,
+# This is the maximum warning ID NOT of your current OCaml compiler,
 #                                BUT of the OCaml compiler used by the author of OMyMakefile.
-OCAMLWARNING_MAX= 49
+OCAMLWARNING_MAX= 50
 
 #|Function to build warning switches
 OCAMLWARNING_MAKE()=
@@ -98,7 +156,7 @@ OCAMLPACKAGEFLAGS=
 OCAML_PREINSTALLED_PACKS[]= bigarray camlp4 dbm dynlink graphics num num-top stdlib str threads unix findlib compiler-libs compiler-libs.common compiler-libs.bytecomp compiler-libs.optcomp compiler-libs.toplevel
 
 #|Redefinition of compiler commands
-public.OCamlC() =
+OCamlC() =
     value $(OCAMLFIND) $(OCAMLC) \
         $(OCAMLANNOTFLAGS) \
         $(OCAMLPACKAGEFLAGS) \
@@ -109,12 +167,18 @@ public.OCamlC() =
         $(OCAMLCFLAGS) \
         $(OCAMLPPFLAGS) \
         $(PREFIXED_OCAMLINCLUDES)
-# Why we need "public." ?
 
-public.OCamlOpt() =
-    value $(OCAMLFIND) $(OCAMLOPT) $(OCAMLANNOTFLAGS) $(OCAMLPACKAGEFLAGS) $(LAZY_OCAMLFINDFLAGS) $(PREFIXED_OCAMLPACKS) $(OCAMLFLAGS)\
-              $(OCAMLWARNING_MAKE) \
-              $(OCAMLOPTFLAGS) $(OCAMLPPFLAGS) $(PREFIXED_OCAMLINCLUDES)
+OCamlOpt() =
+    value $(OCAMLFIND) $(OCAMLOPT) \
+        $(OCAMLANNOTFLAGS) \
+        $(OCAMLPACKAGEFLAGS) \
+        $(LAZY_OCAMLFINDFLAGS) \
+        $(PREFIXED_OCAMLPACKS) \
+        $(OCAMLFLAGS)\
+        $(OCAMLWARNING_MAKE) \
+        $(OCAMLOPTFLAGS) \
+        $(OCAMLPPFLAGS) \
+        $(PREFIXED_OCAMLINCLUDES)
 
 if $(and $(not $(NATIVE_ENABLED)) $(not $(BYTE_ENABLED)))
    err. =
@@ -130,14 +194,10 @@ if $(and $(not $(NATIVE_ENABLED)) $(not $(BYTE_ENABLED)))
 %.cmti: %.mli 
 	$(OCamlC) -c $<
 
-#| We recommend to have OCAMLPARAM=_,g=1,annot=1,bin-annot=1,short-paths=1
+#|We recommend to have OCAMLPARAM=_,g=1,annot=1,bin-annot=1
 
 #|Enable the backtrace
 setenv(OCAMLRUNPARAM, b)
-
-# Common phonies
-# ==================================================================
-.PHONY: all install uninstall clean veryclean
 
 # Very clean
 # ======================================================================
@@ -149,50 +209,16 @@ WithOCamlVeryClean() =
     veryclean: 
         rm -f *.cm* *.annot *.o *.a *.so *.exe *.byt *.opt *.run
 
-# Directories
-# =====================================================================
-
-#| The build root directory  
-BIG_ROOT=$(dir .)
-
-# Installation mark files
-# =======================================================================
-
-#| To enable the installation mark files, you must define INSTALLED path variable
-# for the mark file directory like INSTALLED=$(BIG_ROOT)/installed and make sure
-# the directory $(INSTALLED) exists. This preparation must be done outside of 
-# this OMyMakefile.
-
-#|Returns the installation mark files of $(packs)
-Installed(packs) = 
-  if $(defined INSTALLED)
-      return $(addprefix $(INSTALLED)/, $(packs))
-  else
-      return $(array)
-
-#|Create md5 sum file of files $(targets)
-CreateCheckSum(pack, targets)=
-    chan=$(fopen $(pack), w)
-    fprintln($(chan), $(string $(targets)))
-    fprintln($(chan), $(string $(digest $(targets))))
-    close($(chan))
-
-#|Create $(Installed $(pack)) file from the digests of $(targets)
-CreateInstalled(pack, targets)=
-    if $(defined INSTALLED)
-        println(dump md5 $(INSTALLED)/$(pack))
-        CreateCheckSum($(INSTALLED)/$(pack), $(targets))
-
 # Packages
 # =========================================================
 
 #| OCaml packages required for compilation. MyCaml* functions automatically add necessary dependencies over packages in $(OCAMLPACKS).
 # 
 # .. note:: They are also required for dependency analysis.
-public.OCAMLPACKS[]=
+OCAMLPACKS[]=
 
 #| CamlP4 syntax extension packages required for parsing. MyCaml* functions automatically add necessary dependencies over packages in $(CAMLP4PACKS).
-public.CAMLP4PACKS[]=
+CAMLP4PACKS[]=
 
 # Dependencies
 # =========================================================================
@@ -254,7 +280,7 @@ OCamlRequireCamlP4Packages(packages) =
 # Build rules
 # ==========================================================
 
-public.OCamlLibrary(name, files) =
+OCamlLibrary(name, files) =
    # XXX: JYH: these variables should be marked private in 0.9.9
    protected.name = $(file $(name))
 
@@ -287,9 +313,9 @@ public.OCamlLibrary(name, files) =
                   $(if $(NATIVE_SHARED_ENABLED), $(NATIVESHAREDLIB)), \
                   $(if $(BYTE_ENABLED), $(BYTELIB)))
 
-public.OCAML_BYTE_LINK_FLAGS =
+OCAML_BYTE_LINK_FLAGS =
 
-public.OCamlPackage(name, files) =
+OCamlPackage(name, files) =
    # XXX: JYH: these variables should be marked private in 0.9.9
    protected.OFILES   = $(addsuffix $(EXT_OBJ), $(files))
    protected.CMOFILES = $(addsuffix .cmo, $(files))
@@ -721,8 +747,6 @@ Subdirs_except(dirs) =
 
   VISIT_SUBDIRS=$(set-diff $(subdirs), $(dirs))
 
-  # println(SUBDIRS: $(string $(VISIT_SUBDIRS)))
-
   # The rule
   .SUBDIRS: $(VISIT_SUBDIRS)
 
@@ -743,64 +767,24 @@ Dot() =
 	    $(OCAMLFIND) ocamldoc -I +threads $(OCAMLPACKAGEFLAGS) $(LAZY_OCAMLFINDFLAGS) $(PREFIXED_OCAMLPACKS) $(OCAMLPPFLAGS) $(PREFIXED_OCAMLINCLUDES) -dot -dot-include-all -dot-reduce $+ -o $@
 
 
-#| filter list
-#  example::
-#     is_url(file) =
-#       match $(file)
-#       case $'://'
-#         return true
-#       default
-#         return false
-# 
-#     DOWNLOAD_URLS[]=$(list_filter $(fun x, $(is_url $(x))), $(URLS))
-list_filter(pred, list) =
-  result=
-  foreach(x, $(list))
-    if $(apply $(pred), $(x))
-      result+=$(x)
-      export
-    export
-  return $(result)
-
-#| Obtain files installed as PACK
-GET_OCAMLFIND_OBJS(pack)=
-    return $(Files $(OCAMLFIND_DESTDIR)/$(pack))
-
-# Pa_ounit test
-# =======================================================================
-
-#| Test with Pa_ounit. Pretty version dependent.
-# Thinking from the implementation Pa_ounit_lib.Runtime, it should be
-# pretty unstable in future releases of Pa_ounit. Sigh.
-
-MyOCamlOUnitTest(LIB) =
-    name=ounittest_$(LIB)
-    $(name).ml:
-        section:
-            chan=$(fopen $@, w)
-            fprintln($(chan), module M = $(capitalize $(LIB)))
-            fprintln($(chan), let \(\) = Pa_ounit_lib.Runtime.summarize \(\))
-            close($(chan))
-
-    section:
-        OCAML_LIBS=$(LIB)
-        MyOCamlTestProgram($(name), $(name))
-
-    inline_tests.log: $(name)
-        println(Check inline_tests.log for test results)
-        ./$(name) inline-test-runner $(capitalize $(LIB)) -verbose -log -strict
-
-    .PHONY:test
-
-    test: inline_tests.log
+# Build .merlin file
+# ======================================================================
 
 WithMerlin() =
   .merlin:
     section:
-      chan=$(fopen $@, w)
+      chan=$(fopen $@, wb)
       fprintln($(chan), "PKG $(string $(OCAMLPACKS))")
       foreach(x, $(OCAMLINCLUDES))
         fprintln($(chan), "S $(x)")
+      fprintln($(chan), FLG $(OCAMLWARNING_MAKE))
       close($(chan))
   .DEFAULT: .merlin
   export
+
+# Unused code
+#
+#  #| Obtain files installed as PACK
+#  GET_OCAMLFIND_OBJS(pack)=
+#      return $(Files $(OCAMLFIND_DESTDIR)/$(pack))
+

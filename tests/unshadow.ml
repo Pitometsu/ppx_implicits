@@ -16,6 +16,3 @@ module Y = struct
   end
   let () = assert ([%imp opened Show] 1 = "1")
 end
-
-
-

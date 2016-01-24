@@ -1,6 +1,6 @@
 (* Size of type *)
 
-open Utils
+open Ppxx.Utils
 
 open Types
 open Btype
@@ -41,16 +41,19 @@ let size ty =
   tbl
 
 let lt t1 t2 =
+  (* All the components in t1 must appear in t2 with GE multiplier.
+     At least one component in t1 must appear in t2 with GT multiplier.
+  *)
   let open Hashtbl in
   try
-    iter (fun k v ->
-      try
-        if find t1 k >= v then raise Exit
-      with Not_found -> ()
-    ) t2;
-    true
+    fold (fun k1 v1 found_gt ->
+      let v2 = find t2 k1 in
+      if v1 < v2 then true
+      else if v1 = v2 then found_gt
+      else raise Exit
+      ) t1 false
   with
-  | Exit -> false
+  | Exit | Not_found -> false
 
 (* hello world
  
