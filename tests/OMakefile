@@ -89,3 +89,5 @@ Test(length_class)
 Test(showc)
 Test(fcmod)
 Test(deriving)
+Test(packer)
+

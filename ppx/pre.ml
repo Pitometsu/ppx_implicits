@@ -3,4 +3,5 @@ open Ppxx.Utils
 let extend super =
   Pre_imp.extend
   & Pre_imp_spec.extend
-  & Pre_typeclass.extend super
+  & Pre_typeclass.extend
+  & Pre_imp_pack.extend super

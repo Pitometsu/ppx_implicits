@@ -6,6 +6,19 @@ open Longident
 open Path
 open Types
 
+module String = struct
+  include Ppxx.Utils.String
+
+  let drop len str = String.sub str len (String.length str - len)
+
+  let is_prefix ?(from=0) sub str =
+    let sublen = String.length sub in
+    try 
+      if String.sub str from sublen = sub then Some (drop (from + sublen) str)
+      else None
+    with _ -> None
+end 
+
 (* CR jfuruse: _path is not used *)      
 let scrape_sg _path env mdecl = 
   try
@@ -76,7 +89,7 @@ module Result = struct
     | `Error of 'err
     ]
 
-  let from_ok f = function
+  let from_Ok f = function
     | `Ok v -> v
     | `Error e -> f e
 
@@ -86,8 +99,25 @@ module Result = struct
 
 end
 
-let from_ok = Result.from_ok
+let from_Ok = Result.from_Ok
 
+module Option = struct
+  include Ppxx.Utils.Option
+  exception Is_None
+  let from_Some = function
+    | Some x -> x
+    | None -> raise Is_None
+  module Monad = struct
+    let return x = Some x
+    let some = return
+    let (>>=) m f = match m with
+      | None -> None
+      | Some x -> f x
+  end
+end
+
+let from_Some = Option.from_Some
+  
 let mangle s = 
   let len = String.length s in
   let b = Buffer.create len in
@@ -153,3 +183,16 @@ let tvars_of_core_type cty =
   let m = extend default_mapper in
   ignore & m.typ m cty;
   !vars
+
+let sig_module_of_stri sitem =
+  let open Parsetree in
+  match sitem.pstr_desc with
+  | Pstr_modtype mtd ->
+      Ppxx.Helper.Sig.module_ ~loc:sitem.pstr_loc
+        { pmd_name       = mtd.pmtd_name
+        ; pmd_type       = from_Some mtd.pmtd_type
+        ; pmd_attributes = mtd.pmtd_attributes
+        ; pmd_loc        = mtd.pmtd_loc
+        }
+  | _ -> assert false
+

@@ -7,7 +7,7 @@ end
 module Z = struct
   module Show = struct
     type 'a __imp__ = private 'a
-    external pack : _d:'a -> 'a __imp__ = "%identity"
+    fexternal pack : _d:'a -> 'a __imp__ = "%identity"
     (* private alias and %identity assure this wrapping is cost 0 *)
   end
 end

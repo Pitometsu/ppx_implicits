@@ -184,7 +184,7 @@ let from_type_decl env loc p = let open Utils in function
       let open Result.Monad in
       fix_typeclass loc p
       & assign_type_components tys
-      & from_ok (error loc)
+      & from_Ok (error loc)
       & unmangle_spec_string id.Ident.name
         >>= from_string
         >>= from_expression env
