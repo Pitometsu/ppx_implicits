@@ -5,6 +5,8 @@
     [%%imp_spec]
     [@@typeclass]
     [@@instance]
+
+    [%%class: t]
 *)
 
 open Ppxx.Utils
@@ -170,17 +172,20 @@ module TypeClass = struct
         ]
 end
 
-let extend super =
+(* [%imp ...] => (assert false) [@imp ...] *)
+let extend_imp super =
   let expr self e =
     match e.pexp_desc with
     | Pexp_extension ( ({txt="imp"} as strloc), x) ->
-        (* [%imp ...] => (assert false) [@imp ...] *)
         { (Exp.assert_false ()) with
           pexp_loc = e.pexp_loc;
           pexp_attributes = [ (strloc, x) ] }
     | _ -> super.expr self e
   in
-  (* type __imp_spec__ = private Spec_xxxx *)
+  { super with expr }
+
+(* type __imp_spec__ = private Spec_xxxx *)
+let extend_imp_spec super =
   let forge_spec loc spec =
     let mangled, ctys = Specconv.mangle spec in
     let tvars = Utils.tvars_of_core_type & Typ.tuple ctys in
@@ -195,6 +200,37 @@ let extend super =
       ~priv: Private
       {txt = "__imp_spec__"; loc}
   in
+
+  let do_imp_spec loc pld f = match Specconv.from_payload Env.empty (* dummy *) pld with
+    | `Error err -> Specconv.error loc err
+    | `Ok Spec.Type ->
+        errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
+          Location.format loc
+    | `Ok spec -> f spec
+  in
+
+  let structure_item self sitem = 
+    match sitem.pstr_desc with
+    | Pstr_extension (({txt="imp_spec"; loc}, pld), _) ->
+        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
+        do_imp_spec loc pld & fun spec -> 
+          { sitem with pstr_desc = Pstr_type [ forge_spec loc spec ] }
+    | _ -> super.structure_item self sitem
+  in
+  let signature_item self sitem = 
+    match sitem.psig_desc with
+    | Psig_extension (({txt="imp_spec"; loc}, pld), _) ->
+        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
+        do_imp_spec loc pld & fun spec -> 
+          { sitem with psig_desc = Psig_type [ forge_spec loc spec ] }
+    | _ -> super.signature_item self sitem
+  in
+  { super with structure_item; signature_item }
+
+
+(* module type S = sig .. end [@@typeclass] *)
+(* module M = struct .. end [@@instance C] *)
+let extend_typeclass super =
   let has_typeclass_attr = function
     | {txt="typeclass"}, PStr [] -> true
     | {txt="typeclass"}, _ -> assert false (* CR jfuruse: error *)
@@ -232,31 +268,6 @@ let extend super =
     in
     super.structure self sitems
   in 
-
-  let do_imp_spec loc pld f = match Specconv.from_payload Env.empty (* dummy *) pld with
-    | `Error err -> Specconv.error loc err
-    | `Ok Spec.Type ->
-        errorf "%a: [%%%%imp_spec SPEC] requires a SPEC expression"
-          Location.format loc
-    | `Ok spec -> f spec
-  in
-
-  let structure_item self sitem = 
-    match sitem.pstr_desc with
-    | Pstr_extension (({txt="imp_spec"; loc}, pld), _) ->
-        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        do_imp_spec loc pld & fun spec -> 
-          { sitem with pstr_desc = Pstr_type [ forge_spec loc spec ] }
-    | _ -> super.structure_item self sitem
-  in
-  let signature_item self sitem = 
-    match sitem.psig_desc with
-    | Psig_extension (({txt="imp_spec"; loc}, pld), _) ->
-        (* [%%imp_spec ..] => type __imp_spec__ = .. *)
-        do_imp_spec loc pld & fun spec -> 
-          { sitem with psig_desc = Psig_type [ forge_spec loc spec ] }
-    | _ -> super.signature_item self sitem
-  in
-  { super with expr; structure; structure_item; signature_item }
-
-
+  { super with structure }
+    
+let extend super = extend_imp & extend_imp_spec & extend_typeclass super
