@@ -15,7 +15,9 @@ FILES[] =
     cppxderive
     spec
     specconv
-    pre
+    pre_imp
+    pre_imp_spec
+    pre_typeclass
     tysize
     mod
     ppx
