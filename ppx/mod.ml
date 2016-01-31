@@ -211,7 +211,7 @@ let resolve_arg loc env a = match a with
                  with
                  | _ ->
                      (* If above failed, try Some [%imp] *)
-                     Forge.Exp.some & resolve env loc spec ty
+                     Forge.Exp.some env & resolve env loc spec ty
                end,
                Optional)
           end
