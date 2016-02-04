@@ -6,15 +6,19 @@ open Types
 open Btype
 
 type t = (int option, int) Hashtbl.t
+(** Polynomial. v_1 * 2 + v_2 * 3 + 4 has the following bindings:
+    [(Some 1, 2); (Some 3, 2); (None, 4)]
+*)
 
 let to_string t =
+  let open Printf in
   String.concat " + "
   & Hashtbl.fold (fun k v st ->
     let k = match k with
       | None -> ""
-      | Some n -> Printf.sprintf " a%d" n
+      | Some n -> sprintf " a%d" n
     in
-    Printf.sprintf "%d%s" v k :: st) t []
+    sprintf "%d%s" v k :: st) t []
     
 let size ty =
   let open Hashtbl in
@@ -41,7 +45,8 @@ let size ty =
   tbl
 
 let lt t1 t2 =
-  (* All the components in t1 must appear in t2 with GE multiplier.
+  (* Comparison of polynomials.
+     All the components in t1 must appear in t2 with GE multiplier.
      At least one component in t1 must appear in t2 with GT multiplier.
   *)
   let open Hashtbl in
@@ -54,7 +59,3 @@ let lt t1 t2 =
       ) t1 false
   with
   | Exit | Not_found -> false
-
-(* hello world
- 
- *)

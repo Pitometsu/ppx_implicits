@@ -1,15 +1,25 @@
-open Types
-
 (** Implicit instance specification DSL *)
+
+open Types
 
 type t = 
   | Or of t2 list 
     (** Syntax: [<t2>, .., <t2>].
-        Conjunction of specs.
+        Sum of specs.
     *)
 
   | Type 
-    (** Spec is deduced from the context type.  Used only for [%imp].  Not allowed in [%%imp_spec] *)
+    (** No syntax.
+        
+        Spec is deduced from the context type.  Used internally only 
+        for [[%imp]].
+
+        If [[%imp]]'s type has the form [(_,..,_) M.t], its instance
+        spec is decoded from the definition of data type [M.__imp_spec__].
+
+        For example, if [[%imp]] has type [(int, float) Foo.Bar.ty],
+        its spec is sought at [Foo.Bar.__imp_spec__].
+    *)
 
 and t2 = 
   | Opened of [`In | `Just] * Longident.t
@@ -153,15 +163,18 @@ and t2 =
     *)
 
 val is_static : t2 -> bool
-(** static : instance space is fixed
-    dynamic : instance space can be changed according to the target type
+(** [true]  : Instance space can be computed statically.
+
+    [false] : Instance space is highly dependent on the target type
+              and should be computed dynamically. (Static computation is
+              simply impossible since it may be infinite without restriction
+              of the target type.)
 *)
 
 val to_string : t -> string
-(** convert [t] to its string representation for [[%%imp_spec ...]] *)
+(** Convert [t] to its string representation for [[%%imp_spec ...]] *)
 
-(** get spec from a module path which has type __imp_spec__ = .. *)
-
+(** Compute the instance space *)
 val candidates 
   : Env.t 
     -> Location.t 
