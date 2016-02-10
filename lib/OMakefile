@@ -1,0 +1,15 @@
+LIBFILES[] =
+   runtime
+
+LIB = ppx_implicits
+
+PACKAGE_NAME=ppx_implicits
+
+MyOCamlPackageExtras[] =
+    ../ppx/ppx_implicits.run
+    ../src/ppx_implicits.opt
+    ../src/ppx_implicits$(EXE)
+
+OCamlRequirePackages(ppxx typpx)
+
+MyOCamlPackage($(LIB), $(LIBFILES), $(EMPTY), $(EMPTY))

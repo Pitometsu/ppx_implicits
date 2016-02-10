@@ -9,18 +9,6 @@ open Format
 
 module Forge = Typpx.Forge
   
-(** Check [e [@imp ...]] for example, [assert false [@imp ...]] *)
-let has_imp e = 
-  let imps = flip map e.exp_attributes & function 
-    | {txt="imp"}, payload -> Some (Specconv.from_payload e.exp_env payload)
-    | _ -> None
-  in
-  match flip filter imps & function Some _ -> true | None -> false with
-  | [] -> None
-  | [Some (`Ok x)] -> Some x
-  | [Some (`Error err)] -> Specconv.error e.exp_loc err
-  | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
-  
 type trace = (Path.t * type_expr) list
     
 let rec resolve env get_cands : (trace * type_expr) list -> expression list list = function
@@ -138,28 +126,16 @@ let resolve env loc spec ty = with_snapshot & fun () ->
         (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
   | _ -> assert false (* we only resolve one instance at a time *)
 
+let is_imp_type_path = function
+  | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
+  | _ -> false
+    
 (* get the spec for [%imp] from its type *)
 let imp_type_spec env loc ty =
   match expand_repr_desc env ty with
-  | Tconstr (p, _, _) -> 
-      begin match p with
-      | Pident _ ->
-          (* Oh it's local... *)
-          (* __imp_spec__ must exit *)
-          let p, td = 
-            try
-              let p, td = Env.lookup_type (Lident "__imp_spec__") env in
-              match p with
-              | Pident id when Ident.persistent id -> p, td
-              | _ -> raise Exit (* __imp_spec__ exists but in some module, not in the top *)
-            with
-            | Not_found | Exit ->
-                errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]"
-                  Location.format loc
-          in
-          `Ok (Specconv.from_type_decl env td.type_loc p td)
-      | Pdot (mp, _, _) -> 
-          (* <mp>.__imp_spec__ must exist *)
+  | Tconstr (p, [_; spec], _) when is_imp_type_path p ->
+      begin match expand_repr_desc env spec with
+      | Tconstr (mp, _, _) ->
           begin match Specconv.from_module_path env loc mp with
           | `Ok x -> `Ok x
           | `Error (`No_imp_spec (mp_loc, mp)) ->
@@ -174,6 +150,7 @@ let imp_type_spec env loc ty =
       end
   | _ -> `Error `Strange_type
 
+(*
 (* Eval type spec *)      
 let get_spec spec env loc ty = match spec with
   | Spec.Type ->
@@ -186,11 +163,7 @@ let get_spec spec env loc ty = match spec with
       | `Ok p -> p
       end
   | _ -> spec
-    
-
-let resolve_imp env loc spec ty =
-  let spec = get_spec spec env loc ty in
-  resolve env loc spec ty
+*)    
 
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
@@ -276,10 +249,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         in
         Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
 
-    | _ ->
-        match has_imp e with
-        | None -> e
-        | Some spec -> resolve_imp e.exp_env e.exp_loc spec e.exp_type
+    | _ -> e
 
   let leave_expression e =
     (* Handling derived implicits, part 2 of 2 *)
