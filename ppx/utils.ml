@@ -196,3 +196,31 @@ let sig_module_of_stri sitem =
         }
   | _ -> assert false
 
+let rec values_of_module ~recursive env path mdecl : Path.t list =
+  let m = new dummy_module env path mdecl.md_type in
+  let sg = scrape_sg path env mdecl in
+  flip2 fold_right sg [] & fun sitem st -> match sitem with
+    | Sig_value (id, _vdesc) ->
+        let path = try m#lookup_value & Ident.name id with Not_found ->
+          !!% "VOM m#lookup_value %s not found@." & Ident.name id;
+          assert false
+        in
+        path :: st
+    | Sig_module (id, moddecl, _) when recursive -> 
+        let path = m#lookup_module & Ident.name id in
+        values_of_module ~recursive env path moddecl @ st
+          
+    | _ -> st
+
+let check_module env loc path =
+  match 
+    try Some (Env.find_module path env) with _ -> None
+  with
+  | None -> 
+      errorf "%a: no module desc found: %a" Location.format loc Path.format path
+  | Some mdecl -> mdecl
+
+let values_of_module ~recursive env loc path =
+  let mdecl = check_module env loc path in
+  values_of_module ~recursive env path mdecl
+

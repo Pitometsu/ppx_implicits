@@ -74,8 +74,7 @@ let cand_derive env loc e temp_ty ty =
             raise Exit
         end;
         let path = fake_path e in
-        [ { Candidate.lid= Typpx.Untypeast.lident_of_path path;
-            path= path;
+        [ { Candidate.path= path;
             expr= Typpx.Forge.Exp.untyped (instance_template e cty);
             type_= ttype;
             aggressive = false } ]

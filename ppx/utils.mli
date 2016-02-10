@@ -69,3 +69,11 @@ val tvars_of_core_type : Parsetree.core_type -> string list
    ==> [module X : S ]
 *)
 val sig_module_of_stri : Parsetree.structure_item -> Parsetree.signature_item
+
+val values_of_module
+  : recursive:bool -> (*+ dig in the sub-modules or not *)
+  Env.t ->
+  Location.t -> (*+ Location of the environment obtained *) 
+  Path.t ->
+  Path.t list
+(** Extract values defined in the specified Path.t *)

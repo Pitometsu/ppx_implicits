@@ -33,12 +33,11 @@ let related_modules env ty =
   |> sort_uniq compare
 
 (* CR jfuruse: loc is not used *)    
-let cand_related env _loc ty = 
-  let mods = related_modules env ty in
-  let lmods = flip map mods & fun p ->
-    let mdecl = Env.find_module p env in
-    (Typpx.Untypeast.lident_of_path p, p, mdecl)
-  in
+let cand_related env loc ty = 
+  let mod_paths = related_modules env ty in
   (* CR jfuruse: values_of_module should be memoized *)
-  concat & map (fun (lid,path,mdecl) -> values_of_module ~recursive:false env lid path mdecl) lmods
+  concat & map (fun path ->
+    let paths = Utils.values_of_module ~recursive:false env loc path in
+    map (default_candidate_of_path env) paths
+  ) mod_paths
 
