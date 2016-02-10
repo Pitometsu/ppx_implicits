@@ -229,15 +229,19 @@ let resolve_arg loc env a = match a with
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
+  (* Code transformations independent each other must be embeded
+     into one  AST mapper, and one part must be scattered into 
+     more than two places. Very hard to read. *)
+
   let create_function_id = 
     let x = ref 0 in
-    fun () -> incr x; "__imp__function__" ^ string_of_int !x
+    fun () -> incr x; "__imp__arg__" ^ string_of_int !x
 
-  let is_function_id = String.is_prefix "__imp__function__"
+  let is_function_id = String.is_prefix "__imp__arg__"
 
   let enter_expression e = match e.exp_desc with
     | Texp_apply (f, args) ->
-        (* resolve omitted ?_x arguments *)
+        (* Resolve omitted ?_x arguments *)
         { e with
           exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
 
@@ -246,13 +250,18 @@ module MapArg : TypedtreeMap.MapArgument = struct
         warnf "%a: Unexpected label with multiple function cases"
           Location.format e.exp_loc;
         e
-           
+
     | Texp_function (l, [case], e') when Klabel.is_klabel l <> None ->
+        (* Handling derived implicits, part 1 of 2 *)
         (* If a pattern has a form l:x where [Klabel.is_klabel l],
            then the value can be used as an instance of the same type.
 
-           Here, the problem is that [leave_expression] does not take the same expression
+           Hack: the problem is that [leave_expression] does not take the same expression
            as here. Therefore we need small imperative trick. Attributes should be kept as they are...
+
+           `(fun ?_x:(x as __imp_arg__0) -> ..)[@__imp_arg_0]`,
+           adding an association of `"__imp_arg__0"` and the candidate of
+           `__imp_arg__0` to `derived_candidates`.
         *)
         let fid = create_function_id () in
         let id = Ident.create fid in
@@ -273,9 +282,15 @@ module MapArg : TypedtreeMap.MapArgument = struct
         | Some spec -> resolve_imp e.exp_env e.exp_loc spec e.exp_type
 
   let leave_expression e =
+    (* Handling derived implicits, part 2 of 2 *)
     match Forge.Exp.partition_marks e & fun txt -> is_function_id txt with
     | [], e -> e
     | [txt], e ->
+        (* Hack:
+           
+           Remove the association of `"__imp_arg__0"` and the candidate of
+           `__imp_arg__0` from `derived_candidates`.
+        *)
         derived_candidates := filter (fun (fid, _) -> fid <> txt) !derived_candidates;
         e
     | _ -> assert false
