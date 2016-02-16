@@ -1,4 +1,4 @@
-open Utils
+open Ppxx.Utils
 open Ppxx.Compilerlib
 open Typedtree
 open Types
@@ -8,18 +8,6 @@ open List (* has flatten *)
 open Format
 
 module Forge = Typpx.Forge
-  
-(** Check [e [@imp ...]] for example, [assert false [@imp ...]] *)
-let has_imp e = 
-  let imps = flip map e.exp_attributes & function 
-    | {txt="imp"}, payload -> Some (Spec.from_payload payload)
-    | _ -> None
-  in
-  match flip filter imps & function Some _ -> true | None -> false with
-  | [] -> None
-  | [Some (`Ok x)] -> Some x
-  | [Some (`Error err)] -> Spec.error e.exp_loc err
-  | _ -> errorf "@[<2>%a:@ expression has multiple @@imp@]" Location.format e.exp_loc
   
 type trace = (Path.t * type_expr) list
     
@@ -37,11 +25,15 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
         | Some ty' when not & Tysize.(lt (size ty) (size ty')) ->
             (* recursive call of path and the type size is not strictly decreasing *)
             if !Options.debug_unif then begin
-              eprintf "Checking %a <> ... using %a ... oops"
-              Printtyp.type_expr ty
-              Path.format path;
-              eprintf "  @[<2>Non decreasing %%imp recursive dependency:@ %a : %a  =>  %a@]@." 
-              Path.format path Printtyp.type_expr ty' Printtyp.type_expr ty;
+              eprintf "  Checking %a <> ... using %a ... oops"
+                Printtyp.type_expr ty
+                Path.format path;
+              eprintf "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+                Path.format path
+                Printtyp.type_expr ty'
+                (Tysize.(to_string & size ty'))
+                Printtyp.type_expr ty
+                (Tysize.(to_string & size ty));
             end;
 
             []
@@ -60,33 +52,37 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
             in
 
             with_snapshot & fun () ->
-              if !Options.debug_unif then
-                eprintf "Checking %a <> %a, using %a ..."
+              if !Options.debug_unif then begin
+                eprintf "  Checking %a <> %a, using %a ..."
                   Printtyp.type_expr ity
                   Printtyp.type_expr ivty
                   Path.format path;
-
+              end;
               match protect & fun () -> Ctype.unify env ity ivty with
               | `Error (Ctype.Unify utrace) ->
                   if !Options.debug_unif then begin
-                    eprintf " no@.";
-                    eprintf "   Reason: @[%a@]@."
+                    eprintf "    no@.";
+                    eprintf "      Reason: @[%a@]@."
                       (fun ppf utrace -> Printtyp.report_unification_error ppf
                         env utrace
                         (fun ppf -> fprintf ppf "Hmmm ")
                         (fun ppf -> fprintf ppf "with"))
                       utrace;
+(*
+                    eprintf "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
+                    eprintf "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
+*)
                   end;
                   [] (* no solution *)
                       
               | `Error e ->
                   (* CR jfuruse: this is unexpected therefore should fail ppx *)
-                  eprintf "Ctype.unify raised strange exception %s@." (Printexc.to_string e);
+                  eprintf "  Ctype.unify raised strange exception %s@." (Printexc.to_string e);
                   [] (* no solution *)
                       
               | `Ok _ ->
                   if !Options.debug_unif then
-                    eprintf " ok: %a@." Printtyp.type_expr ity;
+                    eprintf "    ok: %a@." Printtyp.type_expr ity;
                   
                   (* Add the sub-problems *)
                   let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
@@ -112,7 +108,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   close_gen_vars ty;
 
   let get_cands =
-    let f = Candidate.candidates env loc spec in
+    let f = Spec.candidates env loc spec in
     fun ty -> Candidate.uniq & f ty @ map snd !derived_candidates
   in
 
@@ -130,42 +126,26 @@ let resolve env loc spec ty = with_snapshot & fun () ->
         (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
   | _ -> assert false (* we only resolve one instance at a time *)
 
+(** Ppx_implicits.Runtime.t *)
+let is_imp_type_path = function
+  | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
+  | _ -> false
+    
 (* get the spec for [%imp] from its type *)
-let imp_type_spec env loc ty =
-  match expand_repr_desc env ty with
-  | Tconstr (p, _, _) -> 
-      begin match p with
-      | Pident _ ->
-          (* Oh it's local... *)
-          (* __imp_spec__ must exit *)
-          let p, td = 
-            try
-              let p, td = Env.lookup_type (Lident "__imp_spec__") env in
-              match p with
-              | Pident id when Ident.persistent id -> p, td
-              | _ -> raise Exit (* __imp_spec__ exists but in some module, not in the top *)
-            with
-            | Not_found | Exit ->
-                errorf "%a: Current module has no implicit spec declaration [%%%%imp_spec SPEC]"
-                  Location.format loc
-          in
-          `Ok (Spec.from_type_decl td.type_loc p td)
-      | Pdot (mp, _, _) -> 
-          (* <mp>.__imp_spec__ must exist *)
-          begin match Spec.from_module_path env loc mp with
-          | `Ok x -> `Ok x
-          | `Error (`No_imp_spec (mp_loc, mp)) ->
-              errorf "@[<2>%a: [%%imp] expression has type %a,@ but module %a has no declaration [%%%%imp_spec SPEC].@ %a: module %a is defined here.@]"
-                Location.format loc
-                Printtyp.type_expr ty (* reset? *)
-                Path.format mp
-                Location.format mp_loc
-                Path.format mp
-          end
-      | _ -> assert false (* impos: F(X) *)
-      end
+let imp_type_spec env loc ty0 =
+  match expand_repr_desc env ty0 with
+  | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
+      let spec = Specconv.from_type_expr env loc spec in
+      `Ok (ty, spec)
+(* We must use the following error handling by resultize from_type_expr 
+          errorf "@[<2>%a: expression has type %a,@ where type %a does not encode implicit resolution spec.@]"
+            Location.format loc
+            Printtyp.type_expr ty0 (* reset? *)
+            Printtyp.type_expr spec
+*)
   | _ -> `Error `Strange_type
 
+(*
 (* Eval type spec *)      
 let get_spec spec env loc ty = match spec with
   | Spec.Type ->
@@ -178,11 +158,7 @@ let get_spec spec env loc ty = match spec with
       | `Ok p -> p
       end
   | _ -> spec
-    
-
-let resolve_imp env loc spec ty =
-  let spec = get_spec spec env loc ty in
-  resolve env loc spec ty
+*)    
 
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
@@ -201,17 +177,13 @@ let resolve_arg loc env a = match a with
       | Some ty ->
           begin match imp_type_spec env loc ty with
           | `Error `Strange_type -> a (* Think about derived! *)
-          | `Ok spec ->
+          | `Ok (ty, spec) ->
               (l, 
-               Some begin try
-                  (* CR jfuruse: we can have ambiguous resolution
-                     for t option and t *)
-                  (* Try just [%imp] first *)
-                  resolve env loc spec e.exp_type
-                 with
-                 | _ ->
-                     (* If above failed, try Some [%imp] *)
-                     Forge.Exp.some env & resolve env loc spec ty
+               Some begin
+                 (* Ppx_implicits.Runtime.embed e *)
+                 (* CR jfuruse: TODO: Ppx_implicits.Runtime.embed (Ppx_implicits.Runtime.from_Some e) => e *)
+                 Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed])
+                              ["", resolve env loc spec ty])
                end,
                Optional)
           end
@@ -221,74 +193,83 @@ let resolve_arg loc env a = match a with
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
 
+  (* Code transformations independent each other must be embeded
+     into one  AST mapper, and one part must be scattered into 
+     more than two places. Very hard to read. *)
+
   let create_function_id = 
     let x = ref 0 in
-    fun () -> incr x; "__imp__function__" ^ string_of_int !x
+    fun () -> incr x; "__imp__arg__" ^ string_of_int !x
 
-  let is_function_id = String.is_prefix "__imp__function__"
+  let is_function_id = String.is_prefix "__imp__arg__"
 
-  module Ppxxx = struct
-    (* CR jfuruse: should be moved to Ppxx *)
-
-    let mark_expression txt e =
-      { e with
-        exp_attributes = ({txt; loc= Ppxx.Helper.ghost e.exp_loc}, Parsetree.PStr []) :: e.exp_attributes }
-        
-    let partition_expression_marks e f =
-      let g = function
-        | {txt}, Parsetree.PStr [] when f txt -> `Left txt
-        | a -> `Right a
-      in
-      let marks, exp_attributes = partition_map g e.exp_attributes in
-      marks,
-      { e with exp_attributes }
-  end
-    
   let enter_expression e = match e.exp_desc with
     | Texp_apply (f, args) ->
-        (* resolve omitted ?_x arguments *)
+        (* Resolve omitted ?_x arguments *)
         { e with
           exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
 
     | Texp_function (l, _::_::_, _) when l <> "" ->
         (* Eeek, label with multiple cases? *)
-        warn (fun () ->
-          eprintf "%a: Unexpected label with multiple function cases"
-            Location.format e.exp_loc);
+        warnf "%a: Unexpected label with multiple function cases"
+          Location.format e.exp_loc;
         e
-           
+
     | Texp_function (l, [case], e') when Klabel.is_klabel l <> None ->
+        (* Handling derived implicits, part 1 of 2 *)
         (* If a pattern has a form l:x where [Klabel.is_klabel l],
            then the value can be used as an instance of the same type.
 
-           Here, the problem is that [leave_expression] does not take the same expression
+           Hack: the problem is that [leave_expression] does not take the same expression
            as here. Therefore we need small imperative trick. Attributes should be kept as they are...
+
+           `(fun ?_x:(x as __imp_arg__0) -> ..)[@__imp_arg_0]`,
+           adding an association of `"__imp_arg__0"` and the candidate of
+           `__imp_arg__0` to `derived_candidates`.
         *)
         let fid = create_function_id () in
-        let lid = Longident.Lident fid in
         let id = Ident.create fid in
         let path = Path.Pident id in
-        derived_candidates := (fid, { Candidate.lid;
-                                      path;
-                                      expr = Typpx.Forge.Exp.(ident path); 
-                                      type_ = case.c_lhs.pat_type;
+        let loc = case.c_lhs.pat_loc in
+        let env = case.c_lhs.pat_env in
+        let expr, type_embed = match Klabel.is_klabel l with
+          | None -> assert false
+          | Some `Normal -> Typpx.Forge.Exp.(ident path), case.c_lhs.pat_type
+          | Some `Optional ->
+              Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", ident path]),
+            Typecore.extract_option_type env case.c_lhs.pat_type
+        in
+        let type_ = match imp_type_spec env loc type_embed with
+          | `Ok (ty, _spec) -> ty
+          | _ ->
+              errorf "@[<2>%a: strange embed type %a@]"
+                Location.format loc
+                Printtyp.type_expr type_embed
+        in
+
+        derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)
+                                      expr;
+                                      type_;
                                       aggressive = false } ) 
                               :: !derived_candidates;
         let case = { case with
                      c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
         in
-        Ppxxx.mark_expression fid { e with exp_desc = Texp_function (l, [case], e') }
+        Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
 
-    | _ ->
-        match has_imp e with
-        | None -> e
-        | Some spec -> resolve_imp e.exp_env e.exp_loc spec e.exp_type
+    | _ -> e
 
   let leave_expression e =
-    match Ppxxx.partition_expression_marks e & fun txt -> is_function_id txt with
+    (* Handling derived implicits, part 2 of 2 *)
+    match Forge.Exp.partition_marks e & fun txt -> is_function_id txt with
     | [], e -> e
     | [txt], e ->
-        derived_candidates := List.filter (fun (fid, _) -> fid <> txt) !derived_candidates;
+        (* Hack:
+           
+           Remove the association of `"__imp_arg__0"` and the candidate of
+           `__imp_arg__0` from `derived_candidates`.
+        *)
+        derived_candidates := filter (fun (fid, _) -> fid <> txt) !derived_candidates;
         e
     | _ -> assert false
 end

@@ -5,7 +5,7 @@ OCamlRequire($(PPX))
 
 OCAMLDEPFLAGS= -ppx $(PPX)
 
-# OCAMLINCLUDES += ../lib ../ocaml
+OCAMLINCLUDES += ../lib
 
 # FILES[] =
 #    ../lib/meta_conv
@@ -20,9 +20,9 @@ Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
   $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) implicits.cmo $(CMOS)
     mkdir_if_not_exists(out)
-    $(PPX) -debug $(name).ml > out/$(name).ml 
-    ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -ppx $(PPX) implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
+    $(PPX) -I ../lib -debug $(name).ml > out/$(name).ml 
+    ocamlc -I ../lib -ppx $(PPX) -i $(name).ml > out/$(name).mli
+    ocamlc -I ../lib -ppx $(PPX) ppx_implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
   out/$(name).out: $(name)$(OUT)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
@@ -53,41 +53,41 @@ Test(name)=
   export
 
 Test(imp)
-Test(imp1)
-Test(imp2)
+# Test(imp1)
+# Test(imp2)
 Test(imp3)
-Test(imp31)
-Test(imp4)
-Test(unshadow)
-Test(prop)
-Test(typeclass)
-Test(just)
-Test(opened)
-Test(template)
-Test(readme)
-Test(aggressive)
-Test(typeclass2)
-Test(typeclass3)
-Test(typeclass5)
-Test(typeclass52)
-Test(multiparam)
-Test(multiparam2)
-Test(constraint)
-Test_(adm, $(EMPTY))
-Test(xformat)
-Test(double_use)
-Test(fvar)
-Test(nomodule)
-Test(typeclass6)
-Test(kgap)
-Test(numdef)
-Testx(numuse, numdef)
-Test(prelude)
-Test(monad_hk)
-# Test(highk)
-Test(length_class)
-Test(showc)
-Test(fcmod)
-Test(deriving)
-
+# Test(imp31)
+# Test(imp4)
+# Test(unshadow)
+# Test(prop)
+# Test(typeclass)
+# Test(just)
+# Test(opened)
+# Test(template)
+# Test(readme)
+# Test(aggressive)
+# Test(typeclass2)
+# Test(typeclass3)
+# Test(typeclass5)
+# Test(typeclass52)
+# Test(multiparam)
+# Test(multiparam2)
+# Test(constraint)
+# Test_(adm, $(EMPTY))
+# Test(xformat)
+# Test(double_use)
+# Test(fvar)
+# Test(nomodule)
+# Test(typeclass6)
+# Test(kgap)
+# Test(numdef)
+# Testx(numuse, numdef)
+# Test(prelude)
+# Test(monad_hk)
+# # Test(highk)
+# Test(length_class)
+# Test(showc)
+# Test(fcmod)
+# Test(deriving)
+# Test(packer)
 

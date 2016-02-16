@@ -4,12 +4,21 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
-    options
     utils
+    options
     unshadow
     klabel
     candidate
+    crelated
+    ctypeclass
+    cderiving
+    cppxderive
     spec
+    specconv
+    pre_imp
+    pre_imp_spec
+    pre_typeclass
+    pre_imp_pack
     pre
     tysize
     mod
@@ -22,3 +31,8 @@ targets=$(MyOCamlPPX ppx_implicits, $(FILES))
 MyOCamlFindPackage(ppx_implicits, $(targets))
 
 WithMerlin()
+
+.PHONY:doc
+
+doc:
+    ocamlfind ocamldoc -html $(PREFIXED_OCAMLPACKS) spec.mli
