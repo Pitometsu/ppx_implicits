@@ -22,8 +22,16 @@ let () = assert (show [1;2] = "[ 1; 2 ]")
 let show_twice ?_d x = show x ^ show x
 *)
 
-let show_twice ?_d:(_ : ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t option) x = show x ^ show x
+let show_twice ?_d:(_ : ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t option) (x : 'a) = show x ^ show x
   
 let () = assert (show_twice 1 = "11")
 let () = assert (show_twice 1.0 = "1.1.")
 let () = assert (show_twice [1;2] = "[ 1; 2 ][ 1; 2 ]")
+
+(* Forgetting to specify the relation with _d and x *)
+let show_twice ?_d:(_ : ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t option) x = show x ^ show x
+
+(* This inf loops! *)
+(*
+let () = assert (show_twice 1 = "11")       (* ?_d should have a free type variable there it must fail *)a
+*)

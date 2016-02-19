@@ -16,6 +16,10 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
   | (trace,ty)::tr_tys ->
       let cands =
         let cs = get_cands ty in
+        if !Options.debug_unif then begin
+          Format.eprintf "Candidates:@.";
+          iter (Format.eprintf "  %a@." Candidate.format) cs
+        end;
         flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
           if not aggressive then [(path, expr, Klabel.extract env type_)]
           else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
@@ -106,6 +110,8 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   if !Options.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
 
   close_gen_vars ty;
+
+  if !Options.debug_resolve then eprintf "The type is: %a@." Printtyp.type_scheme ty;
 
   let get_cands =
     let f = Spec.candidates env loc spec in
@@ -237,14 +243,14 @@ module MapArg : TypedtreeMap.MapArgument = struct
           | Some `Normal -> Typpx.Forge.Exp.(ident path), case.c_lhs.pat_type
           | Some `Optional ->
               Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", ident path]),
-            Typecore.extract_option_type env case.c_lhs.pat_type
+              Typecore.extract_option_type env case.c_lhs.pat_type
         in
-        let type_ = match imp_type_spec env loc type_embed with
-          | `Ok (ty, _spec) -> ty
+        let expr, type_ = match imp_type_spec env loc type_embed with
+          | `Ok (ty, _spec) ->
+              Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", expr]),
+              ty
           | _ ->
-              errorf "@[<2>%a: strange embed type %a@]"
-                Location.format loc
-                Printtyp.type_expr type_embed
+              expr, type_embed
         in
 
         derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)

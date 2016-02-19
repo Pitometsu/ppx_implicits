@@ -21,6 +21,11 @@ type t = {
   aggressive : bool
 }
 
+let format ppf c = Format.(fprintf ppf "\"%a\" : %a : %a"
+                             Path.format c.path
+                             Pprintast.expression (Typpx.Untypeast.untype_expression c.expr)
+                             Printtyp.type_scheme c.type_)
+    
 let uniq xs =
   let tbl = Hashtbl.create 107 in
   iter (fun x ->

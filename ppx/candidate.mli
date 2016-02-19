@@ -14,6 +14,8 @@ type t = {
   aggressive : bool
 }
 
+val format : Format.formatter -> t -> unit
+
 val uniq : t list -> t list
 (** Remove dupes. Identification of [Candidate.t] is done by [path] fields *)
 
