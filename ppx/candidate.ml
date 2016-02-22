@@ -23,7 +23,7 @@ type t = {
 
 let format ppf c = Format.(fprintf ppf "\"%a\" : %a : %a"
                              Path.format c.path
-                             Pprintast.expression (Typpx.Untypeast.untype_expression c.expr)
+                             Utils.format_expression c.expr
                              Printtyp.type_scheme c.type_)
     
 let uniq xs =

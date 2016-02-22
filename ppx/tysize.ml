@@ -22,6 +22,8 @@ let to_string t =
     in
     s :: st) t []
     
+let format ppf t = Format.fprintf ppf "%s" (to_string t)
+    
 let size ty =
   let open Hashtbl in
   let tbl = create 9 in

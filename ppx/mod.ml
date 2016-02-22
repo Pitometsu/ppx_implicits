@@ -21,17 +21,21 @@ let get_candidates env get_cands ty =
     if not aggressive then [(path, expr, Klabel.extract env type_)]
     else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
     
-let rec resolve env get_cands : (trace * type_expr) list -> [ `MayLoop | `Ok of expression list list ] = function
+let rec resolve env get_cands : (trace * type_expr) list -> [ `MayLoop of expression list | `Ok of expression list list ] = function
   | [] -> `Ok [[]] (* one solution with the empty expression set *)
   | (trace,ty)::tr_tys ->
       let cands = get_candidates env get_cands ty in
       let rec concat = function
         | [] -> `Ok []
-        | `MayLoop :: _ -> `MayLoop
+        | `MayLoop es :: ys ->
+            begin match concat ys with
+            | `Ok _ -> `MayLoop es
+            | `MayLoop es' -> `MayLoop (es @ es')
+            end
         | `Ok xs :: ys ->
             match concat ys with
             | `Ok ys -> `Ok (xs @ ys)
-            | `MayLoop -> `MayLoop
+            | `MayLoop es -> `MayLoop es
       in
       concat & flip map cands & fun (path, expr, (cs,vty)) ->
         match assoc_opt path trace with
@@ -113,13 +117,13 @@ let rec resolve env get_cands : (trace * type_expr) list -> [ `MayLoop | `Ok of 
                         (Tysize.to_string new_tysize)
                     end;
                     (* CR jfuruse: this is reported ambiguousity *) 
-                    `MayLoop
+                    `MayLoop [expr]
                   end else
 
                   (* Add the sub-problems *)
                     let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                     match resolve env get_cands tr_tys with
-                    | `MayLoop -> `MayLoop
+                    | `MayLoop es -> `MayLoop es
                     | `Ok ress ->
                         `Ok (flip map ress & fun res ->
                           let rec app res cs = match res, cs with
@@ -151,20 +155,22 @@ let resolve env loc spec ty = with_snapshot & fun () ->
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve env get_cands [([],ty)] with
-  | `MayLoop -> 
-      errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type %a and the resolution cannot continue@]@]"
+  | `MayLoop es -> 
+      errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ The following instances may cause infinite loop of the resolution:@ @[<2>%a@]"
         Location.format loc
         Printtyp.type_expr ty
+        (* CR jfuruse: should define a function for printing Typedtree.expression *)
+        (List.format ",@," Utils.format_expression) es
   | `Ok [] ->
-      errorf "@[<2>%a:@ no instance found for@ @[%a@]@]"
+      errorf "%a:@ no instance found for@ @[%a@]"
         Location.format loc
         Printtyp.type_expr ty
   | `Ok (_::_::_ as es) ->
       let es = map (function [e] -> e | _ -> assert false) es in
-      errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type:@ @[%a@]@]@.@[<2>Following possible resolutions:@ @[<v>%a@]@]"
+      errorf "%a: overloaded type has a too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
         Location.format loc
         Printtyp.type_expr ty
-        (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
+        (List.format "@," Utils.format_expression) es
   | `Ok [es] ->
       match es with
       | [e] -> Unshadow.Replace.replace e
@@ -182,7 +188,7 @@ let imp_type_spec env loc ty0 =
       let spec = Specconv.from_type_expr env loc spec in
       `Ok (ty, spec)
 (* We must use the following error handling by resultize from_type_expr 
-          errorf "@[<2>%a: expression has type %a,@ where type %a does not encode implicit resolution spec.@]"
+          errorf "%a: expression has type %a,@ where type %a does not encode implicit resolution spec."
             Location.format loc
             Printtyp.type_expr ty0 (* reset? *)
             Printtyp.type_expr spec

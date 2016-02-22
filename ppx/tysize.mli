@@ -26,6 +26,9 @@ type t
 val to_string : t -> string
 (** Print [t] *)
 
+val format : Format.formatter -> t -> unit
+(** Format [t] *)
+  
 val size : Types.type_expr -> t
 (** Obtain type size of the given type *)
 

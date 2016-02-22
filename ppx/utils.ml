@@ -224,3 +224,5 @@ let values_of_module ~recursive env loc path =
   let mdecl = check_module env loc path in
   values_of_module ~recursive env path mdecl
 
+let format_expression ppf e =
+  Pprintast.expression ppf & Typpx.Untypeast.untype_expression e

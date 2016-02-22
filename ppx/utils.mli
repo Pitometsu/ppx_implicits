@@ -77,3 +77,5 @@ val values_of_module
   Path.t ->
   Path.t list
 (** Extract values defined in the specified Path.t *)
+
+val format_expression : Format.formatter -> Typedtree.expression -> unit
