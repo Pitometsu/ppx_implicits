@@ -14,11 +14,13 @@ let to_string t =
   let open Printf in
   String.concat " + "
   & Hashtbl.fold (fun k v st ->
-    let k = match k with
-      | None -> ""
-      | Some n -> sprintf " a%d" n
+    let s = match k,v with
+      | None, _ -> sprintf "%d" v
+      | Some _, 0 -> ""
+      | Some k, 1 -> sprintf "a%d" k
+      | Some k, _ -> sprintf "%d*a%d" v k
     in
-    sprintf "%d%s" v k :: st) t []
+    s :: st) t []
     
 let size ty =
   let open Hashtbl in
@@ -59,3 +61,11 @@ let lt t1 t2 =
       ) t1 false
   with
   | Exit | Not_found -> false
+
+let has_var t =
+  try
+    Hashtbl.iter (fun k v -> if k <> None && v > 0 then raise Exit) t;
+    false
+  with
+  | Exit -> true
+  

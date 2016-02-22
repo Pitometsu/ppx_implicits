@@ -32,6 +32,4 @@ let () = assert (show_twice [1;2] = "[ 1; 2 ][ 1; 2 ]")
 let show_twice ?_d:(_ : ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t option) x = show x ^ show x
 
 (* This inf loops! *)
-(*
-let () = assert (show_twice 1 = "11")       (* ?_d should have a free type variable there it must fail *)a
-*)
+let () = assert (show_twice 1 = "11")       (* ?_d should have a free type variable there it must fail *)

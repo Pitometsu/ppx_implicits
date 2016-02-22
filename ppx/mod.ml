@@ -10,20 +10,21 @@ open Format
 module Forge = Typpx.Forge
   
 type trace = (Path.t * type_expr) list
+
+let get_candidates env get_cands ty =
+  let cs = get_cands ty in
+  if !Options.debug_unif then begin
+    Format.eprintf "Candidates:@.";
+    iter (Format.eprintf "  %a@." Candidate.format) cs
+  end;
+  flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
+    if not aggressive then [(path, expr, Klabel.extract env type_)]
+    else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
     
 let rec resolve env get_cands : (trace * type_expr) list -> expression list list = function
-  | [] -> [[]]
+  | [] -> [[]] (* one solution with the empty expression set *)
   | (trace,ty)::tr_tys ->
-      let cands =
-        let cs = get_cands ty in
-        if !Options.debug_unif then begin
-          Format.eprintf "Candidates:@.";
-          iter (Format.eprintf "  %a@." Candidate.format) cs
-        end;
-        flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
-          if not aggressive then [(path, expr, Klabel.extract env type_)]
-          else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
-      in
+      let cands = get_candidates env get_cands ty in
       flip concat_map cands & fun (path, expr, (cs,vty)) ->
         match assoc_opt path trace with
         | Some ty' when not & Tysize.(lt (size ty) (size ty')) ->
@@ -43,6 +44,12 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
             []
 
         | _ ->
+            (* ty is going to be instantiated but the _variable part_ of 
+               tysize must decrease strictly, 
+               otherwise the algorithm may loop infinitely.
+            *)
+            let org_tysize = Tysize.size ty in 
+
             (* CR jfuruse: Older binding of path is no longer useful. Replace instead of add? *)
             let trace' = (path, ty) :: trace in 
 
@@ -80,26 +87,39 @@ let rec resolve env get_cands : (trace * type_expr) list -> expression list list
                   [] (* no solution *)
                       
               | `Error e ->
-                  (* CR jfuruse: this is unexpected therefore should fail ppx *)
                   eprintf "  Ctype.unify raised strange exception %s@." (Printexc.to_string e);
-                  [] (* no solution *)
-                      
+                  [] (* CR jfuruse: should throw e *)
+
               | `Ok _ ->
                   if !Options.debug_unif then
                     eprintf "    ok: %a@." Printtyp.type_expr ity;
                   
+                  let new_tysize = Tysize.size ty in
+
+                  if Tysize.(has_var new_tysize
+                             && has_var org_tysize
+                             && not & lt new_tysize org_tysize)
+                  then begin
+                    begin Format.eprintf "    Tysize vars not strictly decreasing %s => %s@."
+                        (Tysize.to_string org_tysize)
+                        (Tysize.to_string new_tysize)
+                    end;
+                    (* CR jfuruse: this is reported ambiguousity *)
+                    []
+                  end else
+
                   (* Add the sub-problems *)
                   let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
                   flip map (resolve env get_cands tr_tys) & fun res ->
                     let rec app res cs = match res, cs with
-                      | res, [] -> res, [] (* all the sub solutions are applied *)
+                      | res, [] -> res, []
                       | r::res, (l,_)::cs ->
                           let res, args = app res cs in
                           res, (l,r)::args
                       | _ -> assert false
-                    in
-                    let res, args = app res cs in
-                    Forge.Exp.(app expr args) :: res
+                      in
+                      let res, args = app res cs in
+                      Forge.Exp.(app expr args) :: res
 
 (* CR jfuruse: bad state... *)
 (* CR jfuruse: confusing with deriving spec *)                      
@@ -120,18 +140,21 @@ let resolve env loc spec ty = with_snapshot & fun () ->
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve env get_cands [([],ty)] with
-  | [[e]] -> Unshadow.Replace.replace e
   | [] ->
       errorf "@[<2>%a:@ no instance found for@ @[%a@]@]"
         Location.format loc
         Printtyp.type_expr ty
-  | [es] ->
+  | _::_::_ as es ->
+      let es = map (function [e] -> e | _ -> assert false) es in
       errorf "@[<2>%a: @[<2>overloaded type has a too ambiguous type:@ @[%a@]@]@.@[<2>Following possible resolutions:@ @[<v>%a@]@]"
         Location.format loc
         Printtyp.type_expr ty
         (List.format "@," (Printast.expression 0)) (map Typpx.Untypeast.untype_expression es)
-  | _ -> assert false (* we only resolve one instance at a time *)
-
+  | [es] ->
+      match es with
+      | [e] -> Unshadow.Replace.replace e
+      | _ -> assert false
+      
 (** Ppx_implicits.Runtime.t *)
 let is_imp_type_path = function
   | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true

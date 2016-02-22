@@ -31,3 +31,7 @@ val size : Types.type_expr -> t
 
 val lt : t -> t -> bool
 (** Type size comparison.  [lt t t'] returns true if  t < t' *)
+
+val has_var : t -> bool
+(** Returns [true] if the size has any variable *)
+
