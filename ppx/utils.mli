@@ -52,6 +52,13 @@ end
 
 val from_Some : 'a option -> 'a (** may raise Option.Is_None *)
   
+module List : sig
+  include module type of struct include Ppxx.Utils.List end
+
+  val split_at : int -> 'a list -> 'a list * 'a list
+  (** Haskell's [splitAt] *)
+end
+
 val mangle : string -> string
 (** convert an arbitrary string to Lexer.identchar's
    '_' is a special char. 

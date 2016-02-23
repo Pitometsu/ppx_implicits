@@ -4,6 +4,7 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 OCAMLPPFLAGS=  
 
 FILES[] =
+    unembed
     utils
     options
     unshadow

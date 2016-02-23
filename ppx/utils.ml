@@ -118,6 +118,21 @@ end
 
 let from_Some = Option.from_Some
   
+module List = struct
+  include Ppxx.Utils.List
+    
+  (* Haskell's splitAt. Borrowed from Spotlib. Tested. *)
+  let split_at n xs =
+    let rec split_at_ n st xs =
+      if n <= 0 then st, xs
+      else match xs with
+      | [] -> st, []
+      | x::xs -> split_at_ (n-1) (x::st) xs
+    in
+    let r, dropped = split_at_ n [] xs in
+    rev r, dropped
+end
+
 let mangle s = 
   let len = String.length s in
   let b = Buffer.create len in
@@ -225,4 +240,6 @@ let values_of_module ~recursive env loc path =
   values_of_module ~recursive env path mdecl
 
 let format_expression ppf e =
-  Pprintast.expression ppf & Typpx.Untypeast.untype_expression e
+  Pprintast.expression ppf
+  & Unembed.unembed
+  & Typpx.Untypeast.untype_expression e

@@ -4,137 +4,135 @@ open Typedtree
 open Types
 open Asttypes
 open Longident (* has flatten *)
-open List (* has flatten *)
+open Utils.List (* has flatten *)
 open Format
 
 module Forge = Typpx.Forge
   
 type trace = (Path.t * type_expr) list
 
+(* Fix the candidates by adding type dependent part *)
 let get_candidates env get_cands ty =
   let cs = get_cands ty in
   if !Options.debug_unif then begin
-    Format.eprintf "Candidates:@.";
-    iter (Format.eprintf "  %a@." Candidate.format) cs
+    eprintf "Candidates:@.";
+    iter (eprintf "  %a@." Candidate.format) cs
   end;
   flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
     if not aggressive then [(path, expr, Klabel.extract env type_)]
     else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
-    
-let rec resolve env get_cands : (trace * type_expr) list -> [ `MayLoop of expression list | `Ok of expression list list ] = function
-  | [] -> `Ok [[]] (* one solution with the empty expression set *)
+
+module Resolve_result = struct
+  type t =
+    | Ok of expression list list
+    | MayLoop of expression list (* resolution aborted because of possible infinite loops *)
+
+  let concat xs =
+    match
+      flip partition_map xs & function
+        | Ok ys -> `Right ys
+        | MayLoop ys -> `Left ys
+    with
+    | [], oks -> Ok (concat oks)
+    | mayloops, _ -> MayLoop (concat mayloops)
+end
+  
+let rec resolve env get_cands : (trace * type_expr) list -> Resolve_result.t = function
+  | [] -> Resolve_result.Ok [[]] (* one solution with the empty expression set *)
   | (trace,ty)::tr_tys ->
       let cands = get_candidates env get_cands ty in
-      let rec concat = function
-        | [] -> `Ok []
-        | `MayLoop es :: ys ->
-            begin match concat ys with
-            | `Ok _ -> `MayLoop es
-            | `MayLoop es' -> `MayLoop (es @ es')
-            end
-        | `Ok xs :: ys ->
-            match concat ys with
-            | `Ok ys -> `Ok (xs @ ys)
-            | `MayLoop es -> `MayLoop es
+      Resolve_result.concat
+      & flip map cands
+      & resolve_cand env get_cands trace ty tr_tys
+
+and resolve_cand env get_cands trace ty tr_tys (path, expr, (cs,vty)) =
+
+  let org_tysize = Tysize.size ty in 
+
+  match assoc_opt path trace with
+  | Some ty' when not & Tysize.(lt org_tysize (size ty')) ->
+      (* recursive call of path and the type size is not strictly decreasing *)
+      if !Options.debug_unif then begin
+        eprintf "  Checking %a <> ... using %a ... oops"
+          Printtyp.type_expr ty
+          Path.format path;
+        eprintf "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+          Path.format path
+          Printtyp.type_expr ty'
+          (Tysize.(to_string & size ty'))
+          Printtyp.type_expr ty
+          (Tysize.(to_string & size ty));
+      end;
+      
+      Resolve_result.Ok []
+
+  | _ ->
+      (* CR jfuruse: Older binding of path is no longer useful. Replace instead of add? *)
+      let trace' = (path, ty) :: trace in 
+
+      let ity = Ctype.instance env ty in
+     
+      let ivty, cs =
+        match Ctype.instance_list env (vty::map snd cs) with
+        | [] -> assert false
+        | ivty :: ictys ->
+            ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
       in
-      concat & flip map cands & fun (path, expr, (cs,vty)) ->
-        match assoc_opt path trace with
-        | Some ty' when not & Tysize.(lt (size ty) (size ty')) ->
-            (* recursive call of path and the type size is not strictly decreasing *)
+
+      with_snapshot & fun () ->
+        if !Options.debug_unif then begin
+          eprintf "  Checking %a <> %a, using %a ..."
+            Printtyp.type_expr ity
+            Printtyp.type_expr ivty
+            Path.format path;
+        end;
+        match protect & fun () -> Ctype.unify env ity ivty with
+        | `Error (Ctype.Unify utrace) ->
             if !Options.debug_unif then begin
-              eprintf "  Checking %a <> ... using %a ... oops"
-                Printtyp.type_expr ty
-                Path.format path;
-              eprintf "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
-                Path.format path
-                Printtyp.type_expr ty'
-                (Tysize.(to_string & size ty'))
-                Printtyp.type_expr ty
-                (Tysize.(to_string & size ty));
+              eprintf "    no@.";
+              eprintf "      Reason: @[%a@]@."
+                (fun ppf utrace -> Printtyp.report_unification_error ppf
+                  env utrace
+                  (fun ppf -> fprintf ppf "Hmmm ")
+                  (fun ppf -> fprintf ppf "with"))
+                utrace;
+
+              eprintf "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
+              eprintf "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
+
             end;
+            Resolve_result.Ok [] (* no solution *)
+                   
+        | `Error e -> raise e (* unexpected *)
 
-            `Ok []
+        | `Ok _ ->
+            if !Options.debug_unif then
+              eprintf "    ok: %a@." Printtyp.type_expr ity;
+            
+            let new_tysize = Tysize.size ty in
 
-        | _ ->
-            (* ty is going to be instantiated but the _variable part_ of 
-               tysize must decrease strictly, 
-               otherwise the algorithm may loop infinitely.
-            *)
-            let org_tysize = Tysize.size ty in 
-
-            (* CR jfuruse: Older binding of path is no longer useful. Replace instead of add? *)
-            let trace' = (path, ty) :: trace in 
-
-            let ity = Ctype.instance env ty in
-        
-            let ivty, cs =
-              match Ctype.instance_list env (vty::map snd cs) with
-              | [] -> assert false
-              | ivty :: ictys ->
-                  ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
-            in
-
-            with_snapshot & fun () ->
-              if !Options.debug_unif then begin
-                eprintf "  Checking %a <> %a, using %a ..."
-                  Printtyp.type_expr ity
-                  Printtyp.type_expr ivty
-                  Path.format path;
+            if Tysize.(has_var new_tysize
+                       && has_var org_tysize
+                       && not & lt new_tysize org_tysize)
+            then begin
+              begin eprintf "    Tysize vars not strictly decreasing %s => %s@."
+                  (Tysize.to_string org_tysize)
+                  (Tysize.to_string new_tysize)
               end;
-              match protect & fun () -> Ctype.unify env ity ivty with
-              | `Error (Ctype.Unify utrace) ->
-                  if !Options.debug_unif then begin
-                    eprintf "    no@.";
-                    eprintf "      Reason: @[%a@]@."
-                      (fun ppf utrace -> Printtyp.report_unification_error ppf
-                        env utrace
-                        (fun ppf -> fprintf ppf "Hmmm ")
-                        (fun ppf -> fprintf ppf "with"))
-                      utrace;
-(*
-                    eprintf "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
-                    eprintf "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
-*)
-                  end;
-                  `Ok [] (* no solution *)
-                      
-              | `Error e ->
-                  eprintf "  Ctype.unify raised strange exception %s@." (Printexc.to_string e);
-                  raise e
+                 (* CR jfuruse: this is reported ambiguousity *) 
+              Resolve_result.MayLoop [expr]
+            end else
 
-              | `Ok _ ->
-                  if !Options.debug_unif then
-                    eprintf "    ok: %a@." Printtyp.type_expr ity;
-                  
-                  let new_tysize = Tysize.size ty in
-
-                  if Tysize.(has_var new_tysize
-                             && has_var org_tysize
-                             && not & lt new_tysize org_tysize)
-                  then begin
-                    begin Format.eprintf "    Tysize vars not strictly decreasing %s => %s@."
-                        (Tysize.to_string org_tysize)
-                        (Tysize.to_string new_tysize)
-                    end;
-                    (* CR jfuruse: this is reported ambiguousity *) 
-                    `MayLoop [expr]
-                  end else
-
-                  (* Add the sub-problems *)
-                    let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
-                    match resolve env get_cands tr_tys with
-                    | `MayLoop es -> `MayLoop es
-                    | `Ok ress ->
-                        `Ok (flip map ress & fun res ->
-                          let rec app res cs = match res, cs with
-                            | res, [] -> res, []
-                            | r::res, (l,_)::cs ->
-                                let res, args = app res cs in
-                                res, (l,r)::args
-                            | _ -> assert false
-                          in
-                          let res, args = app res cs in
-                          Forge.Exp.(app expr args) :: res)
+              (* Add the sub-problems *)
+              let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
+              match resolve env get_cands tr_tys with
+              | MayLoop es -> MayLoop es
+              | Ok res_list ->
+                  let build res =
+                    let args, res = split_at (length cs) res in
+                    Forge.Exp.(app expr (map2 (fun (l,_) a -> (l,a)) cs args)) :: res
+                  in
+                  Ok (map build res_list)
 
 (* CR jfuruse: bad state... *)
 (* CR jfuruse: confusing with deriving spec *)                      
@@ -155,23 +153,23 @@ let resolve env loc spec ty = with_snapshot & fun () ->
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve env get_cands [([],ty)] with
-  | `MayLoop es -> 
-      errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ The following instances may cause infinite loop of the resolution:@ @[<2>%a@]"
+  | MayLoop es -> 
+      errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ @[<2>The following instances may cause infinite loop of the resolution:@ @[<2>%a@]@]"
         Location.format loc
         Printtyp.type_expr ty
         (* CR jfuruse: should define a function for printing Typedtree.expression *)
         (List.format ",@," Utils.format_expression) es
-  | `Ok [] ->
+  | Ok [] ->
       errorf "%a:@ no instance found for@ @[%a@]"
         Location.format loc
         Printtyp.type_expr ty
-  | `Ok (_::_::_ as es) ->
+  | Ok (_::_::_ as es) ->
       let es = map (function [e] -> e | _ -> assert false) es in
       errorf "%a: overloaded type has a too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
         Location.format loc
         Printtyp.type_expr ty
         (List.format "@," Utils.format_expression) es
-  | `Ok [es] ->
+  | Ok [es] ->
       match es with
       | [e] -> Unshadow.Replace.replace e
       | _ -> assert false
@@ -194,21 +192,6 @@ let imp_type_spec env loc ty0 =
             Printtyp.type_expr spec
 *)
   | _ -> `Error `Strange_type
-
-(*
-(* Eval type spec *)      
-let get_spec spec env loc ty = match spec with
-  | Spec.Type ->
-      (* fix the spec for [%imp] *)
-      begin match imp_type_spec env loc ty with
-      | `Error `Strange_type ->
-          errorf "%a: [%%%%imp] has a bad type: %a" 
-            Location.format loc
-            Printtyp.type_expr ty
-      | `Ok p -> p
-      end
-  | _ -> spec
-*)    
 
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
