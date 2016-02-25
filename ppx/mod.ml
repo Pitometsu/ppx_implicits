@@ -9,7 +9,24 @@ open Format
 
 module Forge = Typpx.Forge
   
-type trace = (Path.t * type_expr) list
+(** Ppx_implicits.Runtime.t *)
+let is_imp_type_path = function
+  | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
+  | _ -> false
+    
+(* get the spec for [%imp] from its type *)
+let imp_type_spec env loc ty0 =
+  match expand_repr_desc env ty0 with
+  | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
+      let spec = Specconv.from_type_expr env loc spec in
+      Some (ty, spec)
+(* We must use the following error handling by resultize from_type_expr 
+          errorf "%a: expression has type %a,@ where type %a does not encode implicit resolution spec."
+            Location.format loc
+            Printtyp.type_expr ty0 (* reset? *)
+            Printtyp.type_expr spec
+*)
+  | _ -> None
 
 (* Fix the candidates by adding type dependent part *)
 let extract_candidate env get_cands { Candidate.aggressive; type_ } =
@@ -35,6 +52,8 @@ module Resolve_result = struct
     | mayloops, _ -> MayLoop (concat mayloops)
 end
   
+type trace = (Path.t * type_expr) list
+
 let rec resolve env : (trace * type_expr * (type_expr -> Candidate.t list)) list -> Resolve_result.t = function
   | [] -> Resolve_result.Ok [[]] (* one solution with the empty expression set *)
   | (trace,ty,get_cands)::tr_ty_gcs ->
@@ -180,25 +199,6 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       | [e] -> Unshadow.Replace.replace e
       | _ -> assert false
       
-(** Ppx_implicits.Runtime.t *)
-let is_imp_type_path = function
-  | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
-  | _ -> false
-    
-(* get the spec for [%imp] from its type *)
-let imp_type_spec env loc ty0 =
-  match expand_repr_desc env ty0 with
-  | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
-      let spec = Specconv.from_type_expr env loc spec in
-      `Ok (ty, spec)
-(* We must use the following error handling by resultize from_type_expr 
-          errorf "%a: expression has type %a,@ where type %a does not encode implicit resolution spec."
-            Location.format loc
-            Printtyp.type_expr ty0 (* reset? *)
-            Printtyp.type_expr spec
-*)
-  | _ -> `Error `Strange_type
-
 let is_none e = match e.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
       begin match is_option_type e.exp_env e.exp_type with
@@ -215,8 +215,8 @@ let resolve_arg loc env a = match a with
       | None -> a (* explicitly applied *)
       | Some ty ->
           begin match imp_type_spec env loc ty with
-          | `Error `Strange_type -> a (* Think about derived! *)
-          | `Ok (ty, spec) ->
+          | None -> a (* Think about derived! *)
+          | Some (ty, spec) ->
               (l, 
                Some begin
                  (* Ppx_implicits.Runtime.embed e *)
@@ -279,10 +279,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
               Typecore.extract_option_type env case.c_lhs.pat_type
         in
         let expr, type_ = match imp_type_spec env loc type_embed with
-          | `Ok (ty, _spec) ->
+          | Some (ty, _spec) ->
               Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", expr]),
               ty
-          | _ ->
+          | None ->
               expr, type_embed
         in
 
