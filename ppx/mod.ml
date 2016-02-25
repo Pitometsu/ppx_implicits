@@ -12,15 +12,13 @@ module Forge = Typpx.Forge
 type trace = (Path.t * type_expr) list
 
 (* Fix the candidates by adding type dependent part *)
-let get_candidates env get_cands ty =
-  let cs = get_cands ty in
-  if !Options.debug_unif then begin
-    eprintf "Candidates:@.";
-    iter (eprintf "  %a@." Candidate.format) cs
-  end;
-  flip concat_map cs & fun { Candidate.path; expr; type_; aggressive } ->
-    if not aggressive then [(path, expr, Klabel.extract env type_)]
-    else map (fun cs_ty -> (path, expr, cs_ty)) & Klabel.extract_aggressively env type_
+let extract_candidate env get_cands { Candidate.aggressive; type_ } =
+  let f =
+    if not aggressive then (fun type_ -> [Klabel.extract env type_])
+    else Klabel.extract_aggressively env
+  in
+  flip map (f type_) & fun (ltys, ty) ->
+    map (fun (l,ty) -> (l,ty,get_cands)) ltys, ty
 
 module Resolve_result = struct
   type t =
@@ -37,15 +35,23 @@ module Resolve_result = struct
     | mayloops, _ -> MayLoop (concat mayloops)
 end
   
-let rec resolve env get_cands : (trace * type_expr) list -> Resolve_result.t = function
+let rec resolve env : (trace * type_expr * (type_expr -> Candidate.t list)) list -> Resolve_result.t = function
   | [] -> Resolve_result.Ok [[]] (* one solution with the empty expression set *)
-  | (trace,ty)::tr_tys ->
-      let cands = get_candidates env get_cands ty in
+  | (trace,ty,get_cands)::tr_ty_gcs ->
+      let cs = get_cands ty in
+      if !Options.debug_unif then begin
+        eprintf "Candidates:@.";
+        iter (eprintf "  %a@." Candidate.format) cs
+      end;
+      let cands = concat_map (fun c ->
+        map (fun x -> c.Candidate.path, c.expr, x) & extract_candidate env get_cands c
+      ) (get_cands ty)
+      in
       Resolve_result.concat
       & flip map cands
-      & resolve_cand env get_cands trace ty tr_tys
+      & resolve_cand env trace ty tr_ty_gcs
 
-and resolve_cand env get_cands trace ty tr_tys (path, expr, (cs,vty)) =
+and resolve_cand env trace ty tr_ty_gcs (path, expr, (cs,vty)) =
 
   let org_tysize = Tysize.size ty in 
 
@@ -73,10 +79,10 @@ and resolve_cand env get_cands trace ty tr_tys (path, expr, (cs,vty)) =
       let ity = Ctype.instance env ty in
      
       let ivty, cs =
-        match Ctype.instance_list env (vty::map snd cs) with
+        match Ctype.instance_list env (vty::map (fun (_,x,_) -> x) cs) with
         | [] -> assert false
         | ivty :: ictys ->
-            ivty, map2 (fun (l,_) icty -> (l,icty)) cs ictys
+            ivty, map2 (fun (l,_,gc) icty -> (l,icty,gc)) cs ictys
       in
 
       with_snapshot & fun () ->
@@ -124,13 +130,13 @@ and resolve_cand env get_cands trace ty tr_tys (path, expr, (cs,vty)) =
             end else
 
               (* Add the sub-problems *)
-              let tr_tys = map (fun (_,ty) -> (trace',ty)) cs @ tr_tys in
-              match resolve env get_cands tr_tys with
+              let tr_ty_gcs = map (fun (_,ty,gc) -> (trace',ty,gc)) cs @ tr_ty_gcs in
+              match resolve env tr_ty_gcs with
               | MayLoop es -> MayLoop es
               | Ok res_list ->
                   let build res =
                     let args, res = split_at (length cs) res in
-                    Forge.Exp.(app expr (map2 (fun (l,_) a -> (l,a)) cs args)) :: res
+                    Forge.Exp.(app expr (map2 (fun (l,_,_) a -> (l,a)) cs args)) :: res
                   in
                   Ok (map build res_list)
 
@@ -152,7 +158,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   in
 
   (* CR jfuruse: Only one value at a time so far *)
-  match resolve env get_cands [([],ty)] with
+  match resolve env [([],ty,get_cands)] with
   | MayLoop es -> 
       errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ @[<2>The following instances may cause infinite loop of the resolution:@ @[<2>%a@]@]"
         Location.format loc
