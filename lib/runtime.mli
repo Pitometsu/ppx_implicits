@@ -1,4 +1,6 @@
 type ('a, 'spec) t = private 'a
+(** [(ty, spec) t] is as same as [ty], but its value is determined by [spec].
+*)
 
 type ('a, 'spec) s = ?_d: ('a, 'spec) t -> 'a
   
