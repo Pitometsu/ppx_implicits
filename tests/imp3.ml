@@ -19,10 +19,13 @@ let () = assert (show 1 = "1")
 let () = assert (show 1.0 = "1.")
 let () = assert (show [1;2] = "[ 1; 2 ]")
 
-(* CR jfuruse: we must reject the following *)
-(*
+(* CR jfuruse: we must reject the following.
+
+   Somehow it produces a code like show_twice ?_d x = show ?_d x ^ show ?_d x,
+   but the result type is less general than the original. Therefore it should
+   be rejected.
+ *)
 let show_twice ?_d x = show x ^ show x
-*)
 
 let show_twice ?_d x = show ?_d x ^ show ?_d x
 

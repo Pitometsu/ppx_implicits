@@ -53,10 +53,8 @@ Test(name)=
   export
 
 Test(imp)
-# Test(imp1)
-# Test(imp2)
 Test(imp3)
-# Test(imp31)
+Test(imp32)
 # Test(imp4)
 # Test(unshadow)
 # Test(prop)

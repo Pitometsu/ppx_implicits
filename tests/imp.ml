@@ -11,7 +11,9 @@ let () = assert (Show.int 1 = "1")
 let () = assert (Show.float 1.0 = "1.")
 let () = assert (Show.(list ~_d:int) [1;2] = "[ 1; 2 ]")
 
-let show = Ppx_implicits.Runtime.( (imp : ('a -> string, [%imp_spec Show]) s) )
+type 'a show = ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t
+
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
 
 let () = assert (show 1 = "1")
 let () = assert (show 1.0 = "1.")
@@ -36,6 +38,8 @@ end
 open X
 open Y
 
-let show = Ppx_implicits.Runtime.( (imp : ('a -> string, [%imp_spec opened Show]) s) )
+type 'a show_opened = ('a -> string, [%imp_spec opened Show]) Ppx_implicits.Runtime.t
+
+let show : ?_d:'a show_opened -> 'a -> string = Ppx_implicits.Runtime.imp
 
 let () = assert (show ([(1,2);(2,3)],4.2) = "([ (1, 2); (2, 3) ], 4.2)")

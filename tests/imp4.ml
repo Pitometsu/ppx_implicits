@@ -1,44 +1,29 @@
-module Z = struct
-  module Show = struct
-    module type Show = sig
-      type a
-      val show : a -> string
-    end
-  
-    type 'a t = (module Show with type a = 'a)
-  end
+module type Show = sig
+  type a
+  val show : a -> string
 end
-
-module M = struct
-  module Show = struct
-    type 'a t = private 'a Z.Show.t
-    [%%imp_spec opened Show]
-    external pack' : 'a Z.Show.t -> 'a t = "%identity"
-    let pack ~_x = Some (pack' _x)
-  end
-end
-
-open M
   
-let show (type a) ?_imp = match _imp with
-  | None -> assert false
-  | Some imp -> let module D = (val (imp : a M.Show.t :> a Z.Show.t) ) in D.show
+type 'a s = (module Show with type a = 'a)
 
+type 'a show = ('a s, [%imp_spec opened Show]) Ppx_implicits.Runtime.t
+
+let show : 'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+  
 module X = struct
   module Show = struct
-    let int : int Z.Show.t =
+    let int : int s =
       let module Int = struct
         type a = int
         let show = string_of_int
       end in (module Int)
     
-    let float : float Z.Show.t = 
+    let float : float s = 
       let module Float = struct
         type a = float
         let show = string_of_float
       end in (module Float)
     
-    let list (type a) ~_d:(_d: a Z.Show.t) : a list Z.Show.t =
+    let list (type a) ~_d:(_d: a s) : a list s =
       let module List = struct
         type a' = a list
         type a = a'
