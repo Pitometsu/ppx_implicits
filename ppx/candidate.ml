@@ -21,7 +21,7 @@ type t = {
   aggressive : bool
 }
 
-let format ppf c = Format.(fprintf ppf "\"%a\" : %a : %a"
+let format ppf c = Format.(fprintf ppf "@[<2>\"%a\" : %a@ : %a@]"
                              Path.format c.path
                              Utils.format_expression c.expr
                              Printtyp.type_scheme c.type_)

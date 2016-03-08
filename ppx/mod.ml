@@ -214,7 +214,7 @@ let resolve_arg loc env a = match a with
       begin match is_none e with
       | None -> a (* explicitly applied *)
       | Some ty ->
-          begin match imp_type_spec env loc ty with
+          begin match imp_type_spec env loc ty with (* It lowers the level of tvar! *)
           | None -> a (* Think about derived! *)
           | Some (ty, spec) ->
               (l, 

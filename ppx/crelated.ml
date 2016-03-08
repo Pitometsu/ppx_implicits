@@ -1,7 +1,8 @@
 open Ppxx.Utils
+open Ppxx.Compilerlib
+
 open List
 
-open Ppxx.Compilerlib
 open Types
 
 open Candidate
