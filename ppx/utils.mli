@@ -86,3 +86,5 @@ val values_of_module
 (** Extract values defined in the specified Path.t *)
 
 val format_expression : Format.formatter -> Typedtree.expression -> unit
+
+val is_none : Typedtree.expression -> Types.type_expr option

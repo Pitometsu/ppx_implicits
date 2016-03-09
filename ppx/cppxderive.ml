@@ -7,6 +7,7 @@
 open Utils
 open Ppxx.Utils
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Typedtree
 
 (* CR jfuruse: this is crazy *)      

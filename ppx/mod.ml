@@ -1,10 +1,12 @@
 open Ppxx.Utils
+open Utils.List
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
+
+open Asttypes
 open Typedtree
 open Types
-open Asttypes
-open Longident (* has flatten *)
-open Utils.List (* has flatten *)
+
 open Format
 
 module Forge = Typpx.Forge
@@ -13,8 +15,7 @@ module Forge = Typpx.Forge
 (* CR jfuruse: confusing with deriving spec *)                      
 let derived_candidates = ref []
 
-(* CR jfuruse: this is very slow, since it computes everything each time.
-*)
+(* CR jfuruse: this is very slow, since it computes everything each time. *)
 let get_candidates env loc spec ty =
   let f = Spec.candidates env loc spec in
   Candidate.uniq & f ty @ map snd !derived_candidates
@@ -24,24 +25,51 @@ let is_imp_type_path = function
   | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
   | _ -> false
     
-(* get the spec for [%imp] from its type *)
-let imp_type_spec env loc ty0 =
-  match expand_repr_desc env ty0 with
-  | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
-      let spec = Specconv.from_type_expr env loc spec in
-      Some (ty, spec)
-  | _ -> None
+(** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
+let make_embed e =
+  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed]) ["", e])
+
+(** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+let make_get e =
+  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", e])
+
+(** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+let make_from_Some e =
+  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", e])
+
+let is_optional = function
+  | "" -> false
+  | s when s.[0] = '?' -> true
+  | _ -> false
+      
+(* CR jfuruse: Now a bad name *)
+let imp_type_spec env loc l ty (* de-optionalized if [is_optional l] *) =
+  let f ty = match expand_repr_desc env ty with
+    | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
+        let spec = Specconv.from_type_expr env loc spec in
+        (l, ty, Some spec, make_embed, make_get)
+    | _ -> 
+        (l, ty, None, (fun x -> x), (fun x -> x))
+  in
+  if not & is_optional l then f ty
+  else begin
+    let l, ty, spec_opt, conv, unconv = f ty in
+    (l, ty, spec_opt,
+     (fun e -> Forge.Exp.some env (conv e)),
+     (fun e -> unconv (make_from_Some e)))
+  end 
 
 (* Fix the candidates by adding type dependent part *)
-let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * type_expr * Spec.t) list * type_expr) list =
+let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * type_expr * Spec.t * (expression -> expression)) list * type_expr) list =
   let f =
     if not aggressive then (fun type_ -> [Klabel.extract env type_])
     else Klabel.extract_aggressively env
   in
-  map (fun (args, ty) -> (map (fun (l,ty) ->
-    match imp_type_spec env loc ty with
-    | Some (_ty, spec) -> (l,ty,spec)
-    | None -> (l,ty,spec (* inherit *))) args, ty)) & f type_
+  map (fun (args, ty) ->
+    (map (fun (l,ty) ->
+      let (l,ty,specopt,conv,_unconv) = imp_type_spec env loc l ty in
+      (l,ty, (match specopt with Some x -> x | None -> spec), conv)) args,
+     ty)) & f type_
 
 module Resolve_result = struct
   type t =
@@ -107,15 +135,15 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
       let ity = Ctype.instance env ty in
      
       let ivty, cs =
-        match Ctype.instance_list env (vty::map (fun (_,x,_spec) -> x) cs) with
+        match Ctype.instance_list env (vty::map (fun (_,x,_spec,_conv) -> x) cs) with
         | [] -> assert false
         | ivty :: ictys ->
-            ivty, map2 (fun (l,_,spec) icty -> (l,icty,spec)) cs ictys
+            ivty, map2 (fun (l,_,spec,conv) icty -> (l,icty,spec,conv)) cs ictys
       in
 
       with_snapshot & fun () ->
         if !Options.debug_unif then begin
-          eprintf "  Checking %a <> %a, using %a ..."
+          eprintf "  Checking %a <> %a, using %a ...@."
             Printtyp.type_expr ity
             Printtyp.type_expr ivty
             Path.format path;
@@ -158,13 +186,21 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
             end else
 
               (* Add the sub-problems *)
-              let problems = map (fun (_,ty,spec) -> (trace',ty,spec)) cs @ problems in
+              let problems = map (fun (_,ty,spec,_conv) -> (trace',ty,spec)) cs @ problems in
+
+              if !Options.debug_unif then
+                eprintf "    subproblems: @[<v>%a@]@."
+                  (List.format "@," (fun ppf (_,ty,spec,_) ->
+                    Format.fprintf ppf "%a / %s"
+                      Printtyp.type_scheme ty
+                      (Spec.to_string spec))) cs;
+              
               match resolve loc env problems with
               | MayLoop es -> MayLoop es
               | Ok res_list ->
                   let build res =
                     let args, res = split_at (length cs) res in
-                    Forge.Exp.(app expr (map2 (fun (l,_,_) a -> (l,a)) cs args)) :: res
+                    Forge.Exp.(app expr (map2 (fun (l,_,_,conv) a -> (l,conv a)) cs args)) :: res
                   in
                   Ok (map build res_list)
 
@@ -199,32 +235,18 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       | [e] -> Unshadow.Replace.replace e
       | _ -> assert false
       
-let is_none e = match e.exp_desc with
-  | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
-      begin match is_option_type e.exp_env e.exp_type with
-      | None -> assert false (* CR jfuruse: input is type-corrupted... *)
-      | Some ty -> Some ty
-      end
-  | _ -> None
-    
 (* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means not applied *)
   | (l, Some e, Optional) when Klabel.is_klabel l = Some `Optional ->
-      begin match is_none e with
+      begin match Utils.is_none e with
       | None -> a (* explicitly applied *)
       | Some ty ->
-          begin match imp_type_spec env loc ty with (* It lowers the level of tvar! *)
-          | None -> a (* Think about derived! *)
-          | Some (ty, spec) ->
-              (l, 
-               Some begin
-                 (* Ppx_implicits.Runtime.embed e *)
-                 (* CR jfuruse: TODO: Ppx_implicits.Runtime.embed (Ppx_implicits.Runtime.from_Some e) => e *)
-                 Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed])
-                              ["", resolve env loc spec ty])
-               end,
-               Optional)
+          let (_l, ty, specopt, conv, _unconv) = imp_type_spec env loc l ty in
+          begin match specopt with
+          | None -> assert false (* CR jfuruse: error handling *)
+          | Some spec ->
+              (l, Some (conv (resolve env loc spec ty)), Optional)
           end
       end
   | _ -> a
@@ -271,6 +293,16 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let path = Path.Pident id in
         let loc = case.c_lhs.pat_loc in
         let env = case.c_lhs.pat_env in
+        let ty =
+          if not & is_optional l then case.c_lhs.pat_type
+          else
+            match is_option_type env case.c_lhs.pat_type with
+            | Some ty -> ty
+            | None -> assert false (* CR jfuruse: error handling *)
+        in
+        let (_l, type_, _specopt, _conv, unconv) = imp_type_spec env loc l ty in
+        let expr = unconv (Typpx.Forge.Exp.(ident path)) in
+(*
         let expr, type_embed = match Klabel.is_klabel l with
           | None -> assert false
           | Some `Normal -> Typpx.Forge.Exp.(ident path), case.c_lhs.pat_type
@@ -278,14 +310,15 @@ module MapArg : TypedtreeMap.MapArgument = struct
               Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", ident path]),
               Typecore.extract_option_type env case.c_lhs.pat_type
         in
-        let expr, type_ = match imp_type_spec env loc type_embed with
+        let expr, type_ = match imp_type_spec env loc l type_embed with
           | Some (ty, _spec) ->
               Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", expr]),
               ty
           | None ->
               expr, type_embed
         in
-
+*)
+        
         derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)
                                       expr;
                                       type_;

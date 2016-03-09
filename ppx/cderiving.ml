@@ -4,6 +4,7 @@ open Ppxx.Utils
 open List
 
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Longident
 open Types
 

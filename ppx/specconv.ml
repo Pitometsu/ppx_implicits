@@ -3,6 +3,7 @@ open List
 open Format
 
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 
 open Parsetree
 open Types

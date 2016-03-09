@@ -8,6 +8,7 @@ open Ppxx.Utils
 open List
 
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Path
 open Types
 open Asttypes

@@ -2,6 +2,7 @@ open Ppxx.Utils
 open List
 
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Longident
 open Path
 open Types
@@ -243,3 +244,12 @@ let format_expression ppf e =
   Pprintast.expression ppf
   & Unembed.unembed
   & Typpx.Untypeast.untype_expression e
+
+let is_none e = match e.Typedtree.exp_desc with
+  | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
+      begin match is_option_type e.exp_env e.exp_type with
+      | None -> assert false (* CR jfuruse: input is type-corrupted... *)
+      | Some ty -> Some ty
+      end
+  | _ -> None
+

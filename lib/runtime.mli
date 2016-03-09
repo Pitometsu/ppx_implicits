@@ -13,4 +13,4 @@ external get : ('a, 'spec) t -> 'a = "%identity"
 
 val imp : ?_d:('a, 'spec) t -> 'a
 
-val embed : 'a -> ('a, 'spec) t option
+external embed : 'a -> ('a, 'spec) t = "%identity"
