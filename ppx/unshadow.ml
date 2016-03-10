@@ -117,7 +117,7 @@ module Alias = struct
     let structure_item si = match si.str_desc with
       | Tstr_module mb ->
   (*
-  eprintf "module %a@." Ident.format mb.mb_id;
+  !!% "module %a@." Ident.format mb.mb_id;
   *)
           si ::
           begin match assoc_opt mb.mb_id A.aliases with

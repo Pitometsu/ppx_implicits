@@ -37,13 +37,8 @@ let make_get e =
 let make_from_Some e =
   Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", e])
 
-let is_optional = function
-  | "" -> false
-  | s when s.[0] = '?' -> true
-  | _ -> false
-      
 (* CR jfuruse: Now a bad name *)
-let imp_type_spec env loc l ty (* de-optionalized if [is_optional l] *) =
+let imp_type_spec env loc l ty (* option if [is_optional l] *) =
   let f ty = match expand_repr_desc env ty with
     | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
         let spec = Specconv.from_type_expr env loc spec in
@@ -51,12 +46,15 @@ let imp_type_spec env loc l ty (* de-optionalized if [is_optional l] *) =
     | _ -> 
         (l, ty, None, (fun x -> x), (fun x -> x))
   in
-  if not & is_optional l then f ty
+  if not & Btype.is_optional l then f ty
   else begin
-    let l, ty, spec_opt, conv, unconv = f ty in
-    (l, ty, spec_opt,
-     (fun e -> Forge.Exp.some env (conv e)),
-     (fun e -> unconv (make_from_Some e)))
+    match is_option_type env ty with
+    | None -> assert false
+    | Some ty -> 
+        let l, ty, spec_opt, conv, unconv = f ty in
+        (l, ty, spec_opt,
+         (fun e -> Forge.Exp.some env (conv e)),
+         (fun e -> unconv (make_from_Some e)))
   end 
 
 (* Fix the candidates by adding type dependent part *)
@@ -65,11 +63,24 @@ let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * t
     if not aggressive then (fun type_ -> [Klabel.extract env type_])
     else Klabel.extract_aggressively env
   in
-  map (fun (args, ty) ->
-    (map (fun (l,ty) ->
+  flip map (f type_) & fun (args, ty) ->
+    flip map args (fun (l,ty) ->
       let (l,ty,specopt,conv,_unconv) = imp_type_spec env loc l ty in
-      (l,ty, (match specopt with Some x -> x | None -> spec), conv)) args,
-     ty)) & f type_
+      (l,ty, (match specopt with Some x -> x | None -> spec), conv)),
+    ty
+
+(*
+let extract_candidate spec env loc c = 
+  let xs = extract_candidate spec env loc c in
+  !!% "Cand: %a@." Candidate.format c;
+  !!% "  => @[<v>%a@]@."
+    (List.format "@," & fun ppf (subs,ty) ->
+      List.format " " (fun ppf (l,ty,_spec,_conv) ->
+        Format.fprintf ppf "(%s: %a)"
+          l Printtyp.type_scheme ty) ppf subs;
+      Format.fprintf ppf " => %a" Printtyp.type_scheme ty) xs;
+  xs
+*)
 
 module Resolve_result = struct
   type t =
@@ -95,8 +106,8 @@ let rec resolve loc env : (trace * type_expr * Spec.t) list -> Resolve_result.t 
   | (trace,ty,spec)::problems ->
       let cs = get_candidates env loc spec ty in
       if !Options.debug_unif then begin
-        eprintf "Candidates:@.";
-        iter (eprintf "  %a@." Candidate.format) cs
+        !!% "Candidates:@.";
+        iter (!!% "  %a@." Candidate.format) cs
       end;
       let cs = concat_map (fun c ->
         map (fun x -> c.Candidate.path, c.expr, x) & extract_candidate spec env loc c
@@ -115,10 +126,10 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
   | Some ty' when not & Tysize.(lt org_tysize (size ty')) ->
       (* recursive call of path and the type size is not strictly decreasing *)
       if !Options.debug_unif then begin
-        eprintf "  Checking %a <> ... using %a ... oops"
+        !!% "  Checking %a <> ... using %a ... oops"
           Printtyp.type_expr ty
           Path.format path;
-        eprintf "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+        !!% "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
           Path.format path
           Printtyp.type_expr ty'
           (Tysize.(to_string & size ty'))
@@ -135,7 +146,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
       let ity = Ctype.instance env ty in
      
       let ivty, cs =
-        match Ctype.instance_list env (vty::map (fun (_,x,_spec,_conv) -> x) cs) with
+        match Ctype.instance_list env (vty::map (fun (_,ty,_spec,_conv) -> ty) cs) with
         | [] -> assert false
         | ivty :: ictys ->
             ivty, map2 (fun (l,_,spec,conv) icty -> (l,icty,spec,conv)) cs ictys
@@ -143,7 +154,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
 
       with_snapshot & fun () ->
         if !Options.debug_unif then begin
-          eprintf "  Checking %a <> %a, using %a ...@."
+          !!% "  Checking %a <> %a, using %a ...@."
             Printtyp.type_expr ity
             Printtyp.type_expr ivty
             Path.format path;
@@ -151,16 +162,16 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
         match protect & fun () -> Ctype.unify env ity ivty with
         | `Error (Ctype.Unify utrace) ->
             if !Options.debug_unif then begin
-              eprintf "    no@.";
-              eprintf "      Reason: @[%a@]@."
+              !!% "    no@.";
+              !!% "      Reason: @[%a@]@."
                 (fun ppf utrace -> Printtyp.report_unification_error ppf
                   env utrace
                   (fun ppf -> fprintf ppf "Hmmm ")
                   (fun ppf -> fprintf ppf "with"))
                 utrace;
 
-              eprintf "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
-              eprintf "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
+              !!% "    Type 1: @[%a@]@." Printtyp.raw_type_expr  ity;
+              !!% "    Type 2: @[%a@]@." Printtyp.raw_type_expr  ivty
 
             end;
             Resolve_result.Ok [] (* no solution *)
@@ -169,7 +180,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
 
         | `Ok _ ->
             if !Options.debug_unif then
-              eprintf "    ok: %a@." Printtyp.type_expr ity;
+              !!% "    ok: %a@." Printtyp.type_expr ity;
             
             let new_tysize = Tysize.size ty in
 
@@ -177,7 +188,8 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
                        && has_var org_tysize
                        && not & lt new_tysize org_tysize)
             then begin
-              begin eprintf "    Tysize vars not strictly decreasing %s => %s@."
+              if !Options.debug_unif then begin
+                !!% "    Tysize vars not strictly decreasing %s => %s@."
                   (Tysize.to_string org_tysize)
                   (Tysize.to_string new_tysize)
               end;
@@ -189,7 +201,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
               let problems = map (fun (_,ty,spec,_conv) -> (trace',ty,spec)) cs @ problems in
 
               if !Options.debug_unif then
-                eprintf "    subproblems: @[<v>%a@]@."
+                !!% "    subproblems: @[<v>%a@]@."
                   (List.format "@," (fun ppf (_,ty,spec,_) ->
                     Format.fprintf ppf "%a / %s"
                       Printtyp.type_scheme ty
@@ -206,11 +218,11 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
 
 let resolve env loc spec ty = with_snapshot & fun () ->
 
-  if !Options.debug_resolve then eprintf "@.RESOLVE: %a@." Location.format loc;
+  if !Options.debug_resolve then !!% "@.RESOLVE: %a@." Location.format loc;
 
   close_gen_vars ty;
 
-  if !Options.debug_resolve then eprintf "The type is: %a@." Printtyp.type_scheme ty;
+  if !Options.debug_resolve then !!% "  The type is: %a@." Printtyp.type_scheme ty;
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve loc env [([],ty,spec)] with
@@ -237,11 +249,12 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       
 (* ?_l:None  where (None : X...Y.name option) has a special rule *) 
 let resolve_arg loc env a = match a with
-  (* (l, None, Optional) means not applied *)
+  (* (l, None, Optional) means curried *)
   | (l, Some e, Optional) when Klabel.is_klabel l = Some `Optional ->
       begin match Utils.is_none e with
       | None -> a (* explicitly applied *)
-      | Some ty ->
+      | Some _ ->
+          let ty = e.exp_type in (* _ option *)
           let (_l, ty, specopt, conv, _unconv) = imp_type_spec env loc l ty in
           begin match specopt with
           | None -> assert false (* CR jfuruse: error handling *)
@@ -293,13 +306,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let path = Path.Pident id in
         let loc = case.c_lhs.pat_loc in
         let env = case.c_lhs.pat_env in
-        let ty =
-          if not & is_optional l then case.c_lhs.pat_type
-          else
-            match is_option_type env case.c_lhs.pat_type with
-            | Some ty -> ty
-            | None -> assert false (* CR jfuruse: error handling *)
-        in
+        let ty = case.c_lhs.pat_type in
         let (_l, type_, _specopt, _conv, unconv) = imp_type_spec env loc l ty in
         let expr = unconv (Typpx.Forge.Exp.(ident path)) in
 (*
@@ -354,6 +361,6 @@ module Map = struct
        map_structure is the entry point for structure in TyPPX *)
     Unshadow.reset ();
     let str = map_structure str in
-    if !Options.debug_resolve then eprintf "Unshadow...@.";
+    if !Options.debug_resolve then !!% "Unshadow...@.";
     Unshadow.Alias.insert str
 end

@@ -1,6 +1,5 @@
 open Ppxx.Utils
 open List
-open Format
 
 open Ppxx.Compilerlib
 open Typpx.Compilerlib
@@ -232,7 +231,7 @@ let from_module_type env loc mp mty =
 let from_module_path env imp_loc mp =
   let md =
     try Env.find_module mp env with _ ->
-      eprintf "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
+      !!% "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
       assert false
   in
   from_module_type env md.md_loc mp md.md_type

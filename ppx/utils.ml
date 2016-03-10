@@ -58,7 +58,7 @@ class dummy_module env mp mty =
   (* Env.lookup_* does not support Mty_alias (and probably Mty_indent) *)
   let mty = Env.scrape_alias env & Mtype.scrape env mty in
 (*
-  let () = eprintf "dummy_module of @[%a@]@." Printtyp.modtype mty in 
+  let () = !!% "dummy_module of @[%a@]@." Printtyp.modtype mty in 
 *)
   let dummy = "Dummy" in
   let id = Ident.create "Dummy" in
@@ -252,4 +252,3 @@ let is_none e = match e.Typedtree.exp_desc with
       | Some ty -> Some ty
       end
   | _ -> None
-

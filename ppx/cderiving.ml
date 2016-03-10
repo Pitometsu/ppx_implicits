@@ -163,7 +163,7 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
         in
         let expr = kabs fields e in
         let type_ = build_type snd env template_ty fields ty in
-        (* Format.eprintf "candidate deriving PV: %a@."
+        (* !!% "candidate deriving PV: %a@."
            Printtyp.type_scheme type_;
         *)
         Some { path; expr; type_; aggressive = false}
@@ -224,7 +224,7 @@ let cand_deriving_object env loc ty mlid =
         let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
         let expr = kabs fields e in
         let type_ = build_type snd env template_ty fields ty in
-        (* Format.eprintf "candidate deriving PV: %a@."
+        (* !!% "candidate deriving PV: %a@."
            Printtyp.type_scheme type_; *)
         Some { path; expr; type_; aggressive = false}
   | _ -> None
