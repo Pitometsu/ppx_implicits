@@ -1,7 +1,7 @@
 OUT=.exe
 PPX=$(file ../ppx/ppx_implicits$(EXE))
-.SCANNER: scan-ocaml-%: $(PPX)
-OCamlRequire($(PPX))
+.SCANNER: scan-ocaml-%: $(PPX) ../lib/ppx_implicits.cmo
+OCamlRequire($(PPX) ../lib/ppx_implicits.cmo)
 
 OCAMLDEPFLAGS= -ppx $(PPX)
 
@@ -18,7 +18,7 @@ OCAMLINCLUDES += ../lib
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
-  $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) implicits.cmo $(CMOS)
+  $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) $(CMOS)
     mkdir_if_not_exists(out)
     $(PPX) -I ../lib -debug $(name).ml > out/$(name).ml 
     ocamlc -I ../lib -ppx $(PPX) -i $(name).ml > out/$(name).mli
@@ -28,9 +28,9 @@ Test_(name, deps) =
     stderr = stdout
     ./$(name)$(OUT)
 
-  $(name)_test_ocamlfind$(OUT): $(name).ml implicits.cmo $(CMOS)
+  $(name)_test_ocamlfind$(OUT): $(name).ml $(CMOS)
     mkdir_if_not_exists(out)
-    ocamlfind ocamlc -package ppx_implicits implicits.cmo $(CMOS) -o $(name)_test_ocamlfind$(OUT) $(name).ml
+    ocamlfind ocamlc -package ppx_implicits $(CMOS) -o $(name)_test_ocamlfind$(OUT) $(name).ml
   out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(OUT)
     stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
     stderr = stdout
