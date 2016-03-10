@@ -7,7 +7,10 @@ type 'a s = (module Show with type a = 'a)
 
 type 'a show = ('a s, [%imp_spec opened Show]) Ppx_implicits.Runtime.t
 
-let show : 'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+let show : ?_d:'a show -> 'a -> string = fun (type a) ?_d ->
+  let m : a s = Ppx_implicits.Runtime.(get (from_Some _d)) in
+  let module M = (val m) in
+  M.show
   
 module X = struct
   module Show = struct
@@ -40,10 +43,11 @@ let () = assert (show 1.0 = "1.")
 let () = assert (show [1;2;3] = "[ 1; 2; 3 ]") 
 let () = assert (show [[1]; [2;3]; [4;5;6]] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]")
 
-let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
+let show_twice ?_d x = show ?_d x ^ show ?_d x
 let () = assert (show_twice 1 = "11")
 
-let show_twice ?_imp:(i : 'a M.Show.t option) (x : 'a) =
+let show_twice ?_d:(_ : 'a show option) (x : 'a) =
   show x ^ show x
 
 let () = assert (show_twice 1 = "11")
+  
