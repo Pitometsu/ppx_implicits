@@ -26,7 +26,7 @@ and t2 =
   | Aggressive of t2 (** [aggressive t2]. Even normal function arrows are considered as constraints. *)
   | Related (** [related]. The values defined under module [P] where data type defined in [P] appears in the type of the resolution target *)
   | Name of string * Re.re * t2 (** [name "rex" t2]. Constraint values only to those whose names match with the regular expression *)
-  | Typeclass of Longident.t (** [typeclass path]. Typeclass style resolution.  *) 
+  | Typeclass of type_expr (** [typeclass path]. Typeclass style resolution.  *) 
   | Deriving of Longident.t (** [deriving M]. [M] must define [M.tuple], [M.object_] and [M.poly_variant] *)
   | PPXDerive of Parsetree.expression * core_type * type_expr option (** [ppxderive ([%...] : ty)]. *)
       
@@ -72,7 +72,7 @@ let rec cand_static env loc : t2 -> t list = function
   | Opened (f,x) -> cand_opened env loc (f,x)
   | Direct (f,x,popt) -> cand_direct env loc (f,x,popt)
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Typeclass lid -> Ctypeclass.cand_typeclass env loc p
+  | Typeclass ty -> Ctypeclass.cand_typeclass env loc ty
   | spec when is_static spec -> assert false
   | _ -> assert false
 

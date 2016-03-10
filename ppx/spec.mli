@@ -109,7 +109,7 @@ and t2 =
         [show_int], [float_show].
     *)
 
-  | Typeclass of Longident.t
+  | Typeclass of type_expr
     (** Spec introduced by [[@@typeclass]] for typeclass style resolution. 
 
         <currently the specification is not really stable>

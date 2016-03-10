@@ -106,12 +106,14 @@ let from_expression _env e =
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "typeclass"} },
-                    ["", e] ) -> 
+                    ["", _e] ) ->  assert false
+(*
           begin match get_lid e with
           | Some lid -> Typeclass lid
           | None -> errorf "%a: just requires a path" Location.format e.pexp_loc
           end
-
+*)
+          
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
           begin match args with
           | ["", e] -> 
@@ -174,61 +176,6 @@ let from_payload env = function
   | _ -> `Error (`String "spec must be an OCaml expression")
 
 (* typed world *)
-
-(** Obtain a spec from a type declaration. *)
-let from_type_decl env loc _p = 
-  let open Utils in 
-  function
-  | { type_params = _
-    ; type_kind = Type_variant [ { cd_id= id; cd_args = tys; cd_res = None; cd_loc = loc} ]
-    ; type_manifest = None } ->
-      let open Result.Monad in
-      assign_type_components tys
-      & from_Ok (error loc)
-      & unmangle_spec_string id.Ident.name
-        >>= from_string
-        >>= from_expression env
-  | _ -> 
-      errorf "%a: Illegal data type definition for __imp_spec__. [%%%%imp_spec SPEC] must be used." Location.format loc
-
-let from_type_path env loc mp =
-  try from_type_decl env loc mp (Env.find_type mp env) with
-    Not_found ->
-      errorf "%a: Type declaration of %a was not found."
-        Location.format loc
-        Path.format mp
-
-(** Obtain a spec from a module type [mty]. The module type must have a type
-    definition of [__imp_spec__]
-*)
-let from_module_type env loc mp mty =
-  let m = new Utils.dummy_module env mp mty in
-  try
-    let p, td = m#lookup_type "__imp_spec__" in
-    (* Add mp.Instances as the default recipes *)
-    match from_type_decl env loc p td with
-    | Type -> assert false
-    | Or t2s ->
-        let default_instances =
-          try
-            let p = m#lookup_module "Instances" in
-            [ Direct (`In, Typpx.Untypeast.lident_of_path p, Some p) ]
-          with
-          | Not_found -> []
-        in
-        `Ok (Or (t2s @ default_instances))
-  with _ -> `Error (`No_imp_spec (loc, mp))
-
-(** Obtain a spec from a module path <M>.  The spec must be stored as a type
-    definition of [<M>.__imp_spec__]
-*)
-let from_module_path env imp_loc mp =
-  let md =
-    try Env.find_module mp env with _ ->
-      !!% "%a: BUG of ppx_implicits: Unbound module %a." Location.format imp_loc Path.format mp;
-      assert false
-  in
-  from_module_type env md.md_loc mp md.md_type
 
 (********************* NEW ENCODING USING POLYVARIANT ***************)
     
