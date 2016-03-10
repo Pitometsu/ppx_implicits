@@ -1,3 +1,5 @@
+(* Dispatching first class module values for type-classes *)
+
 module type Show = sig
   type a
   val show : a -> string

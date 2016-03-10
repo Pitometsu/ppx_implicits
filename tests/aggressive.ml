@@ -14,22 +14,8 @@ module Y = struct
     | Boo a -> Printf.sprintf "Boo (%s)" @@ show_a a
 end
 
-let () = assert ([%imp aggressive(related)] (Y.Boo X.Foo) = "Boo (Foo)")
+type 'a show = ('a -> string, [%imp_spec aggressive(related)]) Ppx_implicits.Runtime.t
 
-module Show = struct
-  type 'a t = Packed of ('a -> string)
-  [%%imp_spec aggressive(name "show" related)]
-  (* default instances *)
-  module Instances = struct
-    let pack ~_x = Packed _x
-    let pack_opt ~_x = Some (Packed _x)
-  end
-  let unpack_opt = function
-    | None -> assert false
-    | Some (Packed x) -> x
-end
-
-let show ?_x = Show.unpack_opt _x
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
 
 let () = assert (show (Y.Boo X.Foo) = "Boo (Foo)")
-

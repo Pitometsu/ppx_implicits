@@ -1,5 +1,8 @@
 (* "Unshadowing" test *)
 
+type 'a show = ('a -> string, [%imp_spec opened Show]) Ppx_implicits.Runtime.t
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+
 module X = struct
   module Show = struct
     let int = string_of_int
@@ -14,5 +17,5 @@ module Y = struct
   end 
   module X = struct
   end
-  let () = assert ([%imp opened Show] 1 = "1")
+  let () = assert (show 1 = "1")
 end

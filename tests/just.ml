@@ -1,20 +1,14 @@
-(* just spec
-*)
+(* Test of just *)
+
+type 'a show = ('a -> string, [%imp_spec just Show]) Ppx_implicits.Runtime.t
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+
 module Show = struct
-  type 'a t = Packed of ('a -> string)
-  (* This takes only the direct members as instances.
-     Values inside sub-modules are ignored.
-  *)
-  [%%imp_spec just Show] 
-  let pack ~_x = Some (Packed _x)
-  let unpack = function
-    | None -> assert false
-    | Some (Packed x) -> x
-  let show ?_imp = unpack _imp
-  module Sub = struct
-    let int (x:int) = "hello" (* this should not be chosen *)
-  end
   let int = string_of_int
+
+  module Sub = struct
+    let int' (x : int) = "42" (* this should NOT be used *)
+  end
 end
 
-let () = assert ( Show.show 1 = "1" )
+let () = assert ( show 1 = "1" )
