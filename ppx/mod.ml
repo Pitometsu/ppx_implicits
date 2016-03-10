@@ -126,7 +126,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
   | Some ty' when not & Tysize.(lt org_tysize (size ty')) ->
       (* recursive call of path and the type size is not strictly decreasing *)
       if !Options.debug_unif then begin
-        !!% "  Checking %a <> ... using %a ... oops"
+        !!% "  Checking %a <> ... using %a ... oops@."
           Printtyp.type_expr ty
           Path.format path;
         !!% "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 

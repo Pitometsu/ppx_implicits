@@ -109,20 +109,10 @@ and t2 =
         [show_int], [float_show].
     *)
 
-  | Typeclass of Path.t option
+  | Typeclass of Longident.t
     (** Spec introduced by [[@@typeclass]] for typeclass style resolution. 
 
-        The parameter is [None] at parsing, but later filled with [Some p] 
-        till the resolution. For example, the following code:
-
-        module type Show = sig
-          (* Parameters must be properly listed. 
-             We cannot add parameters using include S *)
-          type a 
-          val show : a -> string
-        end [@@typeclass]
-
-        produces [Typeclass (Some p)] where [p] is Show.
+        <currently the specification is not really stable>
     *)
       
   | Deriving of Longident.t

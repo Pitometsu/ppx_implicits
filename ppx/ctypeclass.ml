@@ -9,8 +9,7 @@ open Types
 
 open Candidate
 
-(* [%imp] : 'a M.ty
-   type M.__imp_spec__ must exists and it is "typeclass"
+(* type M.__imp_spec__ must exists and it is "typeclass"
    We seek types equal to __imp_instance__ = M.__imp_spec__
 *) 
 let cand_typeclass env loc p_spec =

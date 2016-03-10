@@ -33,7 +33,7 @@ let get_type_components =
     | Related -> []
     | Aggressive x -> t2 x
     | Name (_s, _re, x) -> t2 x
-    | Typeclass _ -> []
+    | Typeclass _p -> []
     | Deriving _p -> []
     | PPXDerive (_e, cty, _) -> [cty]
   in
@@ -105,7 +105,13 @@ let from_expression _env e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | Pexp_ident {txt=Lident "typeclass"} -> Typeclass None
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "typeclass"} },
+                    ["", e] ) -> 
+          begin match get_lid e with
+          | Some lid -> Typeclass lid
+          | None -> errorf "%a: just requires a path" Location.format e.pexp_loc
+          end
+
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
           begin match args with
           | ["", e] -> 
@@ -169,27 +175,15 @@ let from_payload env = function
 
 (* typed world *)
 
-(** fill Typeclass None *)
-let fix_typeclass _loc p = function
-  | Type -> assert false
-  | Or t2s ->
-      let f = function
-        | Typeclass None -> Typeclass (Some p)
-        | Typeclass (Some _) -> assert false
-        | x -> x
-      in
-      Or (map f t2s)
-
 (** Obtain a spec from a type declaration. *)
-let from_type_decl env loc p = 
+let from_type_decl env loc _p = 
   let open Utils in 
   function
   | { type_params = _
     ; type_kind = Type_variant [ { cd_id= id; cd_args = tys; cd_res = None; cd_loc = loc} ]
     ; type_manifest = None } ->
       let open Result.Monad in
-      fix_typeclass loc p
-      & assign_type_components tys
+      assign_type_components tys
       & from_Ok (error loc)
       & unmangle_spec_string id.Ident.name
         >>= from_string

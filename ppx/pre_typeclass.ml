@@ -52,7 +52,7 @@ module TypeClass = struct
                    (map2 (fun p tv -> (at (Lident p), tv)) ps tvars))
       (at "_module") (* CR jfuruse: can have a ghost loc *)
 
-  (* type ('a, 'b) _class = Packed of ('a, 'b) _module *)
+  (* type 'a _class = ('a, <SPEC>) Ppx_implicits.Runtime.t *)
   let gen_ty_class ps =
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
     Type.mk ?loc:None
