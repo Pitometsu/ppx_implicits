@@ -26,21 +26,21 @@ let () = assert (show 1.2 = "1.2")
 let show_aliased = show
 let () = assert (show_aliased 3.4 = "3.4")
 
-let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
+let show_twice ?_d x = show ?_d x ^ show ?_d x
 let () = assert (show_twice 5.6 = "5.65.6")
 
-let show_twice' : ?_imp:'a Show._class -> 'a -> string = fun ?_imp x -> show x ^ show x
+let show_twice' : ?_d:'a Show._class -> 'a -> string = fun ?_d x -> show x ^ show x
 let () = assert (show_twice' 5.6 = "5.65.6")
 
-let show_twice'' ?_imp:(imp:'a Show._class option) (x : 'a) = show x ^ show x
+let show_twice'' ?_d:(imp:'a Show._class option) (x : 'a) = show x ^ show x
 let () = assert (show_twice'' 5.6 = "5.65.6")
 
 (* This does not work: imp and x have no relationship.
-let show_twice'' ?_imp:(imp:'a Show._class option) x = show x ^ show x
+let show_twice'' ?_d:(imp:'a Show._class option) x = show x ^ show x
 let () = assert (show_twice'' 5.6 = "5.65.6")
 *)
   
 (* This does not work either.
-let show_twiceX = fun ?_imp x -> show x ^ show x
+let show_twiceX = fun ?_d x -> show x ^ show x
 let () = assert (show_twiceX 5.6 = "5.65.6")
 *)

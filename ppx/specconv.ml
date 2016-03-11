@@ -151,7 +151,10 @@ let from_expression _env e =
           end
       | Pexp_construct ({txt=lid}, None) -> `In, lid
       | _ ->
-          errorf "%a: Illegal spec expression" Location.format e.pexp_loc
+          errorf "%a: Illegal spec expression: %a" 
+            Location.format e.pexp_loc
+            Pprintast.expression e
+            
     in
     `Ok (t e)
   with

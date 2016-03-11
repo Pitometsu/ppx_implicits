@@ -61,6 +61,7 @@ Test(just)
 Test(aggressive)
 Test_(adm, $(EMPTY)) # must fail to execute
 Test(typeclass52x)
+Test(typeclass52)
 # Test(typeclass)
 # Test(readme)
 # Test(typeclass2)

@@ -40,7 +40,7 @@ module TypeClass = struct
 
   let add_newtypes = fold_right (fun s -> Exp.newtype ?loc:None s)
 
-  let spec = [%stri [%%imp_spec typeclass] ]
+  let link = [%stri type __class__ ]
 
   (* type 'a _module = (module Show with type a = 'a) *)
   let gen_ty_module name ps =
@@ -52,41 +52,26 @@ module TypeClass = struct
                    (map2 (fun p tv -> (at (Lident p), tv)) ps tvars))
       (at "_module") (* CR jfuruse: can have a ghost loc *)
 
-  (* type 'a _class = ('a, <SPEC>) Ppx_implicits.Runtime.t *)
-  let gen_ty_class ps =
-    let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
-    Type.mk ?loc:None
-      ~params: (map (fun tv -> (tv, Invariant)) tvars)
-      ~kind: (Ptype_variant [ Type.constructor 
-                               ?loc:None 
-                               ~args:[ Typ.constr ?loc:None
-                                       (at ?loc:None (Lident "_module"))
-                                       tvars ]
-                              (at ?loc:None "Packed") ])
-      (at "_class")
+  (* type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t *)
+  let gen_ty_class _ps =
+    [%stri type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t]
 
-  let pack_unpack = 
-    [%str module Instances = struct
-            let pack ~_x = Packed _x
-            let pack_opt ~_x = Some  (Packed _x)
-          end
-          let unpack_opt ?_imp = match _imp with
-            | None -> assert false
-            | Some (Packed x) -> x
-    ] 
+  (* let show (type a) ?_d:(_d : a _class option) =
+    let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
+    M.show
+  *)
 
-  (* let show (type a) ?_imp = let module M = (val (unpack_opt ?_imp : a s)) in M.show *)
   let method_ tys (n,_ty) = 
     let paramed_s = 
       let open Typ in
-      constr (at ?loc:None & Lident "_module") 
+      constr (at ?loc:None & Lident "_class") 
       & map (fun ty -> constr ?loc:None (at ?loc:None & Lident ty) []) tys
     in
     [%stri let [%p Pat.var' ?loc:None n] =
         [%e add_newtypes tys 
-            [%expr fun ?_imp -> 
-                     let module M = (val (unpack_opt ?_imp : [%t paramed_s]))
-                     in [%e Exp.(ident ?loc:None (at ?loc:None (Ldot (Lident "M", n)))) ] ] ] ]
+            [%expr fun ?_d:(_d : [%t paramed_s] option) -> 
+                     let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
+                     [%e Exp.(ident ?loc:None (at ?loc:None (Ldot (Lident "M", n)))) ] ] ] ]
 
   let process_module_type_declaration mtd =
     let name = mtd.pmtd_name.txt in
@@ -101,9 +86,8 @@ module TypeClass = struct
               (Mod.structure ?loc:None 
                & [%stri [@@@warning "-16"]]
                  :: Str.type_ [gen_ty_module name ps]
-                 :: Str.type_ [gen_ty_class ps]
-                 :: spec
-                 :: pack_unpack
+                 :: link
+                 :: [gen_ty_class ps]
                  @  map (method_ ps) vs
               )
         end
@@ -131,7 +115,7 @@ module TypeClass = struct
 
      module ShowIntInstance = struct
        let dict : ShowInt.a Show.s = (module ShowInt)
-       type __imp_instance__ = Show.__imp_spec__
+       type __imp_instance_of__ = Show.__class__
      end
   *)
   let instance lid mb ~instance_loc =  
@@ -164,7 +148,7 @@ module TypeClass = struct
                     & map (fun (p,_) -> Typ.constr ?loc:None (at ?loc:None & Ldot (Lident iname, p)) []) ps))
             ]
         ; with_gloc instance_loc & fun () ->
-          Str.type_ [ Type.mk ~manifest:(Typ.constr (at & Ldot (Lident cname, "__imp_spec__")) []) (at "__imp_instance__") ]
+          Str.type_ [ Type.mk ~manifest:(Typ.constr (at & Ldot (Lident cname, "__class__")) []) (at "__imp_instance_of__") ]
         ]
 end
 
