@@ -63,7 +63,7 @@ Test_(adm, $(EMPTY)) # must fail to execute
 Test(typeclass_expanded)
 Test(typeclass)
 Test(multiparam_expanded)
-# Test(multiparam)
+Test(multiparam)
 Test(numdef)
 
 # Test(readme)

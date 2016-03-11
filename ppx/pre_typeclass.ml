@@ -18,31 +18,40 @@ open List
 module TypeClass = struct
   open Longident
 
-  (* module type Show = sig type a val show : a -> string end
-     => [a]
+  (* module type Show = sig 
+     type a 
+     type b
+     val show : a -> b -> string 
+     end
+     => [a; b]
   *)
   let parameters sg = sort compare & concat_map (fun si ->
     match si.psig_desc with
     | Psig_type tds ->
-        filter_map (fun td ->
-          match td with
+        flip filter_map tds & fun td ->
+          begin match td with
           | { ptype_name = {txt}; ptype_params = []; ptype_cstrs = []; ptype_kind = Ptype_abstract; ptype_manifest = None; } -> Some txt
-          | _ -> None) tds
+          | _ -> None
+          end
     | _ -> []) sg
 
-  (* module type Show = sig type a val show : a -> string end
-     => ["show", a -> string]
+  (* module type Show = sig 
+       type a 
+       type b
+       val show : a -> b -> string 
+     end
+     => ["show", a -> b -> string]
   *)
-  let values sg = filter_map (fun si ->
+  let values = filter_map & fun si ->
     match si.psig_desc with
       | Psig_value vdesc -> Some (vdesc.pval_name.txt, vdesc.pval_type)
-      | _ -> None) sg
+      | _ -> None
 
   let add_newtypes = fold_right (fun s -> Exp.newtype ?loc:None s)
 
   let link = [%stri type __class__ ]
 
-  (* type 'a _module = (module Show with type a = 'a) *)
+  (* type ('a, 'b) _module = (module Show with type a = 'a and b = 'b) *)
   let gen_ty_module name ps =
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
     Type.mk ?loc:None
@@ -52,9 +61,14 @@ module TypeClass = struct
                    (map2 (fun p tv -> (at (Lident p), tv)) ps tvars))
       (at "_module") (* CR jfuruse: can have a ghost loc *)
 
-  (* type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t *)
-  let gen_ty_class _ps =
-    [%stri type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t]
+  (* type ('a, 'b) _class = (('a, 'b) _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t *)
+  let gen_ty_class ps =
+    let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
+    Type.mk ?loc:None
+      ~params: (map (fun tv -> (tv, Invariant)) tvars)
+      ~manifest: [%type: ([%t Typ.constr (at (Lident "_module")) tvars], [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t]
+      (at "_class") (* CR jfuruse: can have a ghost loc *)
+  ;;
 
   (* let show (type a) ?_d:(_d : a _class option) =
     let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
@@ -87,8 +101,8 @@ module TypeClass = struct
                & [%stri [@@@warning "-16"]]
                  :: Str.type_ [gen_ty_module name ps]
                  :: link
-                 :: [gen_ty_class ps]
-                 @  map (method_ ps) vs
+                 :: Str.type_ [gen_ty_class ps]
+                 :: map (method_ ps) vs
               )
         end
     | Some _ -> assert false (* error *)
