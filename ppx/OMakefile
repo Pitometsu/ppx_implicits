@@ -11,7 +11,7 @@ FILES[] =
     klabel
     candidate
     crelated
-    ctypeclass
+    chas_type
     cderiving
     cppxderive
     spec

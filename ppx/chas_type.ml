@@ -16,7 +16,7 @@ let unifiable env ty1 ty2 = with_snapshot & fun () ->
   
 (* We seek types equal to __imp_instance_of__ = ty
 *) 
-let cand_typeclass env loc ty =
+let cand_has_type env loc ty =
   let has_instance mp =
     let md = Env.find_module mp env in
     let m = new dummy_module env mp md.md_type in

@@ -74,7 +74,7 @@ let rec cand_static env loc : t2 -> t list = function
   | Opened (f,x) -> cand_opened env loc (f,x)
   | Direct (f,x,popt) -> cand_direct env loc (f,x,popt)
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Has_type (_, Some ty) -> Ctypeclass.cand_typeclass env loc ty
+  | Has_type (_, Some ty) -> Chas_type.cand_has_type env loc ty
   | Has_type _ -> assert false
   | spec when is_static spec -> assert false
   | _ -> assert false
