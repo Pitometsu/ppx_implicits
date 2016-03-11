@@ -60,7 +60,7 @@ Test(unshadow)
 Test(just)
 Test(aggressive)
 Test_(adm, $(EMPTY)) # must fail to execute
-Test(typeclass52)
+Test(typeclass52x)
 # Test(typeclass)
 # Test(readme)
 # Test(typeclass2)

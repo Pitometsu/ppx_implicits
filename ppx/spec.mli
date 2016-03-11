@@ -109,7 +109,7 @@ and t2 =
         [show_int], [float_show].
     *)
 
-  | Typeclass of type_expr
+  | Has_type of Parsetree.core_type * type_expr option 
     (** Spec introduced by [[@@typeclass]] for typeclass style resolution. 
 
         <currently the specification is not really stable>

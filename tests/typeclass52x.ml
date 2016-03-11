@@ -3,13 +3,14 @@ module type Show  = sig
   val show : a -> string
 end
 
+(* The following code can be auto-gened from the above definition of 
+   [module type Show] *)
 module Show = struct
-  [@@@warning "-16"]
   type 'a _module = (module Show with type a = 'a)
 
-  type __here__
+  type __class__
     
-  type 'a _class = ('a _module, [%imp_spec typeclass __here__]) Ppx_implicits.Runtime.t
+  type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t
 
   let show (type a) ?_d:(_d : a _class option) =
     let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
@@ -24,10 +25,11 @@ module M = struct
     let show = string_of_int
   end
     
+  (* The following code can be auto-gened from the above definition of 
+     [module ShowInt] with the name [Show] *)
   module ShowIntInstance = struct
     let dict: ShowInt.a Show._module = (module ShowInt)
-
-    type __instance_of__ = Show.__here__
+    type __imp_instance_of__ = Show.__class__
   end
 
   module ShowFloat = struct
@@ -35,10 +37,11 @@ module M = struct
     let show = string_of_float
   end
 
+  (* The following code can be auto-gened from the above definition of 
+     [module ShowFloat] with the name [Show] *)
   module ShowFloatInstance = struct
     let dict: ShowFloat.a Show._module = (module ShowFloat)
-
-    type __instance_of__ = Show.__here__
+    type __imp_instance_of__ = Show.__class__
   end
 end
 

@@ -33,7 +33,7 @@ let get_type_components =
     | Related -> []
     | Aggressive x -> t2 x
     | Name (_s, _re, x) -> t2 x
-    | Typeclass _p -> []
+    | Has_type (cty, _ty) -> [cty]
     | Deriving _p -> []
     | PPXDerive (_e, cty, _) -> [cty]
   in
@@ -61,7 +61,12 @@ let assign_type_components tys t0 =
     | Name (s, re, x) ->
         let tys, x = t2 tys x in
         tys, Name (s, re, x)
-    | Typeclass _ -> tys, x
+    | Has_type (cty, None) ->
+        begin match tys with
+        | ty::tys -> tys, Has_type (cty, Some ty)
+        | _ -> assert false
+        end
+    | Has_type _ -> assert false
     | Deriving _ -> tys, x
     | PPXDerive (e, cty, None) ->
         begin match tys with
@@ -105,14 +110,16 @@ let from_expression _env e =
                     [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
                     ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
-      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "typeclass"} },
-                    ["", _e] ) ->  assert false
-(*
-          begin match get_lid e with
-          | Some lid -> Typeclass lid
-          | None -> errorf "%a: just requires a path" Location.format e.pexp_loc
+      | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "has_type"} }, args ) ->
+           begin match args with
+          | ["", e] ->
+              begin match e.pexp_desc with
+              | Pexp_ident lid ->
+                  Has_type (Ppxx.Helper.Typ.constr lid [], None)
+              | _ -> errorf "has_type must take a type path"
+              end
+          | _ -> errorf "has_type must take just one argument"
           end
-*)
           
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
           begin match args with
@@ -187,10 +194,15 @@ let from_type_expr env loc ty = match expand_repr_desc env ty with
       | { row_closed= true; row_fields= [l, Rpresent (Some ty)] } ->
           let open Utils in
           let open Utils.Result.Monad in
+          let unpoly ty = match expand_repr_desc env ty with
+            | Tpoly (ty, []) -> ty
+            | _ -> ty
+          in
           let fs, nil = Ctype.(flatten_fields & object_fields ty) in
+          let fs = map (fun (a,b,ty) -> (a,b,unpoly ty)) fs in
           assert (expand_repr_desc env nil = Tnil);
           assert (fs = []
-                 || (not & for_all (function (_, Fpresent, _) -> true | _ -> false) fs));
+                 || for_all (function (_, Fpresent, _) -> true | _ -> false) fs);
           assign_type_components (map (fun (_,_,ty) -> ty) fs)
           & from_Ok (error loc)
           & unmangle_spec_string l

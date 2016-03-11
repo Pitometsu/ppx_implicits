@@ -26,7 +26,7 @@ and t2 =
   | Aggressive of t2 (** [aggressive t2]. Even normal function arrows are considered as constraints. *)
   | Related (** [related]. The values defined under module [P] where data type defined in [P] appears in the type of the resolution target *)
   | Name of string * Re.re * t2 (** [name "rex" t2]. Constraint values only to those whose names match with the regular expression *)
-  | Typeclass of type_expr (** [typeclass path]. Typeclass style resolution.  *) 
+  | Has_type of core_type * type_expr option (** [typeclass path]. Typeclass style resolution.  *) 
   | Deriving of Longident.t (** [deriving M]. [M] must define [M.tuple], [M.object_] and [M.poly_variant] *)
   | PPXDerive of Parsetree.expression * core_type * type_expr option (** [ppxderive ([%...] : ty)]. *)
       
@@ -35,7 +35,7 @@ let rec is_static = function
   | Direct _ -> true
   | Related -> false
   | Aggressive t2 | Name (_, _, t2) -> is_static t2
-  | Typeclass _ -> true
+  | Has_type _ -> true
   | Deriving _ -> false
   | PPXDerive _ -> false
     
@@ -53,7 +53,9 @@ let to_string =
     | Related -> "related"
     | Aggressive x -> Printf.sprintf "aggressive (%s)" (t2 x)
     | Name (s, _re, x) -> Printf.sprintf "name %S (%s)" s (t2 x)
-    | Typeclass _ -> "typeclass"
+    | Has_type (cty, _) -> 
+        Format.asprintf "has_type (%a)"
+          Pprintast.core_type cty
     | Deriving p -> Printf.sprintf "deriving %s" & Longident.to_string p
     | PPXDerive (e, cty, _) ->
         Format.asprintf "ppxderive (%a : %a)"
@@ -72,7 +74,8 @@ let rec cand_static env loc : t2 -> t list = function
   | Opened (f,x) -> cand_opened env loc (f,x)
   | Direct (f,x,popt) -> cand_direct env loc (f,x,popt)
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
-  | Typeclass ty -> Ctypeclass.cand_typeclass env loc ty
+  | Has_type (_, Some ty) -> Ctypeclass.cand_typeclass env loc ty
+  | Has_type _ -> assert false
   | spec when is_static spec -> assert false
   | _ -> assert false
 
@@ -87,7 +90,7 @@ let rec cand_dynamic env loc ty = function
       cand_dynamic env loc ty (PPXDerive (e,cty,Some ty'))
   | PPXDerive (e, _cty, Some temp_ty) ->
       Cppxderive.cand_derive env loc e temp_ty ty 
-  | Opened _ | Direct _ | Typeclass _ ->
+  | Opened _ | Direct _ | Has_type _ ->
       (* they are static *)
       assert false
 

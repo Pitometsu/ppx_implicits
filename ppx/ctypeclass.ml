@@ -14,7 +14,7 @@ let unifiable env ty1 ty2 = with_snapshot & fun () ->
   | `Error _ -> false
   | `Ok _ -> true
   
-(* We seek types equal to __imp_instance_of__ = M.__imp_spec__
+(* We seek types equal to __imp_instance_of__ = ty
 *) 
 let cand_typeclass env loc ty =
   let has_instance mp =
@@ -24,9 +24,11 @@ let cand_typeclass env loc ty =
       let _, td = m#lookup_type "__imp_instance_of__" in
       match td with
       | { type_params = []
-        ; type_manifest = Some ty' } when unifiable env ty ty' ->
-          Some mp
-      | _ -> None
+        ; type_manifest = Some ty' } ->
+          if unifiable env ty ty' then Some mp
+          else None
+      | _ ->
+          None
     with
     | Not_found -> None
   in
