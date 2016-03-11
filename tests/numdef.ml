@@ -43,4 +43,5 @@ module NumFloat = struct
   let of_int = float_of_int
 end [@@instance Num]
   
-
+let () = assert (1 + 2 = 3);;
+let () = assert (1.2 + 3.4 = 4.6);;

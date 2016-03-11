@@ -5,31 +5,7 @@ module type Num = sig
   type b
   type c
   val add : a -> b -> c
-end
-
-module Num = struct
-
-  type ('a, 'b, 'c) s = (module Num with type a = 'a and type b = 'b and type c = 'c)
-  type ('a, 'b, 'c) t = Packed of ('a, 'b, 'c) s
-  (* t is still required since s is just an alias of (module ..) *)
-
-  module Instances = struct
-    let pack ~_x = Packed _x
-    let pack_opt ~_x = Some (Packed _x)
-  end
-
-  [@@@warning "-16"] (* required for unpack_opt *)
-
-  let unpack_opt ?_imp = match _imp with
-    | None -> assert false
-    | Some (Packed x) -> x
-
-  [%%imp_spec opened NumInstance]
-
-  let add (type a) (type b) (type c) ?_imp:(_imp:(a, b, c) t option) = 
-    let module M = (val (unpack_opt ?_imp)) in 
-    M.add
-end
+end [@@typeclass]
 
 let add = Num.add
 
@@ -39,11 +15,7 @@ module IntIntInt = struct
     type b = int
     type c = int
     let add = (+)
-  end
-
-  module NumInstance = struct
-    let intintint : (int, int, int) Num.s = (module NumIntIntInt)
-  end
+  end [@@instance Num]
 end
 
 module FloatFloatFloat = struct
@@ -52,11 +24,7 @@ module FloatFloatFloat = struct
     type b = float
     type c = float
     let add = (+.)
-  end
-
-  module NumInstance = struct
-    let floatfloatfloat : (float, float, float) Num.s = (module NumFloatFloatFloat)
-  end
+  end [@@instance Num]
 end
 
 module IntIntFloat = struct
@@ -65,11 +33,7 @@ module IntIntFloat = struct
     type b = int
     type c = float
     let add x y = float (x + y)
-  end
-
-  module NumInstance = struct
-    let floatfloatfloat : (int, int, float) Num.s = (module NumIntIntFloat)
-  end
+  end [@@instance Num]
 end
 
 open IntIntInt
