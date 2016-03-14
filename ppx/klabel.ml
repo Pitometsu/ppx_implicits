@@ -18,9 +18,11 @@ let rec extract env ty =
   | Tarrow(l, ty1, ty2, _) when is_klabel l <> None ->
       let cs, ty = extract env ty2 in
       (l,ty1)::cs, ty
+(*
   | Tarrow(l, ty1, ty2, x) ->
       let cs, ty = extract env ty2 in
       cs, { (Ctype.newty & Tarrow (l, ty1, ty, x)) with level = ty.level }
+*)
   | _ -> [], ty
 
 let rec extract_aggressively env ty =
@@ -33,4 +35,11 @@ let rec extract_aggressively env ty =
         (extract_aggressively env ty2)
   | _ -> [[], ty]
 
-    
+(*
+let rec get_args ty =
+  let ty = Ctype.expand_head env ty in
+  match repr_desc ty with
+  | Tarrow(l, ty1, ty2, _) -> (l,ty1)::get_args ty2
+  | _ -> []
+*)
+

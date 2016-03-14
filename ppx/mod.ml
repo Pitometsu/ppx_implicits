@@ -20,29 +20,32 @@ let get_candidates env loc spec ty =
   let f = Spec.candidates env loc spec in
   Candidate.uniq & f ty @ map snd !derived_candidates
 
-(** Ppx_implicits.Runtime.t *)
-let is_imp_type_path = function
-  | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
-  | _ -> false
-    
-(** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
-let make_embed e =
-  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed]) ["", e])
 
-(** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
-let make_get e =
-  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", e])
-
-(** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
-let make_from_Some e =
-  Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", e])
+module Runtime = struct
+  (** Ppx_implicits.Runtime.t *)
+  let is_imp_type_path = function
+    | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
+    | _ -> false
+      
+  (** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
+  let embed e =
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed]) ["", e])
+  
+  (** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+  let get e =
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", e])
+  
+  (** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+  let from_Some e =
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", e])
+end
 
 (* CR jfuruse: Now a bad name *)
 let imp_type_spec env loc l ty (* option if [is_optional l] *) =
   let f ty = match expand_repr_desc env ty with
-    | Tconstr (p, [ty; spec], _) when is_imp_type_path p ->
+    | Tconstr (p, [ty; spec], _) when Runtime.is_imp_type_path p ->
         let spec = Specconv.from_type_expr env loc spec in
-        (l, ty, Some spec, make_embed, make_get)
+        (l, ty, Some spec, Runtime.embed, Runtime.get)
     | _ -> 
         (l, ty, None, (fun x -> x), (fun x -> x))
   in
@@ -54,7 +57,7 @@ let imp_type_spec env loc l ty (* option if [is_optional l] *) =
         let l, ty, spec_opt, conv, unconv = f ty in
         (l, ty, spec_opt,
          (fun e -> Forge.Exp.some env (conv e)),
-         (fun e -> unconv (make_from_Some e)))
+         (fun e -> unconv (Runtime.from_Some e)))
   end 
 
 (* Fix the candidates by adding type dependent part *)

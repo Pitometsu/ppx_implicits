@@ -67,7 +67,6 @@ Test(multiparam)
 Test(numdef)
 
 # Test(readme)
-# Test(multiparam2)
 # Test(constraint)
 # Test(xformat)
 # Test(double_use)
