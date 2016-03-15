@@ -1,20 +1,9 @@
 OUT=.exe
 PPX=$(file ../ppx/ppx_implicits$(EXE))
-.SCANNER: scan-ocaml-%: $(PPX) ../lib/ppx_implicits.cmo
-OCamlRequire($(PPX) ../lib/ppx_implicits.cmo)
 
-OCAMLDEPFLAGS= -ppx $(PPX)
+OCamlRequire($(PPX) $(file ../lib/ppx_implicits.cmo))
 
 OCAMLINCLUDES += ../lib
-
-# FILES[] =
-#    ../lib/meta_conv
-#    ../ocaml/ocaml
-#    ../ocaml/ocaml_conv
-#    conv_test
-
-%.out.ml: %.ml $(PPX)
-  $(PPX) -debug $< > $@
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
@@ -83,3 +72,5 @@ Test(numdef)
 # Test(deriving)
 # Test(packer)
 
+clean::
+    rm -rf out
