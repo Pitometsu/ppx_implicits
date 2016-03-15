@@ -1,11 +1,100 @@
-# ppx_implicits, implicit values and type classes for OCaml via PPX
+# ppx_implicits, implicit arguments and type classes for OCaml via PPX
 
-ppx_implicits provides implicit values, whose values are automatically
-generated from their types.  Overloading, type-classes, polymorphic
-value printers, etc ... can be defined/mimicked with implicit values.
+ppx_implicits provides implicit arguments: omittable function arguments
+whose default values are automatically generated from their types.  
+Overloading, type-classes, polymorphic value printers, etc ... 
+can be defined/mimicked with implicit arguments.
 
 ppx_implicits is NOT a compiler modification but a PPX preprocessor.
 You can play type classes and etc with your official OCaml compiler (4.02.3).
+
+# Simple overloading
+
+Let's start with a simple example of overloaded `add` function which
+can work both for `int` and `float` additions.
+
+Here are two addition functions for `int` and `float` in OCaml
+which we want to overload to one function `add`:
+
+```
+val (+)  : int   -> int   -> int
+val (+.) : float -> float -> float
+```
+
+We first gather them in a single module, a namespace for overload instances:
+
+```
+module Add = struct (* You can choose other module name than Add like Num *)
+  let int   = (+)   (* You can choose other variable name than int like (+). *)
+  let float = (+.)  (* You can choose other variable name than float like (+.). *)
+end
+```
+
+Then, define a type for overloading, the type of implicit argument for `add`:
+
+```
+type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
+```
+In ppx_implicits, `(ty, spec) Ppx_implicits.t` is the special type
+for implicit arguments: roughly equivalent with type `ty` whose default value
+is determined by `spec`.  In this case, `'a add` is equivalent with
+type `'a -> 'a -> 'a`, the most general anti-unifier type of the types
+of `(+) : int -> int -> int` and `(+.) : float -> float -> float`,
+and its default value is composed using the values defined in a module
+named `Add`.
+
+We can define the overloaded `add` function using this type:
+
+```
+let add : ?_d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
+```
+`val Ppx_implicits.imp : ?_d:('a,'spec) Ppx_implicits.t -> 'a`
+is the extractor function of implicit arguments. If the optional
+argument is applied then it simply gets the value of `ty` encapsulated
+in `(ty, spec) Ppx_implicits.t`. If the optional argument is omitted,
+the function fails, but it should not happen with ppx_implicits:
+if omitted, the optional argument of type `(ty, spec) Ppx_implicits.t`
+is applied automatically by ppx_implicits, using `spec`.
+`add` function is just an alias of this `Ppx_implicits.imp` but with
+a stricter type: if the optional argument of `add` is omitted,
+it is auto-applied according to the spec `[%imp_spec Add]` which means
+using the values defined in the module named `Add`.
+
+Here is an example of such auto-application:
+```
+let () = assert (add 1 1 = 2)
+```
+Ppx_implicits converts the above code to:
+```
+let () = assert (add ~_d:(Ppx_implicits.embed Add.int) 1 1 = 2)
+```
+where `Ppx_implicits.embed` encapsulate its argument into
+`(ty,spec) Ppx_implicits.t`.
+
+Another exapmle of `add` used for `float` addition:
+```
+let () = assert (add 1.2 3.4 = 4.6)
+```
+This time, ppx_implicits converts to
+```
+let () = assert (add ~_d:(Ppx_implicits.embed Add.float) 1 1 = 2)
+```
+
+Here is the whole code:
+
+```
+module Add = struct
+  let int = (+)
+  let float = (+.)
+end
+
+type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
+
+let add : ?_d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
+
+let () = assert (add 1 2 = 3)
+let () = assert (add 1.2 3.4 = 4.6)
+```
 
 # Limitation
 
