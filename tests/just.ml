@@ -1,7 +1,7 @@
 (* Test of just *)
 
-type 'a show = ('a -> string, [%imp_spec just Show]) Ppx_implicits.Runtime.t
-let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+type 'a show = ('a -> string, [%imp_spec just Show]) Ppx_implicits.t
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.imp
 
 module Show = struct
   let int = string_of_int

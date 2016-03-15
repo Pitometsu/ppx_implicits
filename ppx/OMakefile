@@ -28,8 +28,9 @@ FILES[] =
 # This drops dependency of typpx
 # MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
 
-targets=$(MyOCamlPPX ppx_implicits, $(FILES))
-MyOCamlFindPackage(ppx_implicits, $(targets))
+NO_INSTALL=true # installation is done in lib directory
+.DEFAULT: $(MyOCamlPPX ppx_implicits, $(FILES))
+# MyOCamlFindPackage(ppx_implicits, $(targets))
 
 WithMerlin()
 

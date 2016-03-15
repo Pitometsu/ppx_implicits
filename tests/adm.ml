@@ -10,7 +10,7 @@ module Show = struct
   let id ~_d = _d
 end
 
-type 'a show = ('a -> string, [%imp_spec Show]) Ppx_implicits.Runtime.t
-let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+type 'a show = ('a -> string, [%imp_spec Show]) Ppx_implicits.t
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.imp
 
 let () = print_string @@ show 1

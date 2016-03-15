@@ -1,5 +1,5 @@
 LIBFILES[] =
-   runtime
+   ppx_implicits
 
 LIB = ppx_implicits
 
@@ -7,9 +7,10 @@ PACKAGE_NAME=ppx_implicits
 
 MyOCamlPackageExtras[] =
     ../ppx/ppx_implicits.run
-    ../src/ppx_implicits.opt
-    ../src/ppx_implicits$(EXE)
+    ../ppx/ppx_implicits.opt
+    ../ppx/ppx_implicits$(EXE)
 
 OCamlRequirePackages(ppxx typpx)
 
-MyOCamlPackage($(LIB), $(LIBFILES), $(EMPTY), $(EMPTY))
+# MyOCamlPackage($(LIB), $(LIBFILES), $(EMPTY), $(EMPTY))
+MyOCamlLibrary($(LIB), $(LIBFILES))

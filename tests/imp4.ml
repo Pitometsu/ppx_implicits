@@ -7,10 +7,10 @@ end
   
 type 'a s = (module Show with type a = 'a)
 
-type 'a show = ('a s, [%imp_spec opened Show]) Ppx_implicits.Runtime.t
+type 'a show = ('a s, [%imp_spec opened Show]) Ppx_implicits.t
 
 let show : ?_d:'a show -> 'a -> string = fun (type a) ?_d ->
-  let m : a s = Ppx_implicits.Runtime.(get (from_Some _d)) in
+  let m : a s = Ppx_implicits.(get (from_Some _d)) in
   let module M = (val m) in
   M.show
   

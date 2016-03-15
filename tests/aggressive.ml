@@ -14,8 +14,8 @@ module Y = struct
     | Boo a -> Printf.sprintf "Boo (%s)" @@ show_a a
 end
 
-type 'a show = ('a -> string, [%imp_spec aggressive(related)]) Ppx_implicits.Runtime.t
+type 'a show = ('a -> string, [%imp_spec aggressive(related)]) Ppx_implicits.t
 
-let show : ?_d:'a show -> 'a -> string = Ppx_implicits.Runtime.imp
+let show : ?_d:'a show -> 'a -> string = Ppx_implicits.imp
 
 let () = assert (show (Y.Boo X.Foo) = "Boo (Foo)")

@@ -11,12 +11,12 @@ module Num = struct
   type ('a,'b,'c) _class =
       (('a,'b,'c) _module,
        [`Spec_has__type_20_28____class_____29 of < l0 :__class__  > ])
-        Ppx_implicits.Runtime.t
+        Ppx_implicits.t
   
   let add (type a) (type b) (type c)
       ?_d:((_d : (a,b,c) _class option))  =
     let module M = (val
-                    let open Ppx_implicits.Runtime in get (from_Some _d)) in M.add
+                    let open Ppx_implicits in get (from_Some _d)) in M.add
 end
 
 let add = Num.add

@@ -61,17 +61,17 @@ module TypeClass = struct
                    (map2 (fun p tv -> (at (Lident p), tv)) ps tvars))
       (at "_module") (* CR jfuruse: can have a ghost loc *)
 
-  (* type ('a, 'b) _class = (('a, 'b) _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t *)
+  (* type ('a, 'b) _class = (('a, 'b) _module, [%imp_spec has_type __class__]) Ppx_implicits.t *)
   let gen_ty_class ps =
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
     Type.mk ?loc:None
       ~params: (map (fun tv -> (tv, Invariant)) tvars)
-      ~manifest: [%type: ([%t Typ.constr (at (Lident "_module")) tvars], [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t]
+      ~manifest: [%type: ([%t Typ.constr (at (Lident "_module")) tvars], [%imp_spec has_type __class__]) Ppx_implicits.t]
       (at "_class") (* CR jfuruse: can have a ghost loc *)
   ;;
 
   (* let show (type a) ?_d:(_d : a _class option) =
-    let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
+    let module M = (val (Ppx_implicits.(get (from_Some _d)))) in
     M.show
   *)
 
@@ -84,7 +84,7 @@ module TypeClass = struct
     [%stri let [%p Pat.var' ?loc:None n] =
         [%e add_newtypes tys 
             [%expr fun ?_d:(_d : [%t paramed_s] option) -> 
-                     let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
+                     let module M = (val (Ppx_implicits.(get (from_Some _d)))) in
                      [%e Exp.(ident ?loc:None (at ?loc:None (Ldot (Lident "M", n)))) ] ] ] ]
 
   let process_module_type_declaration mtd =

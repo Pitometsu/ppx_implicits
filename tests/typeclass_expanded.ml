@@ -10,10 +10,10 @@ module Show = struct
 
   type __class__
     
-  type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.Runtime.t
+  type 'a _class = ('a _module, [%imp_spec has_type __class__]) Ppx_implicits.t
 
   let show (type a) ?_d:(_d : a _class option) =
-    let module M = (val (Ppx_implicits.Runtime.(get (from_Some _d)))) in
+    let module M = (val (Ppx_implicits.(get (from_Some _d)))) in
     M.show
 end
 

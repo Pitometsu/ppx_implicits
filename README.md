@@ -1,9 +1,11 @@
 # ppx_implicits, implicit values and type classes for OCaml via PPX
 
-In short,
+ppx_implicits provides implicit values, whose values are automatically
+generated from their types.  Overloading, type-classes, polymorphic
+value printers, etc ... can be defined/mimicked with implicit values.
 
-* ppx_implicits provides implicit values and type classes to OCaml.
-* NOT a compiler modification but a PPX preprocessor. You can play type classes and etc with your official OCaml compiler (4.02.3).
+ppx_implicits is NOT a compiler modification but a PPX preprocessor.
+You can play type classes and etc with your official OCaml compiler (4.02.3).
 
 # Limitation
 

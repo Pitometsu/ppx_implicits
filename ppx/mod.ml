@@ -24,20 +24,20 @@ let get_candidates env loc spec ty =
 module Runtime = struct
   (** Ppx_implicits.Runtime.t *)
   let is_imp_type_path = function
-    | Path.Pdot(Pdot(Pident{Ident.name="Ppx_implicits"},"Runtime",_),"t",_) -> true
+    | Path.Pdot(Pident{Ident.name="Ppx_implicits"},"t",_) -> true
     | _ -> false
       
   (** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
   let embed e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.embed]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.embed]) ["", e])
   
-  (** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+  (** [make_get e] builds [Ppx_implicits.get <e>] *)
   let get e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.get]) ["", e])
   
-  (** [make_get e] builds [Ppx_implicits.Runtime.get <e>] *)
+  (** [make_get e] builds [Ppx_implicits.get <e>] *)
   let from_Some e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) ["", e])
 end
 
 (* CR jfuruse: Now a bad name *)
@@ -312,22 +312,6 @@ module MapArg : TypedtreeMap.MapArgument = struct
         let ty = case.c_lhs.pat_type in
         let (_l, type_, _specopt, _conv, unconv) = imp_type_spec env loc l ty in
         let expr = unconv (Typpx.Forge.Exp.(ident path)) in
-(*
-        let expr, type_embed = match Klabel.is_klabel l with
-          | None -> assert false
-          | Some `Normal -> Typpx.Forge.Exp.(ident path), case.c_lhs.pat_type
-          | Some `Optional ->
-              Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.from_Some]) ["", ident path]),
-              Typecore.extract_option_type env case.c_lhs.pat_type
-        in
-        let expr, type_ = match imp_type_spec env loc l type_embed with
-          | Some (ty, _spec) ->
-              Typpx.Forge.Exp.(app (untyped [%expr Ppx_implicits.Runtime.get]) ["", expr]),
-              ty
-          | None ->
-              expr, type_embed
-        in
-*)
         
         derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)
                                       expr;
