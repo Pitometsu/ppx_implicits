@@ -324,7 +324,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
           Location.format e.exp_loc;
         e
 
-    | Texp_function (l, [case], e') when Klabel.is_klabel l <> None ->
+    | Texp_function (l, [case], e') when is_imp_arg case.c_lhs.pat_env l case.c_lhs.pat_type <> None ->
         (* Handling derived implicits, part 1 of 2 *)
         (* If a pattern has a form l:x where [Klabel.is_klabel l],
            then the value can be used as an instance of the same type.
@@ -354,6 +354,10 @@ module MapArg : TypedtreeMap.MapArgument = struct
                      c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
         in
         Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
+
+    | Texp_function (l, [case], _e') when Btype.is_optional l -> 
+        !!% "WHAT? %s : %a" l Printtyp.type_scheme case.c_lhs.pat_type;
+        e
 
     | _ -> e
 

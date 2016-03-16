@@ -1,7 +1,7 @@
 (* "Unshadowing" test *)
 
 type 'a show = ('a -> string, [%imp_spec opened Show]) Ppx_implicits.t
-let show : ?_d:'a show -> 'a -> string = Ppx_implicits.imp
+let show : ?imp:'a show -> 'a -> string = Ppx_implicits.imp
 
 module X = struct
   module Show = struct

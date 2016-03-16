@@ -41,7 +41,6 @@ Test(name)=
   Testx($(name), $(EMPTY))
   export
 
-Test(imp)
 Test(add)
 Test(imp3)
 Test(imp32)
