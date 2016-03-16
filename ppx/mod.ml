@@ -23,7 +23,7 @@ let get_candidates env loc spec ty =
 
 module Runtime = struct
   (** Ppx_implicits.Runtime.t *)
-  let is_imp_type_path = function
+  let is_imp_t_path = function
     | Path.Pdot(Pident{Ident.name="Ppx_implicits"},"t",_) -> true
     | _ -> false
       
@@ -40,13 +40,24 @@ module Runtime = struct
     Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) ["", e])
 end
 
+let is_imp_arg_type env ty = match expand_repr_desc env ty with
+  | Tconstr (p, [ty; spec], _) when Runtime.is_imp_t_path p -> Some (ty, spec)
+  | _ -> None
+
+(* CR jfuruse: is_imp_arg and imp_type_spec can be shared *)
+let is_imp_arg env l ty = 
+  if not & Btype.is_optional l then None
+  else match is_option_type env ty with
+  | None -> None
+  | Some ty -> is_imp_arg_type env ty
+
 (* CR jfuruse: Now a bad name *)
 let imp_type_spec env loc l ty (* option if [is_optional l] *) =
-  let f ty = match expand_repr_desc env ty with
-    | Tconstr (p, [ty; spec], _) when Runtime.is_imp_type_path p ->
+  let f ty = match is_imp_arg_type env ty with
+    | Some (ty, spec) ->
         let spec = Specconv.from_type_expr env loc spec in
         (l, ty, Some spec, Runtime.embed, Runtime.get)
-    | _ -> 
+    | None -> 
         (l, ty, None, (fun x -> x), (fun x -> x))
   in
   if not & Btype.is_optional l then f ty
@@ -60,11 +71,32 @@ let imp_type_spec env loc l ty (* option if [is_optional l] *) =
          (fun e -> unconv (Runtime.from_Some e)))
   end 
 
+module Klabel2 = struct
+  (* Constraint labels must precede the other arguments *)
+  let rec extract env ty = 
+    let ty = Ctype.expand_head env ty in
+    match repr_desc ty with
+    | Tarrow(l, ty1, ty2, _) when (* Klabel.is_klabel l <> None || *) is_imp_arg env l ty1 <> None ->
+        let cs, ty = extract env ty2 in
+        (l,ty1)::cs, ty
+    | _ -> [], ty
+  
+  let rec extract_aggressively env ty =
+    let ty = Ctype.expand_head env ty in
+    match repr_desc ty with
+    | Tarrow(l, ty1, ty2, _) when gen_vars ty1 <> [] ->
+        ([], ty)
+        :: map
+          (fun (cs, ty) -> (l,ty1)::cs, ty)
+          (extract_aggressively env ty2)
+    | _ -> [[], ty]
+  end
+
 (* Fix the candidates by adding type dependent part *)
 let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * type_expr * Spec.t * (expression -> expression)) list * type_expr) list =
   let f =
-    if not aggressive then (fun type_ -> [Klabel.extract env type_])
-    else Klabel.extract_aggressively env
+    if not aggressive then (fun type_ -> [Klabel2.extract env type_])
+    else Klabel2.extract_aggressively env
   in
   flip map (f type_) & fun (args, ty) ->
     flip map args (fun (l,ty) ->
@@ -250,10 +282,10 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       | [e] -> Unshadow.Replace.replace e
       | _ -> assert false
       
-(* ?_l:None  where (None : X...Y.name option) has a special rule *) 
+(* ?l:None  where (None : (ty,spec) Ppx_implicit.t option) has a special rule *) 
 let resolve_arg loc env a = match a with
   (* (l, None, Optional) means curried *)
-  | (l, Some e, Optional) when Klabel.is_klabel l = Some `Optional ->
+  | (l, Some e, Optional) when is_imp_arg env l e.exp_type <> None ->
       begin match Utils.is_none e with
       | None -> a (* explicitly applied *)
       | Some _ ->
