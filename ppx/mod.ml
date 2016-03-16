@@ -356,7 +356,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
 
     | Texp_function (l, [case], _e') when Btype.is_optional l -> 
-        !!% "WHAT? %s : %a" l Printtyp.type_scheme case.c_lhs.pat_type;
+        !!% "WHAT? %a : %s : %a@." Location.format e.exp_loc l Printtyp.type_scheme case.c_lhs.pat_type;
         e
 
     | _ -> e
