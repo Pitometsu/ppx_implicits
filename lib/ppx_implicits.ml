@@ -1,7 +1,5 @@
 type ('a, 'spec) t = 'a
 
-type ('a, 'spec) s = ?imp: ('a, 'spec) t -> 'a
-
 exception Not_resolved
 
 let from_Some = function
@@ -10,6 +8,6 @@ let from_Some = function
       
 external get : ('a, 'spec) t -> 'a = "%identity"
 
-let imp ?imp = from_Some imp
+let imp ?d = from_Some d
 
 external embed : 'a -> ('a, 'spec) t = "%identity"

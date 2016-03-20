@@ -1,3 +1,4 @@
+(* Using implicits defined outside of the compilation unit *)
 open Numdef
 
 let () =

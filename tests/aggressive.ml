@@ -16,6 +16,6 @@ end
 
 type 'a show = ('a -> string, [%imp_spec aggressive(related)]) Ppx_implicits.t
 
-let show : ?imp:'a show -> 'a -> string = Ppx_implicits.imp
+let show : ?d:'a show -> 'a -> string = Ppx_implicits.imp
 
 let () = assert (show (Y.Boo X.Foo) = "Boo (Foo)")
