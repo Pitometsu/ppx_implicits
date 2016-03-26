@@ -24,9 +24,9 @@ val (+.) : float -> float -> float
 We first gather them in a single module, a namespace for overload instances:
 
 ```
-module Add = struct (* You can choose other module name than Add like Num *)
-  let int   = (+)   (* You can choose other variable name than int like (+). *)
-  let float = (+.)  (* You can choose other variable name than float like (+.). *)
+module Add = struct
+  let int   = (+)
+  let float = (+.) 
 end
 ```
 
@@ -46,9 +46,9 @@ named `Add`.
 We can define the overloaded `add` function using this type:
 
 ```
-let add : ?_d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
+let add : ?d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
 ```
-`val Ppx_implicits.imp : ?_d:('a,'spec) Ppx_implicits.t -> 'a`
+`val Ppx_implicits.imp : ?d:('a,'spec) Ppx_implicits.t -> 'a`
 is the extractor function of implicit arguments. If the optional
 argument is applied then it simply gets the value of `ty` encapsulated
 in `(ty, spec) Ppx_implicits.t`. If the optional argument is omitted,
@@ -66,7 +66,7 @@ let () = assert (add 1 1 = 2)
 ```
 Ppx_implicits converts the above code to:
 ```
-let () = assert (add ~_d:(Ppx_implicits.embed Add.int) 1 1 = 2)
+let () = assert (add ~d:(Ppx_implicits.embed Add.int) 1 1 = 2)
 ```
 where `Ppx_implicits.embed` encapsulate its argument into
 `(ty,spec) Ppx_implicits.t`.
@@ -77,7 +77,7 @@ let () = assert (add 1.2 3.4 = 4.6)
 ```
 This time, ppx_implicits converts to
 ```
-let () = assert (add ~_d:(Ppx_implicits.embed Add.float) 1 1 = 2)
+let () = assert (add ~d:(Ppx_implicits.embed Add.float) 1 1 = 2)
 ```
 
 Here is the whole code:
@@ -90,7 +90,7 @@ end
 
 type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
 
-let add : ?_d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
+let add : ?d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
 
 let () = assert (add 1 2 = 3)
 let () = assert (add 1.2 3.4 = 4.6)
