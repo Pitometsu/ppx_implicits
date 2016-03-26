@@ -251,7 +251,8 @@ module TypeClass = struct
     with_gloc mb.pmb_loc & fun () ->
         Str.module_ & Mb.mk (at ~loc:mb.pmb_name.loc oname)
         & Mod.structure ~loc:mb.pmb_expr.pmod_loc
-          [ Dict.dict iname cname ps ks
+          [ [%stri [@@@warning "-16"] (* We need this for ?imp: *) ]
+          ; Dict.dict iname cname ps ks
           ; with_gloc instance_loc & fun () ->
             Str.type_ [ Type.mk ~manifest:(Typ.constr (at & Ldot (Lident cname, "__class__")) []) (at "__imp_instance_of__") ]
           ]

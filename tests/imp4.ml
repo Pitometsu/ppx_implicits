@@ -29,6 +29,7 @@ module X = struct
         let show = string_of_float
       end in (module Float)
     
+    [@@@warning "-16"] (* We need this for ?imp: *)
     let list (type a) ?imp:(_ : a show option) : a list mshow =
       let module List = struct
         type a' = a list

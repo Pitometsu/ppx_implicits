@@ -1,3 +1,5 @@
+(* We cannot use num.ml since num.cmi is already used in OCaml otherlibs *)
+
 module type Num = sig
   type a
   val (+) : a -> a -> a

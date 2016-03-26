@@ -1,6 +1,8 @@
 OUT=.exe
 PPX=$(file ../ppx/ppx_implicits$(EXE))
 
+OCAMLDEPFLAGS=-ppx $(PPX)
+
 OCamlRequire($(PPX) $(file ../lib/ppx_implicits.cmo))
 
 OCAMLINCLUDES += ../lib
@@ -53,13 +55,12 @@ Test(typeclass_expanded)
 Test(typeclass)
 Test(multiparam_expanded)
 Test(multiparam)
-Test(numdef)
+Test(numc)
 Test(fvar)
 Test(fvar_nomodule)
-Testx(numuse, numdef)
+Testx(numuse, numc)
 Test(length)
-Testx(sumdef, numdef)
-Test(numdef_expanded)
+Testx(sum, numc)
 
 # Test(readme)
 # Test(xformat)
