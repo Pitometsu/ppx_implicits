@@ -59,6 +59,7 @@ Test(fvar_nomodule)
 Testx(numuse, numdef)
 Test(length)
 Testx(sumdef, numdef)
+Test(numdef_expanded)
 
 # Test(readme)
 # Test(xformat)
