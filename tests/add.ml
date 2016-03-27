@@ -3,7 +3,7 @@ module Add = struct
   let float = (+.)
 end
 
-type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
+type 'a add = ('a -> 'a -> 'a, [%imp Add]) Ppx_implicits.t
 
 let add : ?d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
 

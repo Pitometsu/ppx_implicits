@@ -61,12 +61,12 @@ module TypeClass = struct
                    (map2 (fun p tv -> (at (Lident p), tv)) ps tvars))
       (at "_module") (* CR jfuruse: can have a ghost loc *)
 
-  (* type ('a, 'b) _class = (('a, 'b) _module, [%imp_spec has_type __class__]) Ppx_implicits.t *)
+  (* type ('a, 'b) _class = (('a, 'b) _module, [%imp has_type __class__]) Ppx_implicits.t *)
   let gen_ty_class ps =
     let tvars = map (Typ.var ?loc:None) ps in (* CR jfuruse: loc *)
     Type.mk ?loc:None
       ~params: (map (fun tv -> (tv, Invariant)) tvars)
-      ~manifest: [%type: ([%t Typ.constr (at (Lident "_module")) tvars], [%imp_spec has_type __class__]) Ppx_implicits.t]
+      ~manifest: [%type: ([%t Typ.constr (at (Lident "_module")) tvars], [%imp has_type __class__]) Ppx_implicits.t]
       (at "_class") (* CR jfuruse: can have a ghost loc *)
   ;;
 
@@ -128,7 +128,7 @@ module TypeClass = struct
 
   module Dict = struct
       
-    (* [param d tvs m] = (d : (<tvs> <m>._module, [%imp_spec has_type <m>.__class__]) Ppx_implicits.t option) *)
+    (* [param d tvs m] = (d : (<tvs> <m>._module, [%imp has_type <m>.__class__]) Ppx_implicits.t option) *)
     let param d tvs m =
       Pat.constraint_ (Pat.var' d)
       & Typ.(let a = constr (at & Ldot (m, "_module"))
@@ -137,7 +137,7 @@ module TypeClass = struct
              let b = Specconv.to_core_type Location.none & Spec.(Or [Has_type (Typ.(constr (at & Ldot (m, "__class__")) []), None)]) in
              [%type: ([%t a], [%t b]) Ppx_implicits.t option])
         
-    (* let dict (type a) ?d:(d : (a Numdef.Num._module, [%imp_spec has_type Numdef.Num.__class__]) Ppx_implicits.t option) = *)
+    (* let dict (type a) ?d:(d : (a Numdef.Num._module, [%imp has_type Numdef.Num.__class__]) Ppx_implicits.t option) = *)
   
     (* val (Ppx_implicits.(get (from_Some <d>))) *)
     let functor_arg d = Mod.unpack [%expr Ppx_implicits.(get (from_Some [%e d])) ]
@@ -155,7 +155,7 @@ module TypeClass = struct
           Exp.letmodule (at "M") (fold_left Mod.apply (Mod.ident (at & Lident n)) & map functor_arg ds)
           & dict_module "M" o ps
 
-    (* let dict (type a) (type b).. ?d1:(d1 : (a m1._module, [%imp_spec has_type m1.__class__]) Ppx_implicits.t option) ?d2:(d2 : (b m2._module, [...]) =
+    (* let dict (type a) (type b).. ?d1:(d1 : (a m1._module, [%imp has_type m1.__class__]) Ppx_implicits.t option) ?d2:(d2 : (b m2._module, [...]) =
        let module M = <n>((val (Ppx_implicits.(get (from_Some d1))))).. in
        ((module M) : (M.ps1, M.psn) <o>._module)
     *)

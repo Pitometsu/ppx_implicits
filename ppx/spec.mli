@@ -8,19 +8,6 @@ type t =
         Sum of specs.
     *)
 
-  | Type 
-    (** No syntax.
-        
-        Spec is deduced from the context type.  Used internally only 
-        for [[%imp]].
-
-        If [[%imp]]'s type has the form [(_,..,_) M.t], its instance
-        spec is decoded from the definition of data type [M.__imp_spec__].
-
-        For example, if [[%imp]] has type [(int, float) Foo.Bar.ty],
-        its spec is sought at [Foo.Bar.__imp_spec__].
-    *)
-
 and t2 = 
   | Opened of [`In | `Just] * Longident.t
     (** Syntax: [opened <module-path>] or [opened (just <module-path>)].

@@ -1,4 +1,4 @@
-type 'a show = ('a -> string, [%imp_spec Show]) Ppx_implicits.t
+type 'a show = ('a -> string, [%imp Show]) Ppx_implicits.t
     
 let show : ?d:'a show -> 'a -> string = Ppx_implicits.imp
 

@@ -23,7 +23,6 @@ let prefix_len = String.length prefix
 *)
 let get_type_components = 
   let rec t = function
-    | Type -> []
     | Or xs -> concat_map t2 xs
   and t2 = function
     | Direct (`In, _l, _) -> []
@@ -42,7 +41,6 @@ let get_type_components =
 (** Assign types of variant constructor parameter to spec *)
 let assign_type_components tys t0 = 
   let rec t tys = function
-    | Type -> tys, Type
     | Or xs ->
         let tys, rev_xs = 
           fold_left (fun (tys,rev_xs) x ->
@@ -162,7 +160,7 @@ let from_expression _env e =
 
 let from_structure env str =
   match str with
-  | [] -> `Ok Type
+  | [] -> `Error (`String "requires implicit policies")
   | _::_::_ -> 
       `Error (`String "multiple implicit policies are not allowed")
   | [sitem] ->

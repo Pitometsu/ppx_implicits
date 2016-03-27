@@ -6,7 +6,7 @@ module type Show = sig
 end
 
 type 'a mshow = (module Show with type a = 'a)
-type 'a show = ('a mshow, [%imp_spec opened Show]) Ppx_implicits.t
+type 'a show = ('a mshow, [%imp opened Show]) Ppx_implicits.t
 
 let show : ?imp:'a show -> 'a -> string = fun (type a) ?imp ->
   (* CR jfuruse: bad... imp and ?imp collides! *)

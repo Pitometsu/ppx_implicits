@@ -1,7 +1,7 @@
 (* length : 
    to see length : 'a list -> int works correctly
 *)
-type 'a length = ('a -> int, [%imp_spec Length]) Ppx_implicits.t
+type 'a length = ('a -> int, [%imp Length]) Ppx_implicits.t
     
 let length : ?d:'a length -> 'a -> int = Ppx_implicits.imp
 

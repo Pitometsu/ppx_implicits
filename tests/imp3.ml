@@ -1,17 +1,17 @@
-type 'a show = ('a -> string, [%imp_spec Show]) Ppx_implicits.t
+type 'a show = ('a -> string, [%imp Show]) Ppx_implicits.t
     
 let show : ?d:'a show -> 'a -> string = Ppx_implicits.imp
 
 module Show = struct
   let int = string_of_int
   let float = string_of_float
-  let list : ?d:'a show -> 'a list -> string = fun ?d xs ->
-    "[ " ^ String.concat "; " (List.map (show ?d) xs) ^ " ]"
+  let list : 'a show -> 'a list -> string = fun d xs ->
+    "[ " ^ String.concat "; " (List.map (show ~d) xs) ^ " ]"
 end
 
 let () = assert (Show.int 1 = "1")
 let () = assert (Show.float 1.0 = "1.")
-let () = assert (Show.(list ~d:(Ppx_implicits.embed int)) [1;2] = "[ 1; 2 ]")
+let () = assert (Show.(list (Ppx_implicits.embed int)) [1;2] = "[ 1; 2 ]")
 
 let () = assert (show 1 = "1")
 let () = assert (show 1.0 = "1.")

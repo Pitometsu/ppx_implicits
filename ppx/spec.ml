@@ -17,7 +17,6 @@ module Forge = Typpx.Forge
 (** spec dsl *)
 type t = 
   | Or of t2 list (** [t2, .., t2] *)
-  | Type (** [%imp].  Encoded as a type definition.  No allowed in [%%imp_spec] *)
 
 and t2 = 
   | Opened of [`In | `Just] * Longident.t (** [opened M]. The values defined under module path [P.M] which is accessible as [M] by [open P] *)
@@ -41,7 +40,6 @@ let rec is_static = function
     
 let to_string = 
   let rec t = function
-    | Type -> ""
     | Or [] -> assert false
     | Or [x] -> t2 x
     | Or xs -> String.concat ", " (map t2 xs)
@@ -95,7 +93,6 @@ let rec cand_dynamic env loc ty = function
       assert false
 
 let candidates env loc = function
-  | Type -> assert false (* This should not happen *)
   | Or ts ->
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in

@@ -33,7 +33,7 @@ end
 Then, define a type for overloading, the type of implicit argument for `add`:
 
 ```
-type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
+type 'a add = ('a -> 'a -> 'a, [%imp Add]) Ppx_implicits.t
 ```
 In ppx_implicits, `(ty, spec) Ppx_implicits.t` is the special type
 for implicit arguments: roughly equivalent with type `ty` whose default value
@@ -57,7 +57,7 @@ if omitted, the optional argument of type `(ty, spec) Ppx_implicits.t`
 is applied automatically by ppx_implicits, using `spec`.
 `add` function is just an alias of this `Ppx_implicits.imp` but with
 a stricter type: if the optional argument of `add` is omitted,
-it is auto-applied according to the spec `[%imp_spec Add]` which means
+it is auto-applied according to the spec `[%imp Add]` which means
 using the values defined in the module named `Add`.
 
 Here is an example of such auto-application:
@@ -88,7 +88,7 @@ module Add = struct
   let float = (+.)
 end
 
-type 'a add = ('a -> 'a -> 'a, [%imp_spec Add]) Ppx_implicits.t
+type 'a add = ('a -> 'a -> 'a, [%imp Add]) Ppx_implicits.t
 
 let add : ?d:'a add -> 'a -> 'a -> 'a = Ppx_implicits.imp
 
@@ -380,7 +380,7 @@ it is deduced from the type information of the expression.
 * The type of `[%imp]` must be `(t1,..,tn) PATH.name`
   or `(t1,...,tn) PATH.name option` or their alias,
   so that the spec can be found in module `PATH`.
-* The module `PATH` must have a special declaration `[%%imp_spec SPEC]`
+* The module `PATH` must have a special declaration `[%%imp SPEC]`
 for `[%imp]` expressions of a type related with `PATH`.
 
 For example, if we have
@@ -388,7 +388,7 @@ For example, if we have
 ```ocaml
 module M = struct
   type 'a t = ...
-  [%%imp_spec SPEC]
+  [%%imp SPEC]
 end
 ```
 
@@ -400,7 +400,7 @@ Let's use this `[%imp]` in an actual example:
 ```ocaml
 module M = struct
   type 'a t = Packed of 'a -> string
-  [%%imp_spec opened Show]
+  [%%imp opened Show]
 end
 
 let show (M.Packed x) = x
@@ -412,7 +412,7 @@ open MList
      
 let () = assert (show [%imp] [ 1 ] = "[ 1 ]")
 (* [%imp] has the type int list M.t.
-   Module M has [%%imp_spec opened Show]
+   Module M has [%%imp opened Show]
    Therefore this [%imp] is equivalent with [%imp opened Show] *)
 ```
 
@@ -517,7 +517,7 @@ from its static typing:
 
 * `[%imp]` must have a type whose expanded form is either
   `... M.name' or `... M.name option` for some module `M`.
-* Module `M` must have a declaration `[%%imp_spec SPEC]`.
+* Module `M` must have a declaration `[%%imp SPEC]`.
 Under these conditions `[%imp]` is equilvalent with `[%imp SPEC]`.
 
 ## `related` spec

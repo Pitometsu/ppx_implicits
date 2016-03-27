@@ -40,35 +40,32 @@ module Runtime = struct
     Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) ["", e])
 end
 
+(** Check it is [(<ty>, <spec>) Ppx_implicits.t] *)
 let is_imp_arg_type env ty = match expand_repr_desc env ty with
   | Tconstr (p, [ty; spec], _) when Runtime.is_imp_t_path p -> Some (ty, spec)
   | _ -> None
 
-(* CR jfuruse: is_imp_arg and imp_type_spec can be shared *)
-let is_imp_arg env l ty = 
-  if not & Btype.is_optional l then None
-  else match is_option_type env ty with
-  | None -> None
-  | Some ty -> is_imp_arg_type env ty
-
-(* CR jfuruse: Now a bad name *)
-let imp_type_spec env loc l ty (* option if [is_optional l] *) =
+let check_arg env loc l ty =
   let f ty = match is_imp_arg_type env ty with
     | Some (ty, spec) ->
         let spec = Specconv.from_type_expr env loc spec in
-        (l, ty, Some spec, Runtime.embed, Runtime.get)
+        (ty, Some spec, Runtime.embed, Runtime.get)
     | None -> 
-        (l, ty, None, (fun x -> x), (fun x -> x))
+        (ty, None, (fun x -> x), (fun x -> x))
   in
   if not & Btype.is_optional l then f ty
   else begin
     match is_option_type env ty with
-    | None -> assert false
+    | None -> (* this is pretty strange situation *)
+        (ty, None, (fun x -> x), (fun x -> x))
     | Some ty -> 
-        let l, ty, spec_opt, conv, unconv = f ty in
-        (l, ty, spec_opt,
-         (fun e -> Forge.Exp.some env (conv e)),
-         (fun e -> unconv (Runtime.from_Some e)))
+        let ty, spec_opt, conv, unconv = f ty in
+        match spec_opt with
+        | None -> (ty, None, (fun x -> x), (fun x -> x))
+        | Some _ -> 
+            (ty, spec_opt,
+             (fun e -> Forge.Exp.some env (conv e)),
+             (fun e -> unconv (Runtime.from_Some e)))
   end 
 
 module Klabel2 = struct
@@ -76,9 +73,13 @@ module Klabel2 = struct
   let rec extract env ty = 
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
-    | Tarrow(l, ty1, ty2, _) when (* Klabel.is_klabel l <> None || *) is_imp_arg env l ty1 <> None ->
-        let cs, ty = extract env ty2 in
-        (l,ty1)::cs, ty
+    | Tarrow(l, ty1, ty2, _) ->
+        begin match check_arg env Location.none l ty1 with
+        | (_, Some _, _, _) ->
+            let cs, ty = extract env ty2 in
+            (l,ty1)::cs, ty
+        | _ -> [], ty
+        end
     | _ -> [], ty
   
   let rec extract_aggressively env ty =
@@ -99,10 +100,15 @@ let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * t
     else Klabel2.extract_aggressively env
   in
   flip map (f type_) & fun (args, ty) ->
-    flip map args (fun (l,ty) ->
-      let (l,ty,specopt,conv,_unconv) = imp_type_spec env loc l ty in
-      (l,ty, (match specopt with Some x -> x | None -> spec), conv)),
-    ty
+    (flip map args (fun (l,ty) ->
+      let (ty,specopt,conv,_unconv) = check_arg env loc l ty in
+      ( l
+      , ty
+      , (match specopt with
+         | Some x -> x
+         | None -> spec (* inherit! *))
+      , conv))
+    , ty)
 
 (*
 let extract_candidate spec env loc c = 
@@ -283,19 +289,16 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       | _ -> assert false
       
 (* ?l:None  where (None : (ty,spec) Ppx_implicit.t option) has a special rule *) 
-let resolve_arg loc env a = match a with
+let resolve_omitted_imp_arg loc env a = match a with
   (* (l, None, Optional) means curried *)
-  | (l, Some e, Optional) when is_imp_arg env l e.exp_type <> None ->
+  | (l, Some e, Optional) ->
       begin match Utils.is_none e with
       | None -> a (* explicitly applied *)
-      | Some _ ->
-          let ty = e.exp_type in (* _ option *)
-          let (_l, ty, specopt, conv, _unconv) = imp_type_spec env loc l ty in
-          begin match specopt with
-          | None -> assert false (* CR jfuruse: error handling *)
-          | Some spec ->
-              (l, Some (conv (resolve env loc spec ty)), Optional)
-          end
+      | Some _ -> (* omitted *)
+          let (ty, specopt, conv, _unconv) = check_arg env loc l e.exp_type in
+          match specopt with
+          | None -> a
+          | Some spec -> (l, Some (conv (resolve env loc spec ty)), Optional)
       end
   | _ -> a
 
@@ -316,7 +319,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | Texp_apply (f, args) ->
         (* Resolve omitted ?_x arguments *)
         { e with
-          exp_desc= Texp_apply (f, map (resolve_arg f.exp_loc e.exp_env) args) }
+          exp_desc= Texp_apply (f, map (resolve_omitted_imp_arg f.exp_loc e.exp_env) args) }
 
     | Texp_function (l, _::_::_, _) when l <> "" ->
         (* Eeek, label with multiple cases? *)
@@ -324,37 +327,26 @@ module MapArg : TypedtreeMap.MapArgument = struct
           Location.format e.exp_loc;
         e
 
-    | Texp_function (l, [case], e') when is_imp_arg case.c_lhs.pat_env l case.c_lhs.pat_type <> None ->
-        (* Handling derived implicits, part 1 of 2 *)
-        (* If a pattern has a form l:x where [Klabel.is_klabel l],
-           then the value can be used as an instance of the same type.
-
-           Hack: the problem is that [leave_expression] does not take the same expression
-           as here. Therefore we need small imperative trick. Attributes should be kept as they are...
-
-           `(fun ?_x:(x as __imp_arg__0) -> ..)[@__imp_arg_0]`,
-           adding an association of `"__imp_arg__0"` and the candidate of
-           `__imp_arg__0` to `derived_candidates`.
-        *)
-        let fid = create_function_id () in
-        let id = Ident.create fid in
-        let path = Path.Pident id in
-        let loc = case.c_lhs.pat_loc in
-        let env = case.c_lhs.pat_env in
-        let ty = case.c_lhs.pat_type in
-        let (_l, type_, _specopt, _conv, unconv) = imp_type_spec env loc l ty in
-        let expr = unconv (Typpx.Forge.Exp.(ident path)) in
-        
-        derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)
-                                      expr;
-                                      type_;
-                                      aggressive = false } ) 
-                              :: !derived_candidates;
-        let case = { case with
-                     c_lhs = Forge.(with_loc case.c_lhs.pat_loc & fun () -> Pat.desc (Tpat_alias (case.c_lhs, id, {txt=fid; loc= Ppxx.Helper.ghost case.c_lhs.pat_loc})))} 
-        in
-        Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
-
+    | Texp_function (l, [case], e') ->
+        let p = case.c_lhs in
+        begin match check_arg p.pat_env p.pat_loc l p.pat_type with
+        | (_, None, _, _) -> e
+        | (type_, Some _spec, _conv, unconv) -> (* CR jfuruse: specs are ignored *)
+            let fid = create_function_id () in
+            let id = Ident.create fid in
+            let path = Path.Pident id in
+            let expr = unconv (Typpx.Forge.Exp.(ident path)) in
+            
+            derived_candidates := (fid, { Candidate.path; (* <- not actually path. see expr field *)
+                                          expr;
+                                          type_;
+                                          aggressive = false } ) 
+                                  :: !derived_candidates;
+            let case = { case with
+              c_lhs = Forge.(with_loc p.pat_loc & fun () -> Pat.desc (Tpat_alias (p, id, {txt=fid; loc= Ppxx.Helper.ghost p.pat_loc})))} 
+            in
+            Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
+        end
     | _ -> e
 
   let leave_expression e =

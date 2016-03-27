@@ -14,7 +14,7 @@ module Y = struct
     | Boo a -> Printf.sprintf "Boo (%s)" @@ show_a a
 end
 
-type 'a show = ('a -> string, [%imp_spec aggressive(related)]) Ppx_implicits.t
+type 'a show = ('a -> string, [%imp aggressive(related)]) Ppx_implicits.t
 
 let show : ?d:'a show -> 'a -> string = Ppx_implicits.imp
 
