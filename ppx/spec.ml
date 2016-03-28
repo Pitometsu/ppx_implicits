@@ -15,8 +15,7 @@ open Types
 module Forge = Typpx.Forge
   
 (** spec dsl *)
-type t = 
-  | Or of t2 list (** [t2, .., t2] *)
+type t = t2 list (** [t2, .., t2] *)
 
 and t2 = 
   | Opened of [`In | `Just] * Longident.t (** [opened M]. The values defined under module path [P.M] which is accessible as [M] by [open P] *)
@@ -40,9 +39,8 @@ let rec is_static = function
     
 let to_string = 
   let rec t = function
-    | Or [] -> assert false
-    | Or [x] -> t2 x
-    | Or xs -> String.concat ", " (map t2 xs)
+    | [x] -> t2 x
+    | xs -> String.concat ", " (map t2 xs)
   and t2 = function
     | Direct (`In, l, _) -> Longident.to_string l
     | Direct (`Just, l, _) -> Printf.sprintf "just %s" & Longident.to_string l
@@ -82,18 +80,21 @@ let rec cand_dynamic env loc ty = function
   | Aggressive x -> map (fun x -> { x with aggressive= true }) & cand_dynamic env loc ty x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
   | Deriving lid -> Cderiving.cand_deriving env loc ty lid
+(*
   | PPXDerive (e,cty,None) ->
       (* CR jfuruse: error handling *)
-      let {Typedtree.ctyp_type= ty'} = Typetexp.transl_simple_type env false cty in
+      !!% "DEBUG: %a@." Pprintast.core_type cty;
+      let {Typedtree.ctyp_type= ty'} = Typetexp.transl_type_scheme env cty in
       cand_dynamic env loc ty (PPXDerive (e,cty,Some ty'))
-  | PPXDerive (e, _cty, Some temp_ty) ->
-      Cppxderive.cand_derive env loc e temp_ty ty 
+*)
+  | PPXDerive (_e, _cty, None) -> assert false (* impos, I believe *)
+  | PPXDerive (e, _cty, Some temp_ty) -> Cppxderive.cand_derive env loc e temp_ty ty 
   | Opened _ | Direct _ | Has_type _ ->
       (* they are static *)
       assert false
 
 let candidates env loc = function
-  | Or ts ->
+  | ts ->
       let statics, dynamics = partition is_static ts in
       let statics = concat & map (cand_static env loc) statics in
       if !Options.debug_resolve then begin

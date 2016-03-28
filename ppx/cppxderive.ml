@@ -9,6 +9,7 @@ open Ppxx.Utils
 open Ppxx.Compilerlib
 open Typpx.Compilerlib
 open Typedtree
+open Types
 
 (* CR jfuruse: this is crazy *)      
 let fake_path e = 
@@ -41,13 +42,16 @@ let instance_template e cty =
 *)
     
 let cand_derive env loc e temp_ty ty =
-  let temp_tvar = match Ctype.free_variables temp_ty with
-    | [tvar] -> tvar
-    | _ -> assert false (* CR jfuruse: error handling *)
-  in
-  let ttvar, ttype = match Ctype.instance_list env [temp_tvar; temp_ty] with
-    | [ttvar; ttype] -> ttvar, ttype
-    | _ -> assert false
+  let ttvar, ttype = match expand_repr_desc env temp_ty with
+    | Tpoly (temp_ty, [temp_tv]) ->
+        begin match Ctype.instance_poly false [temp_tv] temp_ty with
+        | [ttvar], ttype -> ttvar, ttype
+        | _ -> assert false
+        end
+    | _ ->
+        errorf "%a: ppxderive's type %a does not have one type variable"
+          Location.format loc
+          Printtyp.type_expr temp_ty
   in
   exit_then [] & fun () ->
     begin try Ctype.unify env ttype ty with Ctype.Unify _ -> raise Exit end;

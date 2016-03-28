@@ -134,7 +134,7 @@ module TypeClass = struct
       & Typ.(let a = constr (at & Ldot (m, "_module"))
                (map (fun tv -> constr (at & Lident tv) []) tvs)
              in
-             let b = Specconv.to_core_type Location.none & Spec.(Or [Has_type (Typ.(constr (at & Ldot (m, "__class__")) []), None)]) in
+             let b = Specconv.to_core_type Location.none & Spec.([Has_type (Typ.(constr (at & Ldot (m, "__class__")) []), None)]) in
              [%type: ([%t a], [%t b]) Ppx_implicits.t option])
         
     (* let dict (type a) ?d:(d : (a Numdef.Num._module, [%imp has_type Numdef.Num.__class__]) Ppx_implicits.t option) = *)

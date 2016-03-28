@@ -2,8 +2,7 @@
 
 open Types
 
-type t = 
-  | Or of t2 list 
+type t = t2 list 
     (** Syntax: [<t2>, .., <t2>].
         Sum of specs.
     *)

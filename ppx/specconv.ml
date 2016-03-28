@@ -23,7 +23,7 @@ let prefix_len = String.length prefix
 *)
 let get_type_components = 
   let rec t = function
-    | Or xs -> concat_map t2 xs
+    | xs -> concat_map t2 xs
   and t2 = function
     | Direct (`In, _l, _) -> []
     | Direct (`Just, _l, _) -> []
@@ -41,13 +41,13 @@ let get_type_components =
 (** Assign types of variant constructor parameter to spec *)
 let assign_type_components tys t0 = 
   let rec t tys = function
-    | Or xs ->
+    | xs ->
         let tys, rev_xs = 
           fold_left (fun (tys,rev_xs) x ->
             let tys, x = t2 tys x in
             tys, x :: rev_xs) (tys,[]) xs
         in
-        tys, Or (rev rev_xs)
+        tys, (rev rev_xs)
           
   and t2 tys x = match x with
     | Direct _ -> tys, x
@@ -96,8 +96,8 @@ let from_expression _env e =
       | _ -> None
     in
     let rec t e = match e.pexp_desc with
-      | Pexp_tuple xs -> Or (map t2 xs)
-      | _ -> Or [t2 e]
+      | Pexp_tuple xs -> map t2 xs
+      | _ -> [t2 e]
     and t2 e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "aggressive"} },
                     ["", e] ) -> Aggressive (t2 e)
@@ -195,6 +195,7 @@ let from_type_expr env loc ty = match expand_repr_desc env ty with
       | { row_closed= true; row_fields= [l, Rpresent (Some ty)] } ->
           let open Utils in
           let open Utils.Result.Monad in
+          (* Note that the type variables are Tunivars *)
           let unpoly ty = match expand_repr_desc env ty with
             | Tpoly (ty, []) -> ty
             | _ -> ty
