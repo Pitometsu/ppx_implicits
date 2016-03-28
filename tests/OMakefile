@@ -62,6 +62,8 @@ Testx(numuse, numc)
 Test(length)
 Testx(sum, numc)
 
+Test(length_class)
+
 # Test(readme)
 # Test(xformat)
 # Test(double_use)
@@ -69,11 +71,11 @@ Testx(sum, numc)
 # Test(prelude)
 # Test(monad_hk)
 # # Test(highk)
-# Test(length_class)
-# Test(showc)
 # Test(fcmod)
 # Test(deriving)
 # Test(packer)
 
 clean::
     rm -rf out
+
+Subdirs()
