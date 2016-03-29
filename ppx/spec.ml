@@ -71,27 +71,20 @@ let rec cand_static env loc : t2 -> t list = function
   | Direct (f,x,popt) -> cand_direct env loc (f,x,popt)
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_static env loc t2
   | Has_type (_, Some ty) -> Chas_type.cand_has_type env loc ty
-  | Has_type _ -> assert false
-  | spec when is_static spec -> assert false
-  | _ -> assert false
+  | Has_type _ -> assert false (* impos *)
+  | spec when is_static spec -> assert false (* impos *)
+  | _ -> assert false (* impos *)
 
 let rec cand_dynamic env loc ty = function
   | Related -> Crelated.cand_related env loc ty
   | Aggressive x -> map (fun x -> { x with aggressive= true }) & cand_dynamic env loc ty x
   | Name (_, rex, t2) -> cand_name rex & fun () -> cand_dynamic env loc ty t2
   | Deriving lid -> Cderiving.cand_deriving env loc ty lid
-(*
-  | PPXDerive (e,cty,None) ->
-      (* CR jfuruse: error handling *)
-      !!% "DEBUG: %a@." Pprintast.core_type cty;
-      let {Typedtree.ctyp_type= ty'} = Typetexp.transl_type_scheme env cty in
-      cand_dynamic env loc ty (PPXDerive (e,cty,Some ty'))
-*)
-  | PPXDerive (_e, _cty, None) -> assert false (* impos, I believe *)
+  | PPXDerive (_e, _cty, None) -> assert false (* impos *)
   | PPXDerive (e, _cty, Some temp_ty) -> Cppxderive.cand_derive env loc e temp_ty ty 
   | Opened _ | Direct _ | Has_type _ ->
       (* they are static *)
-      assert false
+      assert false (* impos *)
 
 let candidates env loc = function
   | ts ->

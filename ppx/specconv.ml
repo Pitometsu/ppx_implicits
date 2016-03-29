@@ -62,20 +62,20 @@ let assign_type_components tys t0 =
     | Has_type (cty, None) ->
         begin match tys with
         | ty::tys -> tys, Has_type (cty, Some ty)
-        | _ -> assert false
+        | _ -> assert false (* impos *)
         end
-    | Has_type _ -> assert false
+    | Has_type _ -> assert false (* impos *)
     | Deriving _ -> tys, x
     | PPXDerive (e, cty, None) ->
         begin match tys with
         | ty::tys -> tys, PPXDerive (e, cty, Some ty)
-        | _ -> assert false
+        | _ -> assert false (* impos *)
         end
-    | PPXDerive (_e, _cty, Some _) -> assert false
+    | PPXDerive (_e, _cty, Some _) -> assert false (* impos *)
   in
   match t tys t0 with
   | [], t0 -> t0
-  | _ -> assert false
+  | _ -> assert false (* impos *)
 
 let mangle x =
   (prefix ^ Utils.mangle (to_string x),
@@ -83,7 +83,7 @@ let mangle x =
 
 (* CR jfuruse: need tests *)
 let unmangle_spec_string s = 
-  if not & String.is_prefix prefix s then assert false; (* CR jfuruse: better error *)
+  if not & String.is_prefix prefix s then errorf "Mangled spec string does not start with \"Spec_\": %s" s;
   let s = String.sub s prefix_len (String.length s - prefix_len) in
   Utils.unmangle s
 

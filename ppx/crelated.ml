@@ -30,7 +30,7 @@ let related_modules env ty =
   |> filter_map (function
       | Pdot (p, _, _) -> Some p
       | Pident _ -> None
-      | Papply _ -> assert false)
+      | Papply _ -> None (* we cannot get values of it... *))
   |> sort_uniq compare
 
 (* CR jfuruse: loc is not used *)    

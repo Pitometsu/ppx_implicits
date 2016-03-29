@@ -63,7 +63,7 @@ let test_cand_deriving env loc ty lid =
            the unification is undone *)
         Ctype.unify env ty vty'';
         (path, dlabel, Ctype.repr v, vty')
-  | _ -> assert false
+  | _ -> assert false (* impos *)
 
 type 'a field = {
   value : 'a;
@@ -92,7 +92,7 @@ let build_type getty env template_ty fields ty_return =
     let template_ty' = instance env template_ty in
     begin match free_variables template_ty' with
     | [v] -> unify env ty v
-    | _ -> assert false
+    | _ -> assert false (* template_ty is ill-formed *)
     end;
     Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty_return
 
@@ -200,7 +200,7 @@ let cand_deriving_object env loc ty mlid =
               let ty' = newvar () in
               unify env (instance_def ty) (newty(Tpoly(ty',[])));
               ty'
-          | _ -> assert false
+          | _ -> assert false (* impos *)
         in
         let fields = map (fun (l,fk,ty) -> (l, field_kind_repr fk, fix_ty l ty)) fields in
         if exists (fun (_,fk,_) -> fk <> Fpresent) fields then begin

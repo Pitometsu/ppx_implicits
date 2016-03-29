@@ -188,7 +188,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
      
       let ivty, cs =
         match Ctype.instance_list env (vty::map (fun (_,ty,_spec,_conv) -> ty) cs) with
-        | [] -> assert false
+        | [] -> assert false (* impos *)
         | ivty :: ictys ->
             ivty, map2 (fun (l,_,spec,conv) icty -> (l,icty,spec,conv)) cs ictys
       in
@@ -278,15 +278,15 @@ let resolve env loc spec ty = with_snapshot & fun () ->
         Location.format loc
         Printtyp.type_expr ty
   | Ok (_::_::_ as es) ->
-      let es = map (function [e] -> e | _ -> assert false) es in
-      errorf "%a: overloaded type has a too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
+      let es = map (function [e] -> e | _ -> assert false (* impos *)) es in
+      errorf "%a: This implicit has too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
         Location.format loc
         Printtyp.type_expr ty
         (List.format "@," Utils.format_expression) es
   | Ok [es] ->
       match es with
       | [e] -> Unshadow.Replace.replace e
-      | _ -> assert false
+      | _ -> assert false (* impos *)
       
 (* ?l:None  where (None : (ty,spec) Ppx_implicit.t option) has a special rule *) 
 let resolve_omitted_imp_arg loc env a = match a with
@@ -361,7 +361,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         *)
         derived_candidates := filter (fun (fid, _) -> fid <> txt) !derived_candidates;
         e
-    | _ -> assert false
+    | _ -> assert false (* impos *)
 end
 
 module Map = struct

@@ -68,17 +68,17 @@ object
   method lookup_type s =
     match Env.lookup_type (Longident.(Ldot (Lident dummy, s))) env with
     | Pdot (_, s', n), td -> Pdot (mp, s', n), td
-    | _ -> assert false
+    | _ -> assert false (* impos *)
 
   method lookup_module s =
     match Env.lookup_module ~load:false (Longident.(Ldot (Lident dummy, s))) env with
     | Pdot (_, s', n) -> Pdot (mp, s', n)
-    | _ -> assert false
+    | _ -> assert false (* impos *)
     
   method lookup_value s =
     match Env.lookup_value (Longident.(Ldot (Lident dummy, s))) env with
     | Pdot (_, s', n), _vd -> Pdot (mp, s', n)
-    | _ -> assert false
+    | _ -> assert false (* impos *)
     
 end
 
@@ -210,7 +210,9 @@ let sig_module_of_stri sitem =
         ; pmd_attributes = mtd.pmtd_attributes
         ; pmd_loc        = mtd.pmtd_loc
         }
-  | _ -> assert false
+  | _ ->
+      !!% "sig_module_of_stri: got a non modtype@.";
+      assert false
 
 let rec values_of_module ~recursive env path mdecl : Path.t list =
   let m = new dummy_module env path mdecl.md_type in
@@ -218,7 +220,7 @@ let rec values_of_module ~recursive env path mdecl : Path.t list =
   flip2 fold_right sg [] & fun sitem st -> match sitem with
     | Sig_value (id, _vdesc) ->
         let path = try m#lookup_value & Ident.name id with Not_found ->
-          !!% "VOM m#lookup_value %s not found@." & Ident.name id;
+          !!% "values_of_module: m#lookup_value %s not found@." & Ident.name id;
           assert false
         in
         path :: st
@@ -248,7 +250,8 @@ let format_expression ppf e =
 let is_none e = match e.Typedtree.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 
       begin match is_option_type e.exp_env e.exp_type with
-      | None -> assert false (* CR jfuruse: input is type-corrupted... *)
+      | None ->
+          !!% "is_none: the input is type-corrupted@."; assert false
       | Some ty -> Some ty
       end
   | _ -> None

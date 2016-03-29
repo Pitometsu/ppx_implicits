@@ -96,12 +96,9 @@ let default_candidate_of_path env path =
   try
     let type_ = (Env.find_value path env).val_type in
     let expr = Forge.Exp.(with_env env & ident path) in
-      (* !!% "    VOM: %a@." Path.format_verbose path; *)
     { path; expr; type_; aggressive= false }
   with
-  | Not_found ->
-      !!% "VOM: %a but not found@." Path.format_verbose path;
-      assert false
+  | Not_found -> assert false (* impos *)
 
 let cand_direct env loc (flg,lid,popt) =
   let recursive = match flg with
