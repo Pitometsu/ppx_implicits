@@ -63,6 +63,7 @@ Test(length)
 Testx(sum, numc)
 
 Test(length_class)
+Test(length_class2)
 
 # Test(readme)
 # Test(xformat)

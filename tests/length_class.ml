@@ -1,13 +1,30 @@
 module type Length = sig
   type a
   val length : a -> int
-end [@@typeclass]
+end [@@typeclass] (* [@@typeclass: a Length._class] *)
+
+(* Ideal syntax:
+
+   typeclass 'a Length = sig
+     val length : 'a -> int
+   end
+*)
 
 module LengthString = struct
-  type a = string
   let length = String.length
-end [@@instance Length]
+end [@@instance: (module Length with type a = string)] (* [@@instance: string Length._class] *) 
   
+(* Ideal syntax:
+
+   instance string Length = struct
+     let length = String.length
+   end   
+
+   instance 'a list Length = struct
+     let length = List.length
+   end
+*)
+
 (*
 module LengthList = struct
   type a = 'a list (* no it is not possible! *)
@@ -73,17 +90,10 @@ module FinalSolutionIdea = struct
 
   (* This is the most promising *)
     
-  (*
-  module type Length = sig
-    type a
-    val length : a -> int
-  end [@@typeclass: 'a Length._class]
-  *)
-
   module LengthList = struct
     (* no definition of type a *)
     let length = List.length
-  end (* [@@instance: 'a list Length._class] *)
+  end (* [@@instance: Length with type a = 'a list *)
   
   module LengthListInstance = struct
     let dict (type alpha) : alpha list Length._module = (module (struct type a = alpha list include LengthList end))
