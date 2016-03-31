@@ -57,24 +57,18 @@ Test(multiparam_expanded)
 Test(multiparam)
 Test(numc)
 Test(fvar)
-Test(fvar_nomodule)
 Testx(numuse, numc)
 Test(length)
 Testx(sum, numc)
-
 Test(length_class)
-Test(length_class2)
 
-# Test(readme)
+Test(prelude)
 # Test(xformat)
 # Test(double_use)
 # Test(kgap)
-# Test(prelude)
 # Test(monad_hk)
 # # Test(highk)
-# Test(fcmod)
 # Test(deriving)
-# Test(packer)
 
 clean::
     rm -rf out
