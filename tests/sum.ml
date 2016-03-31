@@ -6,10 +6,8 @@ end [@@typeclass]
 
 module SumList(Num : Numc.Num [@typeclass a Numc.Num]) (* : Sum with type c = Num.a list and type n = Num.a *) = struct
   open Num
-  type c = Num.a list
-  type n = Num.a
   let sum = List.fold_left (+) zero
-end [@@instance Sum]
+end [@@instance: (module Sum with type c = a list and type n = a)]
 
 (*
 module SumListInstance = struct
@@ -22,10 +20,8 @@ end
   
 module SumArray(Num : Numc.Num [@typeclass a Numc.Num]) = struct
   open Num
-  type c = Num.a array
-  type n = Num.a
   let sum = Array.fold_left (+) zero
-end [@@instance Sum]
+end [@@instance: (module Sum with type c = a array and type n = a)]
 
 (*
 module SumArrayInstance = struct

@@ -7,16 +7,12 @@ end [@@typeclass]
 (* Instance defined not within a submodule *)
   
 module IF = struct
-  type a = int
-  type b = float
   let coerce = float_of_int
-end [@@instance Coerce]
+end [@@instance: (module Coerce with type a = int and type b = float)]
 
 module FI = struct
-  type a = float
-  type b = int
   let coerce = int_of_float
-end [@@instance Coerce]
+end [@@instance: (module Coerce with type a = float and type b = int)]
 
 module N : sig end = struct
   let x = ref None (* '_a option ref *)

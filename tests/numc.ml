@@ -17,7 +17,6 @@ include Num
 
 module NumInt = struct
   open Pervasives (* recovers monomorphic operators *)
-  type a = int
   let (+) = (+)
   let (-) = (-)
   let ( * ) = ( * )
@@ -30,10 +29,9 @@ module NumInt = struct
     | _ -> -1
   external of_int : int -> int = "%identity"
   let zero = 0
-end [@@instance Num]
+end [@@instance: (module Num with type a = int)]
   
 module NumFloat = struct
-  type a = float
   let (+) = (+.)
   let (-) = (-.)
   let ( * ) = ( *. )
@@ -46,7 +44,7 @@ module NumFloat = struct
     | _ -> -1.0
   let of_int = float_of_int
   let zero = 0.0
-end [@@instance Num]
+end [@@instance: (module Num with type a = float)]
   
 let () = assert (1 + 2 = 3);;
 let () = assert (1.2 + 3.4 = 4.6);;

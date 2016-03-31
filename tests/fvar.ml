@@ -7,16 +7,12 @@ end [@@typeclass]
 module M = struct
 
   module IF = struct
-    type a = int
-    type b = float
     let coerce = float_of_int
-  end [@@instance Coerce]
+  end [@@instance: (module Coerce with type a = int and type b = float)]
 
   module FI = struct
-    type a = float
-    type b = int
     let coerce = int_of_float
-  end [@@instance Coerce]
+  end [@@instance: (module Coerce with type a = float and type b = int)]
 end
 
 open M

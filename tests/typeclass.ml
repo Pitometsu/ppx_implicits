@@ -9,14 +9,12 @@ let show = Show.show
 
 module M = struct
   module ShowInt = struct
-    type a = int
     let show  = string_of_int
-  end [@@instance Show]
+  end [@@instance: (module Show with type a = int)]
 
   module ShowFloat = struct
-    type a = float
     let show  = string_of_float
-  end [@@instance Show]
+  end [@@instance: (module Show with type a = float)]
 end
 
 open M

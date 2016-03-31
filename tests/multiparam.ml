@@ -11,29 +11,20 @@ let add = Num.add
 
 module IntIntInt = struct
   module NumIntIntInt = struct
-    type a = int
-    type b = int
-    type c = int
     let add = (+)
-  end [@@instance Num]
+  end [@@instance: (module Num with type a = int and type b = int and type c = int)]
 end
 
 module FloatFloatFloat = struct
   module NumFloatFloatFloat = struct
-    type a = float
-    type b = float
-    type c = float
     let add = (+.)
-  end [@@instance Num]
+  end [@@instance: (module Num with type a = float and type b = float and type c = float)]
 end
 
 module IntIntFloat = struct
   module NumIntIntFloat = struct
-    type a = int
-    type b = int
-    type c = float
     let add x y = float (x + y)
-  end [@@instance Num]
+  end [@@instance: (module Num with type a = int and type b = int and type c = float)]
 end
 
 open IntIntInt

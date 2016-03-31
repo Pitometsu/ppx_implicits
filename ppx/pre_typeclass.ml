@@ -258,6 +258,40 @@ module TypeClass = struct
           ]
 end
 
+module VarInInstance : sig
+  val replace_var_extensions : core_type -> core_type * string list
+end = struct
+  open Longident
+    
+  let vars = ref []
+    
+  let extend super =
+    let typ self cty = match cty.ptyp_desc with
+      | Ptyp_extension ({txt="var"; loc}, PTyp cty) ->
+          begin match cty.ptyp_desc with
+          | Ptyp_var n ->
+              let n = "__var_" ^ n in
+              vars := n :: !vars;
+              Typ.constr ~loc:cty.ptyp_loc (at ~loc:cty.ptyp_loc & Lident n) []
+          | _ -> 
+              errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
+                Location.format loc
+          end
+      | Ptyp_extension ({txt="var"; loc}, _) ->
+          errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
+            Location.format loc
+      | _ -> super.typ self cty
+    in
+    { super with typ }
+
+  let mapper = extend default_mapper
+    
+  let replace_var_extensions cty =
+    vars := [];
+    let cty = mapper.typ mapper cty in
+    cty, sort_uniq compare !vars
+end
+
 (* [@@typeclass] and [@@instance] *)
 module TypeClass2 = struct
   open Longident
@@ -363,12 +397,17 @@ module TypeClass2 = struct
       | _ -> []) str
 
   let parse_instance_declaration loc = function
-    | PTyp {ptyp_desc = Ptyp_package ({txt; loc}, ps)} ->
-        let ps = flip map ps & fun (p,cty) -> match p with
-          | {txt=Lident s} -> s, cty
-          | {txt;loc} -> errorf "%a Illegal @@@@instance type constraint %a. It must be a simple name." Location.format loc Longident.format txt
-        in
-        txt, loc, ps
+    | PTyp cty ->
+        let cty, vars = VarInInstance.replace_var_extensions cty in
+        begin match cty with
+        | {ptyp_desc = Ptyp_package ({txt; loc}, ps)} ->
+            let ps = flip map ps & fun (p,cty) -> match p with
+              | {txt=Lident s} -> s, cty
+              | {txt;loc} -> errorf "%a Illegal @@@@instance type constraint %a. It must be a simple name." Location.format loc Longident.format txt
+            in
+            txt, loc, ps, vars
+        | _ -> errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
+        end      
     | _ -> errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
     
       
@@ -424,13 +463,14 @@ module TypeClass2 = struct
     let dict f (* functor *)
              p_mty (* module defines the module type *)
              ps (* parameters of type class *)
-             ks (* constraints *) =
+             ks (* constraints *)
+             vars (* local type names *) =
       let ds = mapi (fun i _ -> "d" ^ string_of_int i) ks in
       let pats = map2 (fun d (tvs, m) -> param d tvs m) ds ks in
       let tvs = concat & map (fun (tvs, _) -> tvs) ks in
       let e = z f (map (fun i -> Exp.ident (at & Lident i)) ds) p_mty ps in
       let e = fold_left2 (fun e d p -> Exp.fun_ ("?"^d) None p e) e ds pats in
-      [%stri let dict = [%e fold_left (flip Exp.newtype) e tvs]]
+      [%stri let dict = [%e fold_left (flip Exp.newtype) e (tvs @ vars)]]
   end
                                 
   (* 
@@ -446,7 +486,7 @@ module TypeClass2 = struct
        type __imp_instance_of__ = Show.__class__
      end
   *)
-  let gen_typeclass_instance lid mb ~instance_loc ps =
+  let gen_typeclass_instance lid mb ~instance_loc ps vars =
     let cname = match lid with (* Show *)
       | Lident cname -> cname
       | Ldot (_, cname) -> cname
@@ -513,7 +553,7 @@ module TypeClass2 = struct
         Str.module_ & Mb.mk (at ~loc:mb.pmb_name.loc oname)
         & Mod.structure ~loc:mb.pmb_expr.pmod_loc
           [ [%stri [@@@warning "-16"] (* We need this for ?imp: *) ]
-          ; Dict.dict iname cname ps ks
+          ; Dict.dict iname cname ps ks vars
           ; with_gloc instance_loc & fun () ->
             Str.type_ [ Type.mk ~manifest:(Typ.constr (at & Ldot (Lident cname, "__class__")) []) (at "__imp_instance_of__") ]
           ]
@@ -547,9 +587,9 @@ let extend super =
               | _ -> None
           with
           | [] -> [ sitem ]
-          | [ (lid, instance_loc, ps) ] ->
+          | [ (lid, instance_loc, ps, vars) ] ->
               [ sitem
-              ; TypeClass2.gen_typeclass_instance lid mb ~instance_loc ps
+              ; TypeClass2.gen_typeclass_instance lid mb ~instance_loc ps vars
               ]
           | _ -> 
               errorf "%a: multiple [@@@@instance] found"
