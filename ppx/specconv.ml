@@ -100,17 +100,17 @@ let from_expression _env e =
       | _ -> [t2 e]
     and t2 e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "aggressive"} },
-                    ["", e] ) -> Aggressive (t2 e)
+                    [Nolabel, e] ) -> Aggressive (t2 e)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "opened"} },
-                    ["", e] ) ->
+                    [Nolabel, e] ) ->
           let f,l = flag_lid e in Opened (f,l)
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "name"} },
-                    [ "", { pexp_desc = Pexp_constant (Const_string (s, _)) }
-                    ; "", e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
+                    [ Nolabel, { pexp_desc = Pexp_constant (Pconst_string (s, _)) }
+                    ; Nolabel, e ] ) -> Name (s, Re_pcre.regexp s, t2 e)
       | Pexp_ident {txt=Lident "related"} -> Related
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "has_type"} }, args ) ->
            begin match args with
-          | ["", e] ->
+          | [Nolabel, e] ->
               begin match e.pexp_desc with
               | Pexp_ident lid ->
                   Has_type (Ppxx.Helper.Typ.constr lid [], None)
@@ -121,7 +121,7 @@ let from_expression _env e =
           
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
           begin match args with
-          | ["", e] -> 
+          | [Nolabel, e] -> 
               begin match get_lid e with
               | Some lid -> Deriving lid
               | None -> errorf "deriving must take an module path" Location.format e.pexp_loc
@@ -130,7 +130,7 @@ let from_expression _env e =
           end
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "ppxderive"} }, args ) ->
           begin match args with
-          | ["", e] ->
+          | [Nolabel, e] ->
               begin match e.pexp_desc with
               | Pexp_constraint (e, cty) -> PPXDerive (e, cty, None)
               | _ -> errorf "ppxderive must take (e : t)"
@@ -142,7 +142,7 @@ let from_expression _env e =
           Direct (f, lid, None)
     and flag_lid e = match e.pexp_desc with
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "just"} },
-                    ["", e] ) -> 
+                    [Nolabel, e] ) -> 
           begin match get_lid e with
           | Some lid -> `Just, lid
           | None -> errorf "%a: just requires an argument" Location.format e.pexp_loc

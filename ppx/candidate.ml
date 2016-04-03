@@ -140,4 +140,4 @@ let cand_opened env loc (flg,lid) =
 
 
 let cand_name rex f =
-  f () |> filter (fun x -> Re_pcre.pmatch ~rex & Longident.to_string & Typpx.Untypeast.lident_of_path x.path)
+  f () |> filter (fun x -> Re_pcre.pmatch ~rex & Longident.to_string & (* Typpx. *) Untypeast.lident_of_path x.path)

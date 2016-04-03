@@ -40,7 +40,7 @@ let _test_scrape_sg path env sg =
   match path with
   | Pident {Ident.name = "Pervasives"} -> ()
   | _ ->
-  let lid = Typpx.Untypeast.lident_of_path path in      
+  let lid = (* Typpx.*) Untypeast.lident_of_path path in      
   !!% "SCRAPE SG %a@." Path.format_verbose path;
   flip iter sg & function
     | Sig_value (id, _vdesc) ->
@@ -245,7 +245,7 @@ let values_of_module ~recursive env loc path =
 let format_expression ppf e =
   Pprintast.expression ppf
   & Unembed.unembed
-  & Typpx.Untypeast.untype_expression e
+  & (* Typpx. *) Untypeast.(default_mapper.expr default_mapper) e
 
 let is_none e = match e.Typedtree.exp_desc with
   | Texp_construct ({Location.txt=Lident "None"}, _, []) -> 

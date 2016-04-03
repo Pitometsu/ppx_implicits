@@ -78,7 +78,7 @@ end = struct
   *)
   let parameters sg = sort compare & concat_map (fun si ->
     match si.psig_desc with
-    | Psig_type tds ->
+    | Psig_type (_rf, tds) ->
         flip filter_map tds & fun td ->
           begin match td with
           | { ptype_name = {txt}; ptype_params = []; ptype_cstrs = []; ptype_kind = Ptype_abstract; ptype_manifest = None; } -> Some txt
@@ -232,7 +232,7 @@ end = struct
       let pats = map2 (fun d (tvs, m) -> param d tvs m) ds ks in
       let tvs = concat & map (fun (tvs, _) -> tvs) ks in
       let e = z f (map (fun i -> Exp.ident (at & Lident i)) ds) p_mty ps in
-      let e = fold_left2 (fun e d p -> Exp.fun_ ("?"^d) None p e) e ds pats in
+      let e = fold_left2 (fun e d p -> Exp.fun_ (Optional d) None p e) e ds pats in
       [%stri let dict = [%e fold_left (flip Exp.newtype) e (tvs @ vars)]]
   end
                                 
@@ -276,7 +276,7 @@ end = struct
               | [] -> get_str me
               | [e] ->
                   let k = match e.pexp_desc with
-                    | Pexp_apply (tvs, ["", mp]) ->
+                    | Pexp_apply (tvs, [Nolabel, mp]) ->
                         let tvs =
                           let get_var tv = match tv.pexp_desc with
                             | Pexp_ident {txt=Lident s} -> s

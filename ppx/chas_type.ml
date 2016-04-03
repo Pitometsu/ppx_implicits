@@ -66,5 +66,5 @@ let cand_has_type env loc ty =
     flip iter paths & !!% "  %a@." Path.format
   end;
   concat & map (fun path ->
-    let lid = Typpx.Untypeast.lident_of_path path in
+    let lid = (* Typpx.Untypeast.lident_of_path *) Untypeast.lident_of_path path in
     cand_direct env loc (`Just, lid, Some path)) paths

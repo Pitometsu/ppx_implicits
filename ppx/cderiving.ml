@@ -22,7 +22,7 @@ let obj_repr env loc e =
     | Not_found -> 
         errorf "%a: Obj.repr is required but not accessible" Location.format loc
   in
-  Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
+  Forge.Exp.(app (with_env env & ident obj_repr_path) [Nolabel, e])
 
 (* vd.val_type must have the form ~_d:Obj.t list -> ty['a] *)
 let test_cand_deriving env loc ty lid =
@@ -68,14 +68,14 @@ let test_cand_deriving env loc ty lid =
 type 'a field = {
   value : 'a;
   ident : Ident.t;
-  dlabel : label;
+  dlabel : arg_label;
 }
 
 let make_fields vs =
   mapi (fun i v ->
     { value= v;
       ident = Ident.create (Printf.sprintf "__deriving__%d" i);
-      dlabel = Printf.sprintf "_d%d" i }) vs
+      dlabel = Labelled (Printf.sprintf "_d%d" i) }) vs
 
 (* konstraint abstractions *)    
 let kabs fields e =

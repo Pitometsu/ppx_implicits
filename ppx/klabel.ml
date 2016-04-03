@@ -4,12 +4,12 @@ open Ppxx.Utils
 open Typpx.Compilerlib
 open Types
 open List
+open Asttypes
 
-let is_klabel l =
-  let len = String.length l in
-  if len >= 2 && String.unsafe_get l 0 = '_' then Some `Normal
-  else if len >= 3 && String.sub l 0 2 = "?_" then Some `Optional
-  else None
+let is_klabel = function
+  | Labelled s when s.[0] = '_' -> Some `Normal
+  | Optional s when s.[0] = '_' -> Some `Optional
+  | _ -> None
 
 (* Constraint labels must precede the other arguments *)
 let rec extract env ty = 

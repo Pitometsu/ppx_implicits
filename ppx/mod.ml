@@ -29,15 +29,15 @@ module Runtime = struct
       
   (** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
   let embed e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.embed]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.embed]) [Nolabel, e])
   
   (** [make_get e] builds [Ppx_implicits.get <e>] *)
   let get e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.get]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.get]) [Nolabel, e])
   
   (** [make_get e] builds [Ppx_implicits.get <e>] *)
   let from_Some e =
-    Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) ["", e])
+    Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) [Nolabel, e])
 end
 
 (** Check it is [(<ty>, <spec>) Ppx_implicits.t] *)
@@ -94,7 +94,7 @@ module Klabel2 = struct
   end
 
 (* Fix the candidates by adding type dependent part *)
-let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((label * type_expr * Spec.t * (expression -> expression)) list * type_expr) list =
+let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((arg_label * type_expr * Spec.t * (expression -> expression)) list * type_expr) list =
   let f =
     if not aggressive then (fun type_ -> [Klabel2.extract env type_])
     else Klabel2.extract_aggressively env
@@ -291,14 +291,14 @@ let resolve env loc spec ty = with_snapshot & fun () ->
 (* ?l:None  where (None : (ty,spec) Ppx_implicit.t option) has a special rule *) 
 let resolve_omitted_imp_arg loc env a = match a with
   (* (l, None, Optional) means curried *)
-  | (l, Some e, Optional) ->
+  | ((Optional _ as l), Some e) ->
       begin match Utils.is_none e with
       | None -> a (* explicitly applied *)
       | Some _ -> (* omitted *)
           let (ty, specopt, conv, _unconv) = check_arg env loc l e.exp_type in
           match specopt with
           | None -> a
-          | Some spec -> (l, Some (conv (resolve env loc spec ty)), Optional)
+          | Some spec -> (l, Some (conv (resolve env loc spec ty)))
       end
   | _ -> a
 
@@ -321,7 +321,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
         { e with
           exp_desc= Texp_apply (f, map (resolve_omitted_imp_arg f.exp_loc e.exp_env) args) }
 
-    | Texp_function (l, _::_::_, _) when l <> "" ->
+    | Texp_function (l, _::_::_, _) when l <> Nolabel ->
         (* Eeek, label with multiple cases? *)
         warnf "%a: Unexpected label with multiple function cases"
           Location.format e.exp_loc;

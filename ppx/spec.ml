@@ -93,7 +93,7 @@ let candidates env loc = function
       if !Options.debug_resolve then begin
         !!% "debug_resolve: static candidates@.";
         flip iter statics & fun x ->
-          !!% "  %a@." Pprintast.expression (Typpx.Untypeast.untype_expression x.expr)
+          !!% "  %a@." Pprintast.expression ((* Typpx.Untypeast.untype_expression *) (Untypeast.(default_mapper.expr default_mapper)) x.expr)
       end;
       let dynamics ty = concat & map (cand_dynamic env loc ty) dynamics in
       fun ty -> uniq & statics @ dynamics ty
