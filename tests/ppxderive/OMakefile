@@ -14,9 +14,9 @@ DERIVERUNTIME=$(DERIVEDIR)/ppx_deriving_runtime.cma
 
 PPX=$(PPXEXE) -ppx $(DERIVEPPX)
 
-OCAMLDEPFLAGS=-ppx $(PPX)
-
 OCAMLINCLUDES += ../../lib $(DERIVEDIR)
+
+OCAMLDEPFLAGS= -I ../../lib -ppx $(PPX)
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
