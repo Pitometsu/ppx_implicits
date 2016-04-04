@@ -30,11 +30,11 @@ end = struct
               vars := n :: !vars;
               Typ.constr ~loc:cty.ptyp_loc (at ~loc:cty.ptyp_loc & Lident n) []
           | _ -> 
-              errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
+              raise_errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
                 Location.format loc
           end
       | Ptyp_extension ({txt="var"; loc}, _) ->
-          errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
+          raise_errorf "%a: Illegal %%var.  The correct syntax is: [%%var:'a]"
             Location.format loc
       | _ -> super.typ self cty
     in
@@ -146,7 +146,7 @@ end = struct
         let vs = values sg in
         begin match ps with
         | [] ->
-            errorf "%a: sig .. end [@@@@typeclass] requires at least one parameter type declaration like type a" Location.format mtd.pmtd_loc
+            raise_errorf "%a: sig .. end [@@@@typeclass] requires at least one parameter type declaration like type a" Location.format mtd.pmtd_loc
         | _ -> 
             Str.module_ ?loc:None & Mb.mk ?loc:None (at ?loc:None name)
               (Mod.structure ?loc:None 
@@ -157,7 +157,7 @@ end = struct
                  :: map (method_ ps) vs
               )
         end
-    | _ -> errorf "%a: a signature (sig .. end) is required for [@@@@typeclass]" Location.format mtd.pmtd_loc
+    | _ -> raise_errorf "%a: a signature (sig .. end) is required for [@@@@typeclass]" Location.format mtd.pmtd_loc
 
   let parse_instance_declaration loc = function
     | PTyp cty ->
@@ -166,12 +166,12 @@ end = struct
         | {ptyp_desc = Ptyp_package ({txt; loc}, ps)} ->
             let ps = flip map ps & fun (p,cty) -> match p with
               | {txt=Lident s} -> s, cty
-              | {txt;loc} -> errorf "%a Illegal @@@@instance type constraint %a. It must be a simple name." Location.format loc Longident.format txt
+              | {txt;loc} -> raise_errorf "%a Illegal @@@@instance type constraint %a. It must be a simple name." Location.format loc Longident.format txt
             in
             txt, loc, ps, vars
-        | _ -> errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
+        | _ -> raise_errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
         end      
-    | _ -> errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
+    | _ -> raise_errorf "%a: Illegal @@@@instance payload. It must be [@@instance: (module X with type ...)]" Location.format loc
     
       
   (* ((module (struct type a = ... include <m> end) : (<n>.a, <n>.b) <o>._module)) *)
@@ -254,7 +254,7 @@ end = struct
       | Lident cname -> cname
       | Ldot (_, cname) -> cname
       | _ ->
-          errorf "%a: %a is invalid for type class"
+          raise_errorf "%a: %a is invalid for type class"
             Location.format instance_loc
             Longident.format lid
     in
@@ -269,7 +269,7 @@ end = struct
                 filter_map (function
                   | ({txt="typeclass"}, PStr [{pstr_desc=Pstr_eval (e,_)}]) -> Some e
                   | ({txt="typeclass"; loc}, _) ->
-                      errorf "%a: Invalid syntax of @@typeclass for functor argument.  It must be [@@typeclass <params> <modname>]"
+                      raise_errorf "%a: Invalid syntax of @@typeclass for functor argument.  It must be [@@typeclass <params> <modname>]"
                         Location.format loc
                   | _ -> None) attrs
               with
@@ -281,7 +281,7 @@ end = struct
                           let get_var tv = match tv.pexp_desc with
                             | Pexp_ident {txt=Lident s} -> s
                             | _ ->
-                                errorf "%a: Invalid syntax of @@typeclass parameter"
+                                raise_errorf "%a: Invalid syntax of @@typeclass parameter"
                                   Location.format tv.pexp_loc
                           in
                           match tvs.pexp_desc with
@@ -291,23 +291,23 @@ end = struct
                         let lid = match mp.pexp_desc with
                           | Pexp_construct ({txt=lid}, None) -> lid
                           | _ ->
-                              errorf "%a: Invalid syntax of @@typeclass module"
+                              raise_errorf "%a: Invalid syntax of @@typeclass module"
                                 Location.format mp.pexp_loc
                         in
                         tvs, lid
                     | _ -> 
-                        errorf "%a: Invalid syntax of @@typeclass for functor argument.  It must be [@@typeclass <params> <modname>]"
+                        raise_errorf "%a: Invalid syntax of @@typeclass for functor argument.  It must be [@@typeclass <params> <modname>]"
                           Location.format e.pexp_loc
                   in
                   let str, ks = get_str me in
                   str, k::ks
               | _ ->
-                  errorf "%a: multiple @@typeclass attributes found"
+                  raise_errorf "%a: multiple @@typeclass attributes found"
                     Location.format me.pmod_loc
             end
         | Pmod_functor (_, _, me) -> get_str me
         | _ ->
-            errorf "%a: Invalid module for @@@@instance"
+            raise_errorf "%a: Invalid module for @@@@instance"
               Location.format me.pmod_loc
       in
       get_str mb.pmb_expr
@@ -328,7 +328,7 @@ let extend super =
   let has_typeclass_attr = function
     | {txt="typeclass"}, PStr [] -> true
     | {txt="typeclass"; loc}, _ ->
-        errorf "%a: [@@@@typeclass] must not take payload"
+        raise_errorf "%a: [@@@@typeclass] must not take payload"
           Location.format loc
     | _ -> false
   in
@@ -355,7 +355,7 @@ let extend super =
               ; TypeClass.gen_instance lid mb ~instance_loc ps vars
               ]
           | _ -> 
-              errorf "%a: multiple [@@@@instance] found"
+              raise_errorf "%a: multiple [@@@@instance] found"
                 Location.format mb.pmb_loc
           end
       | _ -> [sitem]

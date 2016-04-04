@@ -268,18 +268,18 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   (* CR jfuruse: Only one value at a time so far *)
   match resolve loc env [([],ty,spec)] with
   | MayLoop es -> 
-      errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ @[<2>The following instances may cause infinite loop of the resolution:@ @[<2>%a@]@]"
+      raise_errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ @[<2>The following instances may cause infinite loop of the resolution:@ @[<2>%a@]@]"
         Location.format loc
         Printtyp.type_expr ty
         (* CR jfuruse: should define a function for printing Typedtree.expression *)
         (List.format ",@," Utils.format_expression) es
   | Ok [] ->
-      errorf "%a:@ no instance found for@ @[%a@]"
+      raise_errorf "%a:@ no instance found for@ @[%a@]"
         Location.format loc
         Printtyp.type_expr ty
   | Ok (_::_::_ as es) ->
       let es = map (function [e] -> e | _ -> assert false (* impos *)) es in
-      errorf "%a: This implicit has too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
+      raise_errorf "%a: This implicit has too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
         Location.format loc
         Printtyp.type_expr ty
         (List.format "@," Utils.format_expression) es

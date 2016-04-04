@@ -235,7 +235,7 @@ let check_module env loc path =
     try Some (Env.find_module path env) with _ -> None
   with
   | None -> 
-      errorf "%a: no module desc found: %a" Location.format loc Path.format path
+      raise_errorf "%a: no module desc found: %a" Location.format loc Path.format path
   | Some mdecl -> mdecl
 
 let values_of_module ~recursive env loc path =

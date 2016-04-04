@@ -49,7 +49,7 @@ let cand_derive env loc e temp_ty ty =
         | _ -> assert false
         end
     | _ ->
-        errorf "%a: ppxderive's type %a does not have one type variable"
+        raise_errorf "%a: ppxderive's type %a does not have one type variable"
           Location.format loc
           Printtyp.type_expr temp_ty
   in

@@ -111,7 +111,7 @@ let cand_direct env loc (flg,lid,popt) =
         try
           Env.lookup_module ~load:true lid env
         with
-        | Not_found -> errorf "%a: Unbound module %a." Location.format loc Longident.format lid
+        | Not_found -> raise_errorf "%a: Unbound module %a." Location.format loc Longident.format lid
   in
   let paths = Utils.values_of_module ~recursive env loc path in
   map (default_candidate_of_path env) paths

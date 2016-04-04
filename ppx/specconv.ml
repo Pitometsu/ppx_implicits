@@ -83,7 +83,7 @@ let mangle x =
 
 (* CR jfuruse: need tests *)
 let unmangle_spec_string s = 
-  if not & String.is_prefix prefix s then errorf "Mangled spec string does not start with \"Spec_\": %s" s;
+  if not & String.is_prefix prefix s then raise_errorf "Mangled spec string does not start with \"Spec_\": %s" s;
   let s = String.sub s prefix_len (String.length s - prefix_len) in
   Utils.unmangle s
 
@@ -114,9 +114,9 @@ let from_expression _env e =
               begin match e.pexp_desc with
               | Pexp_ident lid ->
                   Has_type (Ppxx.Helper.Typ.constr lid [], None)
-              | _ -> errorf "has_type must take a type path"
+              | _ -> raise_errorf "has_type must take a type path"
               end
-          | _ -> errorf "has_type must take just one argument"
+          | _ -> raise_errorf "has_type must take just one argument"
           end
           
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "deriving"} }, args ) ->
@@ -124,18 +124,18 @@ let from_expression _env e =
           | [Nolabel, e] -> 
               begin match get_lid e with
               | Some lid -> Deriving lid
-              | None -> errorf "deriving must take an module path" Location.format e.pexp_loc
+              | None -> raise_errorf "deriving must take an module path" Location.format e.pexp_loc
               end
-          | _ -> errorf "deriving must take just one argument"
+          | _ -> raise_errorf "deriving must take just one argument"
           end
       | Pexp_apply( { pexp_desc= Pexp_ident {txt=Lident "ppxderive"} }, args ) ->
           begin match args with
           | [Nolabel, e] ->
               begin match e.pexp_desc with
               | Pexp_constraint (e, cty) -> PPXDerive (e, cty, None)
-              | _ -> errorf "ppxderive must take (e : t)"
+              | _ -> raise_errorf "ppxderive must take (e : t)"
               end
-          | _ -> errorf "ppxderive must take just one argument"
+          | _ -> raise_errorf "ppxderive must take just one argument"
           end
       | _ -> 
           let f,lid = flag_lid e in
@@ -145,11 +145,11 @@ let from_expression _env e =
                     [Nolabel, e] ) -> 
           begin match get_lid e with
           | Some lid -> `Just, lid
-          | None -> errorf "%a: just requires an argument" Location.format e.pexp_loc
+          | None -> raise_errorf "%a: just requires an argument" Location.format e.pexp_loc
           end
       | Pexp_construct ({txt=lid}, None) -> `In, lid
       | _ ->
-          errorf "%a: Illegal spec expression: %a" 
+          raise_errorf "%a: Illegal spec expression: %a" 
             Location.format e.pexp_loc
             Pprintast.expression e
             
@@ -171,13 +171,13 @@ let from_structure env str =
           `Error (`String "spec must be an OCaml expression")
 
 let error loc = function
-  | `String s -> errorf "%a: %s" Location.format loc s
+  | `String s -> raise_errorf "%a: %s" Location.format loc s
   | `Failed_unmangle s -> 
-      errorf "%a: Illegal spec encoding: %S" Location.format loc s
+      raise_errorf "%a: Illegal spec encoding: %S" Location.format loc s
   | `Parse s ->
-      errorf "%a: Spec parse failed: %S" Location.format loc s
+      raise_errorf "%a: Spec parse failed: %S" Location.format loc s
   | `ParseExp (_, s) ->
-      errorf "%a: Spec parse failed: %s" Location.format loc s
+      raise_errorf "%a: Spec parse failed: %s" Location.format loc s
 
 let from_payload env = function
   | PStr s -> from_structure env s
@@ -211,10 +211,10 @@ let from_type_expr env loc ty = match expand_repr_desc env ty with
             >>= from_string
             >>= from_expression env
       | _ -> 
-          errorf "%a: Illegal type for implicit spec" Location.format loc
+          raise_errorf "%a: Illegal type for implicit spec" Location.format loc
       end
   | _ -> 
-      errorf "%a: Illegal type for implicit spec" Location.format loc
+      raise_errorf "%a: Illegal type for implicit spec" Location.format loc
 
 let to_core_type _loc spec =
   let open Ppxx.Helper in

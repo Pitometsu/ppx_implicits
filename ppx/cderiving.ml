@@ -20,7 +20,7 @@ let obj_repr env loc e =
       Env.lookup_value (Longident.(Ldot (Lident "Obj", "repr"))) env
     with
     | Not_found -> 
-        errorf "%a: Obj.repr is required but not accessible" Location.format loc
+        raise_errorf "%a: Obj.repr is required but not accessible" Location.format loc
   in
   Forge.Exp.(app (with_env env & ident obj_repr_path) [Nolabel, e])
 
@@ -38,7 +38,7 @@ let test_cand_deriving env loc ty lid =
     match expand_repr_desc env vty with
     | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
     | _ -> 
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]"
+        raise_errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]"
           Location.format loc
           Path.format path
           Printtyp.type_scheme vty
@@ -50,7 +50,7 @@ let test_cand_deriving env loc ty lid =
     match gen_vars vty', Ctype.free_variables vty' with
     | [v], [v'] when v == v' -> v 
     | _ ->
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]"
+        raise_errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]"
           Location.format loc
           Path.format path
           Printtyp.type_scheme vty'
