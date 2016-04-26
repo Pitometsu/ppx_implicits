@@ -1,44 +1,36 @@
-OUT=.exe
+EXE=.exe
+
 PPX=$(file ../ppx/ppx_implicits$(EXE))
 
-OCAMLDEPFLAGS=-ppx $(PPX)
-
-OCamlRequire($(PPX) $(file ../lib/ppx_implicits.cmo))
+OCAMLDEPFLAGS= -I ../lib -ppx $(PPX)
 
 OCAMLINCLUDES += ../lib
 
+OCamlRequire($(PPX) ../lib/ppx_implicits.cmi)
+
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
-  $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) $(CMOS)
+  $(name)$(EXE) $(name).cmo $(name).cmi: $(name).ml $(PPX) $(CMOS)
     mkdir_if_not_exists(out)
     $(PPX) -I ../lib -debug $(name).ml > out/$(name).ml 
     ocamlc -I ../lib -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -bin-annot -I ../lib -ppx $(PPX) ppx_implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
-  out/$(name).out: $(name)$(OUT)
+    ocamlc -bin-annot -I ../lib -ppx $(PPX) ppx_implicits.cmo $(CMOS) -o $(name)$(EXE) $(name).ml
+  out/$(name).out: $(name)$(EXE)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
-    ./$(name)$(OUT)
-
-  $(name)_test_ocamlfind$(OUT): $(name).ml $(CMOS)
-    mkdir_if_not_exists(out)
-    ocamlfind ocamlc -package ppx_implicits $(CMOS) -o $(name)_test_ocamlfind$(OUT) $(name).ml
-  out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(OUT)
-    stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
-    stderr = stdout
-    ./$(name)_test_ocamlfind$(OUT)
+    ./$(name)$(EXE)
   clean:
-    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(OUT) $(name)_test_ocamlfind$(OUT)
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
   export
 
-# omake test_ocamlfind tests things using installed ppx_implicits
-.PHONY: test_ocamlfind
-
+# depending on other test files
 Testx(name, deps) =
   Test_($(name), $(deps))
   .DEFAULT: out/$(name).out
   test_ocamlfind: out/$(name)_test_ocamlfind.out
   export
 
+# independent test
 Test(name)=
   Testx($(name), $(EMPTY))
   export
@@ -61,8 +53,8 @@ Testx(numuse, numc)
 Test(length)
 Testx(sum, numc)
 Test(length_class)
-
 Test(prelude)
+
 # Test(xformat)
 # Test(double_use)
 # Test(kgap)
