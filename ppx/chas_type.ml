@@ -3,28 +3,32 @@ open Utils
 open Ppxx.Utils
 open List
 
-open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Path
 open Types
 
 open Candidate
 
-(* [%imp] : 'a M.ty
-   type M.__imp_spec__ must exists and it is "typeclass"
-   We seek types equal to __imp_instance__ = M.__imp_spec__
+let unifiable env ty1 ty2 = with_snapshot & fun () ->
+  match protect & fun () -> Ctype.unify env ty1 ty2 with
+  | `Error _ -> false
+  | `Ok _ -> true
+  
+(* We seek types equal to __imp_instance_of__ = ty
 *) 
-let cand_typeclass env loc p_spec =
+let cand_has_type env loc ty =
   let has_instance mp =
     let md = Env.find_module mp env in
     let m = new dummy_module env mp md.md_type in
     try
-      let _, td = m#lookup_type "__imp_instance__" in
+      let _, td = m#lookup_type "__imp_instance_of__" in
       match td with
       | { type_params = []
-        ; type_manifest = Some { desc = Tconstr (p, _, _) } } when p = p_spec ->
-          Some mp
-          (* Some (Pdot (mp, "__imp_instance__", n)) *)
-      | _ -> None
+        ; type_manifest = Some ty' } ->
+          if unifiable env ty ty' then Some mp
+          else None
+      | _ ->
+          None
     with
     | Not_found -> None
   in
@@ -62,5 +66,5 @@ let cand_typeclass env loc p_spec =
     flip iter paths & !!% "  %a@." Path.format
   end;
   concat & map (fun path ->
-    let lid = Typpx.Untypeast.lident_of_path path in
+    let lid = (* Typpx.Untypeast.lident_of_path *) Untypeast.lident_of_path path in
     cand_direct env loc (`Just, lid, Some path)) paths

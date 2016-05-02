@@ -1,15 +1,11 @@
-open Types
-
 (** Implicit instance specification DSL *)
 
-type t = 
-  | Or of t2 list 
-    (** Syntax: [<t2>, .., <t2>].
-        Conjunction of specs.
-    *)
+open Types
 
-  | Type 
-    (** Spec is deduced from the context type.  Used only for [%imp].  Not allowed in [%%imp_spec] *)
+type t = t2 list 
+    (** Syntax: [<t2>, .., <t2>].
+        Sum of specs.
+    *)
 
 and t2 = 
   | Opened of [`In | `Just] * Longident.t
@@ -99,20 +95,10 @@ and t2 =
         [show_int], [float_show].
     *)
 
-  | Typeclass of Path.t option
+  | Has_type of Parsetree.core_type * type_expr option 
     (** Spec introduced by [[@@typeclass]] for typeclass style resolution. 
 
-        The parameter is [None] at parsing, but later filled with [Some p] 
-        till the resolution. For example, the following code:
-
-        module type Show = sig
-          (* Parameters must be properly listed. 
-             We cannot add parameters using include S *)
-          type a 
-          val show : a -> string
-        end [@@typeclass]
-
-        produces [Typeclass (Some p)] where [p] is Show.
+        <currently the specification is not really stable>
     *)
       
   | Deriving of Longident.t
@@ -153,15 +139,18 @@ and t2 =
     *)
 
 val is_static : t2 -> bool
-(** static : instance space is fixed
-    dynamic : instance space can be changed according to the target type
+(** [true]  : Instance space can be computed statically.
+
+    [false] : Instance space is highly dependent on the target type
+              and should be computed dynamically. (Static computation is
+              simply impossible since it may be infinite without restriction
+              of the target type.)
 *)
 
 val to_string : t -> string
-(** convert [t] to its string representation for [[%%imp_spec ...]] *)
+(** Convert [t] to its string representation for [[%%imp_spec ...]] *)
 
-(** get spec from a module path which has type __imp_spec__ = .. *)
-
+(** Compute the instance space *)
 val candidates 
   : Env.t 
     -> Location.t 

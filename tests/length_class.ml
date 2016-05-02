@@ -3,69 +3,40 @@ module type Length = sig
   val length : a -> int
 end [@@typeclass]
 
+(* Ideal syntax:
+
+   typeclass 'a Length = sig
+     val length : 'a -> int
+   end
+*)
+
 module LengthString = struct
-  type a = string
   let length = String.length
-end [@@instance Length]
+end [@@instance: (module Length with type a = string)]
   
-(*
 module LengthList = struct
-  type a = 'a list (* no it is not possible! *)
   let length = List.length
-end [@@instance Length]
+end [@@instance: (module Length with type a = [%var:'a] list)]
+(* It would be nicer if we could write simply 
+
+     [module Length with type a = 'a list],
+
+   but free type variable extraction in the level of core_type seems to be
+   hard and not rewarding.
+*)   
+
+(* Ideal syntax:
+
+   instance string Length = struct
+     let length = String.length
+   end   
+
+   instance 'a list Length = struct
+     let length = List.length
+   end
 *)
 
-module Solution1 = struct
-
-  module LengthListInstance = struct
-    let dict (type alpha) : alpha list Length._module = (module struct type a = alpha list let length = List.length end)
-    type __imp_instance__ = Length.__imp_spec__
-  end
-      
-  let () =
-    assert (Length.length "hello" = 5);
-    assert (Length.length [1;2;3] = 3)
-
-end
-  
-module Solution2 = struct  
-
-  module LengthList(A : sig type alpha end) = struct
-    type a = A.alpha list
-    let length = List.length
-  end
-
-  module LengthListInstance = struct
-    (* Oh no! Value polymoprhism requires an eta expansion... *)
-    let dict (type aa) () : aa list Length._module = (module LengthList(struct type alpha = aa end))
-    type __imp_instance__ = Length.__imp_spec__
-  end
-
-(*
-  let () =
-    assert (Length.length "hello" = 5);
-    assert (Length.length [1;2;3] = 3)
-*)
-    
-end
-    
-module Solution3 = struct
-
-  (* This is the most promising *)
-    
-  module LengthList = struct
-    (* no definition of type a *)
-    let length = List.length
-  end
-  
-  module LengthListInstance = struct
-    let dict (type alpha) : alpha list Length._module = (module (struct type a = alpha list include LengthList end))
-    type __imp_instance__ = Length.__imp_spec__
-  end
-
-  let () =
-    assert (Length.length "hello" = 5);
-    assert (Length.length [1;2;3] = 3)
-
-end
+let () =
+  assert (Length.length "hello" = 5);
+  assert (Length.length [1;2;3] = 3)
 

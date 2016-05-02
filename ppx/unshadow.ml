@@ -1,6 +1,6 @@
 open Ppxx.Utils
 open List
-open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Ident
 open Path
 open Typpx
@@ -23,10 +23,10 @@ let rec check_module_path env path =
     | Pdot (p, n, x) -> 
         begin match check_module_path env p with
         | `Shadowed (id, name, p) -> `Shadowed (id, name, Pdot (p, n, x))
-        | `Accessible _ -> assert false
+        | `Accessible _ -> assert false (* impos *)
         | `Not_found p -> `Not_found p
     end
-    | _ -> assert false
+    | _ -> assert false (* impos *)
   end
 
 let aliases = ref ([]: (Ident.t * Ident.t) list)
@@ -49,7 +49,9 @@ module Replace = struct
           | Path.Pdot (p, n, i) ->
               begin match check_module_path env p with
               | `Accessible _ -> e
-              | `Not_found _p -> assert false (* CR jfuruse: need error handling *)
+              | `Not_found _p ->
+                  !!% "ppx_implicits: unshadow: module path %a not found in the env@." Path.format p; 
+                  assert false (* impos *)
               | `Shadowed (id, id', p) ->
                   aliases := (id, id') :: !aliases;
                   let p = Path.Pdot (p, n, i) in
@@ -65,7 +67,7 @@ module Replace = struct
                   e
                 with Not_found -> e (* It is I guess __imp_function__ *)
               end
-          | _ -> assert false
+          | _ -> assert false (* impos *)
           end
       | _ -> e
   end
@@ -117,7 +119,7 @@ module Alias = struct
     let structure_item si = match si.str_desc with
       | Tstr_module mb ->
   (*
-  eprintf "module %a@." Ident.format mb.mb_id;
+  !!% "module %a@." Ident.format mb.mb_id;
   *)
           si ::
           begin match assoc_opt mb.mb_id A.aliases with

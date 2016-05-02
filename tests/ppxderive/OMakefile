@@ -1,0 +1,51 @@
+EXE=.exe
+
+# Standalone deriving
+# ocamlc -verbose
+#   -ppx "~/.opam/4.02.3/lib/ppx_deriving/ppx_deriving ~/.opam/4.02.3/lib/ppx_deriving/ppx_deriving_show.cma"
+#   -I ~/.opam/4.02.3/lib/ppx_deriving ppx_deriving_runtime.cma z.ml
+
+DERIVEDIR=$(shell ocamlfind query ppx_deriving)
+DERIVEPPX="$(DERIVEDIR)/ppx_deriving$(EXE) $(DERIVEDIR)/ppx_deriving_show.cma"
+DERIVERUNTIME=$(DERIVEDIR)/ppx_deriving_runtime.cma
+
+PPXEXE=$(file ../../ppx/ppx_implicits$(EXE))
+
+PPX=$(PPXEXE) -ppx $(DERIVEPPX)
+
+OCAMLDEPFLAGS= -I ../../lib -ppx $(PPX)
+
+OCAMLINCLUDES += ../../lib $(DERIVEDIR)
+
+OCamlRequire($(PPXEXE) ../../lib/ppx_implicits.cmi)
+
+Test_(name, deps) =
+  CMOS=$(addsuffix .cmo, $(deps))
+  $(name)$(EXE) $(name).cmo $(name).cmi: $(name).ml $(PPXEXE) $(CMOS)
+    mkdir_if_not_exists(out)
+    $(PPX) -I ../../lib -debug $(name).ml > out/$(name).ml 
+    ocamlc -I ../../lib -I $(DERIVEDIR) -ppx $(PPX) -i $(name).ml > out/$(name).mli
+    ocamlc -bin-annot -I ../../lib -I $(DERIVEDIR) -ppx $(PPX) $(DERIVERUNTIME) ppx_implicits.cmo $(CMOS) -o $(name)$(EXE) $(name).ml
+  out/$(name).out: $(name)$(EXE)
+    stdout = $(fopen out/$(name).out, w)
+    stderr = stdout
+    ./$(name)$(EXE)
+
+  clean:
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
+  export
+
+Testx(name, deps) =
+  Test_($(name), $(deps))
+  .DEFAULT: out/$(name).out
+  export
+
+Test(name)=
+  Testx($(name), $(EMPTY))
+  export
+
+Test(ppxderive)
+
+clean::
+    rm -rf out
+

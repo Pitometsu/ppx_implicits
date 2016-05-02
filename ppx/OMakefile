@@ -1,30 +1,32 @@
-OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre ppxx typpx
+OCAMLWARNING_NON_ERROR += 41
 
+OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre ppxx typpx
 OCAMLDEPFLAGS= -package ppx_tools.metaquot
-OCAMLPPFLAGS=  
 
 FILES[] =
+    unembed
     utils
     options
     unshadow
     klabel
     candidate
     crelated
-    ctypeclass
+    chas_type
     cderiving
     cppxderive
     spec
     specconv
+    pre_imp_spec
+    pre_typeclass
     pre
     tysize
     mod
     ppx
 
-# This drops dependency of typpx
-# MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+NO_INSTALL=true # installation is done in lib directory
+.DEFAULT: $(MyOCamlPPX ppx_implicits, $(FILES))
 
-targets=$(MyOCamlPPX ppx_implicits, $(FILES))
-MyOCamlFindPackage(ppx_implicits, $(targets))
+AddLocalOCamlPackageDependencies() # we need this to make ppx available
 
 WithMerlin()
 

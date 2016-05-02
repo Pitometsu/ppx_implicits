@@ -1,44 +1,36 @@
-module Z = struct
-  module Show = struct
-    module type Show = sig
-      type a
-      val show : a -> string
-    end
-  
-    type 'a t = (module Show with type a = 'a)
-  end
+(* Dispatching first class module values for type-classes *)
+
+module type Show = sig
+  type a
+  val show : a -> string
 end
 
-module M = struct
-  module Show = struct
-    type 'a t = private 'a Z.Show.t
-    [%%imp_spec opened Show]
-    external pack' : 'a Z.Show.t -> 'a t = "%identity"
-    let pack ~_x = Some (pack' _x)
-  end
-end
+type 'a mshow = (module Show with type a = 'a)
+type 'a show = ('a mshow, [%imp opened Show]) Ppx_implicits.t
 
-open M
+let show : ?imp:'a show -> 'a -> string = fun (type a) ?imp ->
+  (* CR jfuruse: bad... imp and ?imp collides! *)
+  let impp = imp in
+  let m : a mshow = Ppx_implicits.(get (from_Some impp)) in
+  let module M = (val m) in
+  M.show
   
-let show (type a) ?_imp = match _imp with
-  | None -> assert false
-  | Some imp -> let module D = (val (imp : a M.Show.t :> a Z.Show.t) ) in D.show
-
 module X = struct
   module Show = struct
-    let int : int Z.Show.t =
+    let int : int mshow =
       let module Int = struct
         type a = int
         let show = string_of_int
       end in (module Int)
     
-    let float : float Z.Show.t = 
+    let float : float mshow = 
       let module Float = struct
         type a = float
         let show = string_of_float
       end in (module Float)
     
-    let list (type a) ~_d:(_d: a Z.Show.t) : a list Z.Show.t =
+    [@@@warning "-16"] (* We need this for ?imp: *)
+    let list (type a) ?imp:(_ : a show option) : a list mshow =
       let module List = struct
         type a' = a list
         type a = a'
@@ -55,10 +47,11 @@ let () = assert (show 1.0 = "1.")
 let () = assert (show [1;2;3] = "[ 1; 2; 3 ]") 
 let () = assert (show [[1]; [2;3]; [4;5;6]] = "[ [ 1 ]; [ 2; 3 ]; [ 4; 5; 6 ] ]")
 
-let show_twice ?_imp x = show ?_imp x ^ show ?_imp x
+let show_twice ?imp x = show ?imp x ^ show ?imp x
 let () = assert (show_twice 1 = "11")
 
-let show_twice ?_imp:(i : 'a M.Show.t option) (x : 'a) =
+let show_twice ?imp:(_ : 'a show option) (x : 'a) =
   show x ^ show x
 
 let () = assert (show_twice 1 = "11")
+  
