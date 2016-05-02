@@ -1,4 +1,4 @@
-EXE=.exe
+EXE2=.exe
 
 # Standalone deriving
 # ocamlc -verbose
@@ -21,18 +21,18 @@ OCamlRequire($(PPXEXE) ../../lib/ppx_implicits.cmi)
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
-  $(name)$(EXE) $(name).cmo $(name).cmi: $(name).ml $(PPXEXE) $(CMOS)
+  $(name)$(EXE2) $(name).cmo $(name).cmi: $(name).ml $(PPXEXE) $(CMOS)
     mkdir_if_not_exists(out)
     $(PPX) -I ../../lib -debug $(name).ml > out/$(name).ml 
     ocamlc -I ../../lib -I $(DERIVEDIR) -ppx $(PPX) -i $(name).ml > out/$(name).mli
-    ocamlc -bin-annot -I ../../lib -I $(DERIVEDIR) -ppx $(PPX) $(DERIVERUNTIME) ppx_implicits.cmo $(CMOS) -o $(name)$(EXE) $(name).ml
-  out/$(name).out: $(name)$(EXE)
+    ocamlc -bin-annot -I ../../lib -I $(DERIVEDIR) -ppx $(PPX) $(DERIVERUNTIME) ppx_implicits.cmo $(CMOS) -o $(name)$(EXE2) $(name).ml
+  out/$(name).out: $(name)$(EXE2)
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
-    ./$(name)$(EXE)
+    ./$(name)$(EXE2)
 
   clean:
-    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE)
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE2)
   export
 
 Testx(name, deps) =
