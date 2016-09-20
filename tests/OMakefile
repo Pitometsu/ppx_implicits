@@ -6,7 +6,7 @@ OCAMLDEPFLAGS= -I ../lib -ppx $(PPX)
 
 OCAMLINCLUDES += ../lib
 
-OCamlRequire($(PPX) ../lib/ppx_implicits.cmi)
+OCamlRequire($(PPX) ../lib/ppx_implicits.cmi ../lib/ppx_implicits.cmo)
 
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
