@@ -12,8 +12,6 @@ open Typpx.Compilerlib
 open Parsetree
 open Types
 
-module Forge = Typpx.Forge
-  
 (** spec dsl *)
 type t = t2 list (** [t2, .., t2] *)
 

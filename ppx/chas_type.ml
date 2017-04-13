@@ -40,7 +40,8 @@ let cand_has_type env loc ty =
     | Env_class (s, _, _)
     | Env_cltype (s, _, _)
     | Env_functor_arg (s, _)
-    | Env_type (s, _, _) -> find_modules s
+    | Env_type (s, _, _)
+    | Env_constraints (s, _) -> find_modules s
     | Env_module (s, id, _md) ->
         let res = find_modules s in
         begin match has_instance (Pident id) with

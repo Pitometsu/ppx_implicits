@@ -47,6 +47,7 @@ let get_opens env =
     | Env_modtype (s, _, _)
     | Env_class (s, _, _)
     | Env_cltype (s, _, _)
+    | Env_constraints (s, _)
     | Env_functor_arg (s, _) -> get s
     | Env_open (s, path) -> path :: get s
   in
@@ -60,6 +61,7 @@ let _dump_summary env =
     | Env_modtype (s, _, _)
     | Env_class (s, _, _)
     | Env_cltype (s, _, _)
+    | Env_constraints (s, _)
     | Env_functor_arg (s, _) -> dump s
     | Env_type (s, id, _) -> !!% "type %a@." Ident.format id; dump s
     | Env_module (s, id, _) -> !!% "module %a@." Ident.format id; dump s

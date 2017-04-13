@@ -67,7 +67,9 @@ object
 
   method lookup_type s =
     match Env.lookup_type (Longident.(Ldot (Lident dummy, s))) env with
-    | Pdot (_, s', n), td -> Pdot (mp, s', n), td
+    | Pdot (_, s', n) as p ->
+       let td = Env.find_type p env in
+       Pdot (mp, s', n), td
     | _ -> assert false (* impos *)
 
   method lookup_module s =

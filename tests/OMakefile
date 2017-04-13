@@ -8,6 +8,9 @@ OCAMLINCLUDES += ../lib
 
 OCamlRequire($(PPX) ../lib/ppx_implicits.cmi ../lib/ppx_implicits.cmo)
 
+# Seems to be the following is the correct one, instead of OCamlRequre
+.SCANNER: %.cmx %.cmo %.cmi %.cmt %.cmti : $(PPX)
+
 Test_(name, deps) =
   CMOS=$(addsuffix .cmo, $(deps))
   $(name)$(EXE2) $(name).cmo $(name).cmi: $(name).ml $(PPX) $(CMOS)
