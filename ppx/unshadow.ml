@@ -40,7 +40,7 @@ module Replace = struct
     
     open Typedtree
     
-    module Forge = Forge
+    (* module Forge = Forge *)
     
     let enter_expression e = match e.exp_desc with
       | Texp_ident (p, {loc}, vd) ->

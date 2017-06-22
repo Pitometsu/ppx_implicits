@@ -1,3 +1,6 @@
+open Migrate_parsetree
+open Ast_404
+
 open Ppxx.Utils
 open List
 

@@ -1,6 +1,6 @@
 OCAMLWARNING_NON_ERROR += 41
 
-OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre ppxx typpx
+OCAMLPACKS[]= ocaml-compiler-libs.common ocaml-migrate-parsetree ppx_tools_versioned.metaquot_404 re.pcre ppxx typpx
 OCAMLDEPFLAGS= -package ppx_tools.metaquot
 
 FILES[] =
@@ -23,8 +23,7 @@ FILES[] =
     mod
     ppx
 
-NO_INSTALL=true # installation is done in lib directory
-.DEFAULT: $(MyOCamlPPX ppx_implicits, $(FILES))
+MyOCamlPPX(ppx_implicits, $(FILES))
 
 AddLocalOCamlPackageDependencies() # we need this to make ppx available
 
