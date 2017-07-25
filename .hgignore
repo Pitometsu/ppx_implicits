@@ -20,3 +20,4 @@ a\.out$
 \.(aux|log|out|pdf)$
 ^ppx/ppx_implicits$
 ^ppx/ppx_implicits\.exe$
+opam/generated
