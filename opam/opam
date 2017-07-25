@@ -19,7 +19,7 @@ depends: [
   "ocamlfind" {build}
   "omake" {build}
   "ppx_tools"
-  "ppxx" {>= "1.3.0"}
+  "ppxx"
   "re"
   "typpx" {= "1.2.2"}
 ]
