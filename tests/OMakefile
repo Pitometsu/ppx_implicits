@@ -24,19 +24,19 @@ Test_(name, deps) =
     ./$(name)$(EXE2)
   clean:
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE2)
-  export
 
 # depending on other test files
 Testx(name, deps) =
   Test_($(name), $(deps))
   .DEFAULT: out/$(name).out
-  test_ocamlfind: out/$(name)_test_ocamlfind.out
-  export
+  test: $(name)$(EXE2)
+    $(eprintln Testing $(name)$(EXE2)...)
+    ./$(name)$(EXE2)
+    $(eprintln Tested $(name)$(EXE2))
 
 # independent test
 Test(name)=
   Testx($(name), $(EMPTY))
-  export
 
 Test(add)
 Test(imp3)

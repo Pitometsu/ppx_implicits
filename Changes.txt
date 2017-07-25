@@ -7,6 +7,7 @@
 - Made "aggressive" spec more aggressive, possible to take more function arguments as constraints
 - Internal: added "type" spec to handle [%imp] in a cleaner way
 - Added and fixed tests and examples
+- Ported to OCaml 4.04.* and 4.05.0
 
 # 0.1.0
 
