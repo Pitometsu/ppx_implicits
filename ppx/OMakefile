@@ -6,7 +6,7 @@ OCAMLDEPFLAGS= -package ppx_tools.metaquot
 FILES[] =
     unembed
     utils
-    options
+    debug
     unshadow
     klabel
     candidate
@@ -23,7 +23,7 @@ FILES[] =
     mod
     ppx
 
-MyOCamlPPX(ppx_implicits, $(FILES))
+MyOCamlPPXMigrateLibrary(ppx_implicits, $(FILES))
 
 AddLocalOCamlPackageDependencies() # we need this to make ppx available
 

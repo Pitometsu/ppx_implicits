@@ -13,7 +13,7 @@ open Path
 open Types
 open Asttypes
 
-open Typpx
+module Forge = Typpx.Forge
 
 type t = {
   path       : Path.t;
@@ -120,7 +120,7 @@ let cand_direct env loc (flg,lid,popt) =
 
 let cand_opened env loc (flg,lid) =
   let opens = get_opens env in
-  if !Options.debug_resolve then begin
+  if !Debug.debug_resolve then begin
     !!% "debug_resolve: cand_opened opened paths@.";
     flip iter opens & !!% "  %a@." Path.format
   end;
@@ -129,7 +129,7 @@ let cand_opened env loc (flg,lid) =
     & map (module_lids_in_open_path env [lid]) 
     & None :: map (fun x -> Some x) opens
   in
-  if !Options.debug_resolve then begin
+  if !Debug.debug_resolve then begin
     !!% "debug_resolve: cand_opened cand modules@.";
     flip iter paths & !!% "  %a@." Path.format
   end;

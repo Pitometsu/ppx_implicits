@@ -146,7 +146,7 @@ let rec resolve loc env : (trace * type_expr * Spec.t) list -> Resolve_result.t 
   | [] -> Resolve_result.Ok [[]] (* one solution with the empty expression set *)
   | (trace,ty,spec)::problems ->
       let cs = get_candidates env loc spec ty in
-      if !Options.debug_unif then begin
+      if !Debug.debug_unif then begin
         !!% "Candidates:@.";
         iter (!!% "  %a@." Candidate.format) cs
       end;
@@ -166,7 +166,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
   match assoc_opt path trace with
   | Some ty' when not & Tysize.(lt org_tysize (size ty')) ->
       (* recursive call of path and the type size is not strictly decreasing *)
-      if !Options.debug_unif then begin
+      if !Debug.debug_unif then begin
         !!% "  Checking %a <> ... using %a ... oops@."
           Printtyp.type_expr ty
           Path.format path;
@@ -194,7 +194,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
       in
 
       with_snapshot & fun () ->
-        if !Options.debug_unif then begin
+        if !Debug.debug_unif then begin
           !!% "  Checking %a <> %a, using %a ...@."
             Printtyp.type_expr ity
             Printtyp.type_expr ivty
@@ -202,7 +202,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
         end;
         match protect & fun () -> Ctype.unify env ity ivty with
         | `Error (Ctype.Unify utrace) ->
-            if !Options.debug_unif then begin
+            if !Debug.debug_unif then begin
               !!% "    no@.";
               !!% "      Reason: @[%a@]@."
                 (fun ppf utrace -> Printtyp.report_unification_error ppf
@@ -220,7 +220,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
         | `Error e -> raise e (* unexpected *)
 
         | `Ok _ ->
-            if !Options.debug_unif then
+            if !Debug.debug_unif then
               !!% "    ok: %a@." Printtyp.type_expr ity;
             
             let new_tysize = Tysize.size ty in
@@ -229,7 +229,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
                        && has_var org_tysize
                        && not & lt new_tysize org_tysize)
             then begin
-              if !Options.debug_unif then begin
+              if !Debug.debug_unif then begin
                 !!% "    Tysize vars not strictly decreasing %s => %s@."
                   (Tysize.to_string org_tysize)
                   (Tysize.to_string new_tysize)
@@ -241,7 +241,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
               (* Add the sub-problems *)
               let problems = map (fun (_,ty,spec,_conv) -> (trace',ty,spec)) cs @ problems in
 
-              if !Options.debug_unif then
+              if !Debug.debug_unif then
                 !!% "    subproblems: @[<v>%a@]@."
                   (List.format "@," (fun ppf (_,ty,spec,_) ->
                     Format.fprintf ppf "%a / %s"
@@ -259,11 +259,11 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
 
 let resolve env loc spec ty = with_snapshot & fun () ->
 
-  if !Options.debug_resolve then !!% "@.RESOLVE: %a@." Location.format loc;
+  if !Debug.debug_resolve then !!% "@.RESOLVE: %a@." Location.format loc;
 
   close_gen_vars ty;
 
-  if !Options.debug_resolve then !!% "  The type is: %a@." Printtyp.type_scheme ty;
+  if !Debug.debug_resolve then !!% "  The type is: %a@." Printtyp.type_scheme ty;
 
   (* CR jfuruse: Only one value at a time so far *)
   match resolve loc env [([],ty,spec)] with
@@ -372,6 +372,6 @@ module Map = struct
        map_structure is the entry point for structure in TyPPX *)
     Unshadow.reset ();
     let str = map_structure str in
-    if !Options.debug_resolve then !!% "Unshadow...@.";
+    if !Debug.debug_resolve then !!% "Unshadow...@.";
     Unshadow.Alias.insert str
 end

@@ -62,7 +62,7 @@ let cand_has_type env loc ty =
           (find_modules s) (scrape_sg path env md)
   in
   let paths = find_modules & Env.summary env in
-  if !Options.debug_resolve then begin
+  if !Debug.debug_resolve then begin
     !!% "debug_resolve: cand_typeclass cand modules@.";
     flip iter paths & !!% "  %a@." Path.format
   end;
