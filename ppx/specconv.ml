@@ -154,21 +154,21 @@ let from_expression _env e =
             Pprintast.expression e
             
     in
-    `Ok (t e)
+    Ok (t e)
   with
-  | Failure s -> `Error (`ParseExp (e, s))
+  | Failure s -> Error (`ParseExp (e, s))
 
 let from_structure env str =
   match str with
-  | [] -> `Error (`String "requires implicit policies")
+  | [] -> Error (`String "requires implicit policies")
   | _::_::_ -> 
-      `Error (`String "multiple implicit policies are not allowed")
+      Error (`String "multiple implicit policies are not allowed")
   | [sitem] ->
       match sitem.pstr_desc with
       | Pstr_eval (e, _) ->
           from_expression env e
       | _ ->
-          `Error (`String "spec must be an OCaml expression")
+          Error (`String "spec must be an OCaml expression")
 
 let error loc = function
   | `String s -> raise_errorf "%a: %s" Location.format loc s
@@ -181,7 +181,7 @@ let error loc = function
 
 let from_payload env = function
   | PStr s -> from_structure env s
-  | _ -> `Error (`String "spec must be an OCaml expression")
+  | _ -> Error (`String "spec must be an OCaml expression")
 
 (* typed world *)
 
@@ -206,7 +206,7 @@ let from_type_expr env loc ty = match expand_repr_desc env ty with
           assert (fs = []
                  || for_all (function (_, Fpresent, _) -> true | _ -> false) fs);
           assign_type_components (map (fun (_,_,ty) -> ty) fs)
-          & from_Ok (error loc)
+          & at_Error (error loc)
           & unmangle_spec_string l
             >>= from_string
             >>= from_expression env

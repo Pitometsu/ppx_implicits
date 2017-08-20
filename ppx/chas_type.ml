@@ -11,8 +11,8 @@ open Candidate
 
 let unifiable env ty1 ty2 = with_snapshot & fun () ->
   match protect & fun () -> Ctype.unify env ty1 ty2 with
-  | `Error _ -> false
-  | `Ok _ -> true
+  | Error _ -> false
+  | Ok _ -> true
   
 (* We seek types equal to __imp_instance_of__ = ty
 *) 

@@ -3,6 +3,7 @@ PPX_MIGRATE=$(file ../ppx/ppx_implicits_migrate$(EXE))
 
 EXE2=.exe
 
+# We need PPX for ocamldep
 OCAMLDEPFLAGS= -I ../lib -ppx $(PPX)
 
 OCAMLINCLUDES += ../lib
@@ -12,7 +13,7 @@ OCamlRequire($(PPX) ../lib/ppx_implicits.cmi ../lib/ppx_implicits.cmo)
 # Seems to be the following is the correct one, instead of OCamlRequre
 .SCANNER: %.cmx %.cmo %.cmi %.cmt %.cmti : $(PPX)
 
-Test_(name, deps) =
+Test(name, ?deps=$(EMPTY), ?skip=false) =
   CMOS=$(addsuffix .cmo, $(deps))
   $(name)$(EXE2) $(name).cmo $(name).cmi: $(name).ml $(PPX) $(CMOS)
     mkdir_if_not_exists(out)
@@ -23,20 +24,10 @@ Test_(name, deps) =
     stdout = $(fopen out/$(name).out, w)
     stderr = stdout
     ./$(name)$(EXE2)
+  if $(not $(skip))
+    test: out/$(name).out
   clean:
     rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(EXE2)
-  export
-
-# depending on other test files
-Testx(name, deps) =
-  Test_($(name), $(deps))
-  .DEFAULT: out/$(name).out
-  test_ocamlfind: out/$(name)_test_ocamlfind.out
-  export
-
-# independent test
-Test(name)=
-  Testx($(name), $(EMPTY))
   export
 
 Test(add)
@@ -46,18 +37,19 @@ Test(imp4)
 Test(unshadow)
 Test(just)
 Test(aggressive)
-Test_(adm, $(EMPTY)) # must fail to execute
+Test(adm) # must fail to execute
 Test(typeclass_expanded)
 Test(typeclass)
 Test(multiparam_expanded)
 Test(multiparam)
 Test(numc)
 Test(fvar)
-Testx(numuse, numc)
+Test(numuse, ~deps=numc)
 Test(length)
-Testx(sum, numc)
+Test(sum, ~deps=numc)
 Test(length_class)
 Test(prelude)
+Test(pvariant)
 
 # Test(xformat)
 # Test(double_use)

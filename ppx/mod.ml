@@ -201,7 +201,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
             Path.format path;
         end;
         match protect & fun () -> Ctype.unify env ity ivty with
-        | `Error (Ctype.Unify utrace) ->
+        | Error (Ctype.Unify utrace) ->
             if !Debug.debug_unif then begin
               !!% "    no@.";
               !!% "      Reason: @[%a@]@."
@@ -217,9 +217,9 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
             end;
             Resolve_result.Ok [] (* no solution *)
                    
-        | `Error e -> raise e (* unexpected *)
+        | Error e -> raise e (* unexpected *)
 
-        | `Ok _ ->
+        | Ok _ ->
             if !Debug.debug_unif then
               !!% "    ok: %a@." Printtyp.type_expr ity;
             

@@ -12,8 +12,8 @@ open Ast_mapper
 
 let extend super =
   let do_imp loc pld f = match Specconv.from_payload Env.empty (* dummy *) pld with
-    | `Error err -> Specconv.error loc err
-    | `Ok spec -> f spec
+    | Error err -> Specconv.error loc err
+    | Ok spec -> f spec
   in
 
   let typ self cty =

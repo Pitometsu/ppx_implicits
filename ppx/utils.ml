@@ -90,22 +90,18 @@ end
 let exit_then d f = try f () with Exit -> d
 
 module Result = struct
-  type ('a, 'err) t =
-    [ `Ok of 'a
-    | `Error of 'err
-    ]
+  type ('a, 'err) t = ('a, 'err) result
 
-  let from_Ok f = function
-    | `Ok v -> v
-    | `Error e -> f e
+  let at_Error f = function
+    | Ok v -> v
+    | Error e -> f e
 
   module Monad = struct
-    let (>>=) x f = match x with `Error e -> `Error e | `Ok v -> f v
+    let (>>=) x f = match x with Error e -> Error e | Ok v -> f v
   end
-
 end
 
-let from_Ok = Result.from_Ok
+let at_Error = Result.at_Error
 
 module Option = struct
   include Ppxx.Utils.Option
@@ -177,14 +173,14 @@ let unmangle s =
       end
     in
     f 0;
-    `Ok (Buffer.contents b)
+    Ok (Buffer.contents b)
   with
-  | Failure e -> `Error (`Failed_unmangle (s ^ ": " ^ e))
+  | Failure e -> Error (`Failed_unmangle (s ^ ": " ^ e))
 
 let expression_from_string s = 
   let lexbuf = Lexing.from_string s in
-  try `Ok (Parser.parse_expression Lexer.token lexbuf) with
-  | _ -> `Error (`Parse s)
+  try Ok (Parser.parse_expression Lexer.token lexbuf) with
+  | _ -> Error (`Parse s)
 
 let tvars_of_core_type cty =
   (* Using mapper for iterator is redundant, but easiest way *)

@@ -28,14 +28,15 @@ val exit_then : 'a -> (unit -> 'a) -> 'a
 (** if Exit is raised, catch it and return the default *)
 
 module Result : sig
-  type ('a, 'err) t = [`Ok of 'a | `Error of 'err]
-  val from_Ok : ('err -> 'a) -> ('a, 'err) t -> 'a
+  type ('a, 'err) t = ('a, 'err) result
+  val at_Error : ('err -> 'a) -> ('a, 'err) t -> 'a
   module Monad : sig
     val (>>=) : ('a, 'err) t -> ('a -> ('b, 'err) t) -> ('b, 'err) t
   end
 end
 
-val from_Ok : ('err -> 'a) -> ('a, 'err) Result.t -> 'a
+val at_Error : ('err -> 'a) -> ('a, 'err) Result.t -> 'a
+(** Alias of [Result.at_Error] *)
 
 module Option : sig
   include module type of struct include Ppxx.Utils.Option end
