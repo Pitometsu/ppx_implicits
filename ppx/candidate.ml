@@ -1,6 +1,6 @@
 (*
 
-  Instance search space specification DSL, magling to and back from
+  Instance search space specification DSL, mangling to and back from
   OCaml type definitions.
 
 *)
@@ -22,10 +22,11 @@ type t = {
   aggressive : bool
 }
 
-let format ppf c = Format.(fprintf ppf "@[<2>\"%a\" : %a@ : %a@]"
-                             Path.format c.path
-                             Utils.format_expression c.expr
-                             Printtyp.type_scheme c.type_)
+let format ppf c =
+  Format.fprintf ppf "@[<2>\"%a\" : %a@ : %a@]"
+    Path.format c.path
+    Utils.format_expression c.expr
+    Printtyp.type_scheme c.type_
     
 let uniq xs =
   let tbl = Hashtbl.create 107 in

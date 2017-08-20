@@ -22,20 +22,20 @@ let get_candidates env loc spec ty =
 
 
 module Runtime = struct
-  (** Ppx_implicits.Runtime.t *)
+  (** [Ppx_implicits.Runtime.t] *)
   let is_imp_t_path = function
     | Path.Pdot(Pident{Ident.name="Ppx_implicits"},"t",_) -> true
     | _ -> false
       
-  (** [make_embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
+  (** [embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
   let embed e =
     Forge.Exp.(app (untyped [%expr Ppx_implicits.embed]) [Nolabel, e])
   
-  (** [make_get e] builds [Ppx_implicits.get <e>] *)
+  (** [get e] builds [Ppx_implicits.get <e>] *)
   let get e =
     Forge.Exp.(app (untyped [%expr Ppx_implicits.get]) [Nolabel, e])
   
-  (** [make_get e] builds [Ppx_implicits.get <e>] *)
+  (** [from_Some e] builds [Ppx_implicits.from_Some <e>] *)
   let from_Some e =
     Forge.Exp.(app (untyped [%expr Ppx_implicits.from_Some]) [Nolabel, e])
 end
@@ -158,7 +158,7 @@ let rec resolve loc env : (trace * type_expr * Spec.t) list -> Resolve_result.t 
       & flip map cs
       & resolve_cand loc env trace ty problems
 
-(* CR jfuruse: loc is fixed argument *)
+(* CR jfuruse: Once given, loc is constant *)
 and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
 
   let org_tysize = Tysize.size ty in 
