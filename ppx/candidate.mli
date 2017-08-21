@@ -12,12 +12,15 @@ type t = {
   (** The type of the candidate *)
 
   aggressive : bool
+  (** Performs aggressive candidate search if [true] *)
 }
 
 val format : Format.formatter -> t -> unit
 
 val uniq : t list -> t list
-(** Remove dupes. Identification of [Candidate.t] is done by [path] fields *)
+(** Remove dupes of [t] by [path].   If there are multiple [t] with the same [path], 
+    the first one is chosen.  [agressive] is ORed of [t]s' whose [path] are identical.
+ *)
 
 val default_candidate_of_path : Env.t -> Path.t -> t
 (** Build a default candidate: 

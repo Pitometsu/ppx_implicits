@@ -41,7 +41,13 @@ let size ty =
         | Tvar _ -> incr (Some ty.id)
         | _ -> incr None
         end;
-        type_iterators.it_do_type_expr it ty)
+        begin match ty.desc with
+        | Tvariant row -> 
+           (* Tvariant may contain a Tvar at row_more even if it is `closed'. *)
+           let row = row_repr row in
+           if not & static_row row then type_iterators.it_do_type_expr it ty
+        | _ -> type_iterators.it_do_type_expr it ty
+        end)
     }
   in
   it.it_type_expr it ty;

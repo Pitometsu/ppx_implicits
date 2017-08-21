@@ -170,7 +170,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
         !!% "  Checking %a <> ... using %a ... oops@."
           Printtyp.type_expr ty
           Path.format path;
-        !!% "    @[<2>Non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
+        !!% "    @[<2>Skip this candidate because of non decreasing %%imp recursive dependency:@ @[<2>%a@ : %a (%s)@ =>  %a (%s)@]@]@." 
           Path.format path
           Printtyp.type_expr ty'
           (Tysize.(to_string & size ty'))
@@ -207,7 +207,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
               !!% "      Reason: @[%a@]@."
                 (fun ppf utrace -> Printtyp.report_unification_error ppf
                   env utrace
-                  (fun ppf -> fprintf ppf "Hmmm ")
+                  (fun ppf -> fprintf ppf "Unification error ")
                   (fun ppf -> fprintf ppf "with"))
                 utrace;
 
@@ -242,7 +242,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
               let problems = map (fun (_,ty,spec,_conv) -> (trace',ty,spec)) cs @ problems in
 
               if !Debug.debug_unif then
-                !!% "    subproblems: @[<v>%a@]@."
+                !!% "    subproblems: [ @[<v>%a@] ]@."
                   (List.format "@," (fun ppf (_,ty,spec,_) ->
                     Format.fprintf ppf "%a / %s"
                       Printtyp.type_scheme ty

@@ -9,8 +9,8 @@ type 'a show = ('a -> string, [%imp Show]) Ppx_implicits.t
 let show : ?d:'a show -> 'a -> string = Ppx_implicits.imp
 
 module Show = struct
-  let int = string_of_int
-  let id : 'a list show -> 'a -> string = fun d x -> show ~d [x]
+  let wrecked : 'a list show -> 'a -> string = fun d x -> show ~d [x]
+  let int : int -> string = string_of_int
 end
 
 let () = assert (show 1 = "1")
