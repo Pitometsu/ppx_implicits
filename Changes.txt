@@ -1,3 +1,7 @@
+# 0.3.1
+
+- Ported to OCaml 4.05.0, AST_405 and typpx.1.4.1
+
 # 0.3.0
 
 - Fixed Tysize.size for polymorphic variants

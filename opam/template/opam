@@ -6,7 +6,7 @@ depends: [
   "ppx_tools_versioned"
   "ppx_derving"
   "re"
-  "typpx" { >= "1.4.0" & < "1.5.0" }
+  "typpx" { >= "1.4.1" & < "1.5.0" }
 ]
-available: [ ocaml-version = "4.04.2" ]
+available: [ ocaml-version >= "4.05.0" & ocaml-version < "4.06.0" ]
 homepage: "http://bitbucket.org/camlspotter/ppx_implicits"

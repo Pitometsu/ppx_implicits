@@ -1,5 +1,5 @@
 opam-version: "1.2"
-version: "0.3.0"
+version: "0.3.1"
 maintainer: "jun.furuse@gmail.com"
 authors: "Jun Furuse"
 homepage: "http://bitbucket.org/camlspotter/ppx_implicits"
@@ -23,6 +23,6 @@ depends: [
   "ppx_tools_versioned"
   "ppx_derving"
   "re"
-  "typpx" {>= "1.4.0" & < "1.5.0"}
+  "typpx" {>= "1.4.1" & < "1.5.0"}
 ]
-available: [ocaml-version = "4.04.2"]
+available: [ocaml-version >= "4.05.0" & ocaml-version < "4.06.0"]
