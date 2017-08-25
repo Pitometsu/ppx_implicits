@@ -40,7 +40,7 @@ Test_(name, deps) =
 
 Testx(name, deps) =
   Test_($(name), $(deps))
-  .DEFAULT: out/$(name).out
+  test: out/$(name).out
   export
 
 Test(name)=
