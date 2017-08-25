@@ -321,13 +321,13 @@ module MapArg : TypedtreeMap.MapArgument = struct
         { e with
           exp_desc= Texp_apply (f, map (resolve_omitted_imp_arg f.exp_loc e.exp_env) args) }
 
-    | Texp_function (l, _::_::_, _) when l <> Nolabel ->
+    | Texp_function { arg_label=l; param=_; cases= _::_::_; partial= _} when l <> Nolabel ->
         (* Eeek, label with multiple cases? *)
         warnf "%a: Unexpected label with multiple function cases"
           Location.format e.exp_loc;
         e
 
-    | Texp_function (l, [case], e') ->
+    | Texp_function { arg_label=l; param; cases= [case]; partial } ->
         let p = case.c_lhs in
         begin match check_arg p.pat_env p.pat_loc l p.pat_type with
         | (_, None, _, _) -> e
@@ -345,7 +345,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
             let case = { case with
               c_lhs = Forge.(with_loc p.pat_loc & fun () -> Pat.desc (Tpat_alias (p, id, {txt=fid; loc= Ppxx.Helper.ghost p.pat_loc})))} 
             in
-            Forge.Exp.mark fid { e with exp_desc = Texp_function (l, [case], e') }
+            Forge.Exp.mark fid { e with exp_desc = Texp_function { arg_label=l; param; cases= [case]; partial } }
         end
     | _ -> e
 

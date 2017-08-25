@@ -1,3 +1,5 @@
+open Ast_405
+
 module String : sig
   include module type of struct include Ppxx.Utils.String end
 

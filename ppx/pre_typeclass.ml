@@ -133,7 +133,7 @@ end = struct
       & map (fun ty -> constr ?loc:None (at ?loc:None & Lident ty) []) tys
     in
     [%stri let [%p Pat.var' ?loc:None n] =
-        [%e add_newtypes tys 
+        [%e add_newtypes (List.map (!@) tys)
             [%expr fun ?_d:(_d : [%t paramed_s] option) -> 
                      let module M = (val (Ppx_implicits.(get (from_Some _d)))) in
                      [%e Exp.(ident ?loc:None (at ?loc:None (Ldot (Lident "M", n)))) ] ] ] ]
@@ -233,7 +233,7 @@ end = struct
       let tvs = concat & map (fun (tvs, _) -> tvs) ks in
       let e = z f (map (fun i -> Exp.ident (at & Lident i)) ds) p_mty ps in
       let e = fold_left2 (fun e d p -> Exp.fun_ (Optional d) None p e) e ds pats in
-      [%stri let dict = [%e fold_left (flip Exp.newtype) e (tvs @ vars)]]
+      [%stri let dict = [%e fold_left (flip Exp.newtype) e (List.map (!@) & tvs @ vars)]]
   end
                                 
   (* 

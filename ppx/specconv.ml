@@ -219,9 +219,9 @@ let from_type_expr env loc ty = match expand_repr_desc env ty with
 let to_core_type _loc spec =
   let open Ppxx.Helper in
   let mangled, ctys = mangle spec in
-  let label n = "l" ^ string_of_int n in
+  let label n = !@ ("l" ^ string_of_int n) in
   let make_meth_type cty =  (* quantify cty *)
-    Typ.poly (Utils.tvars_of_core_type cty) cty
+    Typ.poly (List.map (!@) & Utils.tvars_of_core_type cty) cty
   in
   let oty = Typ.object_ (mapi (fun n cty -> (label n, [], make_meth_type cty)) ctys) Closed
   in
