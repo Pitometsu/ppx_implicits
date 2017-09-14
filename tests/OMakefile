@@ -50,6 +50,7 @@ Test(sum, ~deps=numc)
 Test(length_class)
 Test(prelude)
 Test(pvariant)
+Test(implicit_polyvar)
 
 # Test(xformat)
 # Test(double_use)
