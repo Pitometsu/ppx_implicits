@@ -346,7 +346,8 @@ module MapArg : TypedtreeMap.MapArgument = struct
               Printtyp.type_expr vdesc.val_type;
           begin match resolve_omitted_imp_arg f.exp_loc e.exp_env (List.hd args) with
           | (_l, Some e, Some _) -> { e with exp_desc = Texp_apply (e, List.tl args) }
-          | _ -> assert false
+          | _ -> 
+             (* (Ppx_implicits.imp : ?d:'a add -> 'a -> 'a -> 'a) args *)
           end
        | _ ->
           raise_errorf "%a: This implicit primitive has a strange type %a"
