@@ -31,6 +31,7 @@ Test(name, ?deps=$(EMPTY), ?skip=false) =
   export
 
 Test(add)
+Test(double)
 Test(imp3)
 Test(imp32)
 Test(imp4)

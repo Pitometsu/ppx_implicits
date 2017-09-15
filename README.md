@@ -6,7 +6,7 @@ Overloading, type-classes, polymorphic value printers, etc ...
 can be defined/mimicked with implicit arguments.
 
 ppx_implicits is NOT a compiler modification but a PPX preprocessor.
-You can play type classes and etc with your official OCaml compiler (4.02.3).
+You can play type classes and etc with your official OCaml compiler.
 
 # Simple overloading
 
