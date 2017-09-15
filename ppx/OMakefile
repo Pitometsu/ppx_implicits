@@ -16,6 +16,7 @@ FILES[] =
     cppxderive
     spec
     specconv
+    pre_ext_imp
     pre_imp_spec
     pre_typeclass
     pre

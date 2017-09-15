@@ -25,7 +25,7 @@ let rec check_module_path env path =
         | `Shadowed (id, name, p) -> `Shadowed (id, name, Pdot (p, n, x))
         | `Accessible _ -> assert false (* impos *)
         | `Not_found p -> `Not_found p
-    end
+        end
     | _ -> assert false (* impos *)
   end
 
@@ -82,21 +82,21 @@ module Alias = struct
   
     (* Introduce module aliases to avoid shadow
   
-       module M = ...
-       
-       =>
-  
-       module M___ = M
-       module M = ...
+         module M = ...
+         
+         =>
+    
+         module M___ = M
+         module M = ...
   
        or
   
-       let module M = ... in
-       
-       =>
-  
-       let module M___ = M in
-       let module M = ... in
+         let module M = ... in
+         
+         =>
+    
+         let module M___ = M in
+         let module M = ... in
     *)
     include TypedtreeMap.DefaultMapArgument
   

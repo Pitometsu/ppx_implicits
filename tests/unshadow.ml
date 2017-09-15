@@ -9,13 +9,9 @@ module X = struct
   end
 end
 
-open X
+open X (* Add [Show] to the candidate space for [show] *)
 
 module Y = struct
-  module Show = struct
-    (* This makes X.Show.int inaccessible *)
-  end 
-  module X = struct
-  end
+  module X = struct end (* This makes [X.Show.int] inaccessible *)
   let () = assert (show 1 = "1")
 end

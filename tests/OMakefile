@@ -31,6 +31,7 @@ Test(name, ?deps=$(EMPTY), ?skip=false) =
   export
 
 Test(add)
+Test(add_optimized)
 Test(double)
 Test(imp3)
 Test(imp32)

@@ -12,22 +12,29 @@ open Format
 module Forge = Typpx.Forge
   
 (* CR jfuruse: bad state... *)
-(* CR jfuruse: confusing with deriving spec *)                      
-let derived_candidates = ref []
+(* CR jfuruse: confusing with deriving spec *)
+let derived_candidates : (string * Candidate.t) list ref = ref []
 
-(* CR jfuruse: this is very slow, since it computes everything each time. *)
+(* CR jfuruse: this should be very slow, since it computes everything each time. *)
+(*
+  val get_candidates 
+    : Env.t 
+    -> Location.t 
+    -> Spec.t 
+    -> Types.type_expr 
+    -> Candidate.t list
+*)
 let get_candidates env loc spec ty =
   let f = Spec.candidates env loc spec in
   Candidate.uniq & f ty @ map snd !derived_candidates
 
-
 module Runtime = struct
-  (** [Ppx_implicits.Runtime.t] *)
+  (** [Ppx_implicits.t] *)
   let is_imp_t_path = function
     | Path.Pdot(Pident{Ident.name="Ppx_implicits"},"t",_) -> true
     | _ -> false
       
-  (** [embed e] builds [Ppx_implicits.Runtime.embed <e>] *)
+  (** [embed e] builds [Ppx_implicits.embed <e>] *)
   let embed e =
     Forge.Exp.(app (untyped [%expr Ppx_implicits.embed]) [Nolabel, e])
   
@@ -69,7 +76,11 @@ let check_arg env loc l ty =
   end 
 
 module Klabel2 = struct
-  (* Constraint labels must precede the other arguments *)
+  (* Constraint labels must precede the other arguments.
+
+     This is slightly different from Klabel.
+  *)
+  
   let rec extract env ty = 
     let ty = Ctype.expand_head env ty in
     match repr_desc ty with
@@ -91,7 +102,7 @@ module Klabel2 = struct
           (fun (cs, ty) -> (l,ty1)::cs, ty)
           (extract_aggressively env ty2)
     | _ -> [[], ty]
-  end
+end
 
 (* Fix the candidates by adding type dependent part *)
 let extract_candidate spec env loc { Candidate.aggressive; type_ } : ((arg_label * type_expr * Spec.t * (expression -> expression)) list * type_expr) list =
@@ -181,7 +192,7 @@ and resolve_cand loc env trace ty problems (path, expr, (cs,vty)) =
       Resolve_result.Ok []
 
   | _ ->
-      (* CR jfuruse: Older binding of path is no longer useful. Replace instead of add? *)
+      (* CR jfuruse: Older binding of path is no longer useful. Should we replace instead of adding? *)
       let trace' = (path, ty) :: trace in 
 
       let ity = Ctype.instance env ty in
@@ -290,17 +301,18 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       
 (* ?l:None  where (None : (ty,spec) Ppx_implicit.t option) has a special rule *) 
 let resolve_omitted_imp_arg loc env a = match a with
-  (* (l, None, Optional) means curried *)
   | ((Optional _ as l), Some e) ->
       begin match Utils.is_none e with
-      | None -> a (* explicitly applied *)
+      | None -> (l, None, Some e) (* explicitly applied *)
       | Some _ -> (* omitted *)
           let (ty, specopt, conv, _unconv) = check_arg env loc l e.exp_type in
           match specopt with
-          | None -> a
-          | Some spec -> (l, Some (conv (resolve env loc spec ty)))
+          | None -> (l, None, Some e)
+          | Some spec -> 
+             let resolve_result = resolve env loc spec ty in
+             (l, Some resolve_result, Some (conv resolve_result))
       end
-  | _ -> a
+  | (l, x) -> (l, None, x)
 
 module MapArg : TypedtreeMap.MapArgument = struct
   include TypedtreeMap.DefaultMapArgument
@@ -315,11 +327,46 @@ module MapArg : TypedtreeMap.MapArgument = struct
 
   let is_function_id = String.is_prefix "__imp__arg__"
 
+  let is_prim_imp vdesc = match vdesc.val_kind with
+    | Val_prim { Primitive.prim_name = "%IMP" } -> true
+    | _ -> false
+
+  let rec extract_args ty = match repr_desc ty with
+    | Tarrow (l, t, ty, _) -> (Btype.is_optional l, l, t) :: extract_args ty
+    | _ -> []
+
   let enter_expression e = match e.exp_desc with
+    | Texp_apply ({ exp_desc= Texp_ident (_path, _lidloc, vdesc) } as f,  args) when is_prim_imp vdesc ->
+       assert (args <> []); 
+       begin match extract_args vdesc.val_type with
+       | (true, _l, _t) :: xs ->
+          if List.exists (fun (b,_,_) -> b) xs then 
+            raise_errorf "%a: This implicit primitive has a strange type %a"
+              Location.format f.exp_loc
+              Printtyp.type_expr vdesc.val_type;
+          begin match resolve_omitted_imp_arg f.exp_loc e.exp_env (List.hd args) with
+          | (_l, Some e, Some _) -> { e with exp_desc = Texp_apply (e, List.tl args) }
+          | _ -> assert false
+          end
+       | _ ->
+          raise_errorf "%a: This implicit primitive has a strange type %a"
+            Location.format f.exp_loc
+            Printtyp.type_expr vdesc.val_type;
+       end
+       (* XXX it must have only one ?d arg *)
+(*       
+       map (resolve_omitted_imp_arg f.exp_loc e.exp_env) args
+       let e = 
+       exp_desc= Texp_apply (f, ) }
+*)       
+      
     | Texp_apply (f, args) ->
         (* Resolve omitted ?_x arguments *)
-        { e with
-          exp_desc= Texp_apply (f, map (resolve_omitted_imp_arg f.exp_loc e.exp_env) args) }
+       let args' = map (fun le -> 
+         let (l, _, e) = resolve_omitted_imp_arg f.exp_loc e.exp_env le in
+         (l, e)) args
+       in
+       { e with exp_desc= Texp_apply (f, args') }
 
     | Texp_function { arg_label=l; param=_; cases= _::_::_; partial= _} when l <> Nolabel ->
         (* Eeek, label with multiple cases? *)
