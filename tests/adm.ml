@@ -14,4 +14,3 @@ module Show = struct
 end
 
 let () = assert (show 1 = "1")
-

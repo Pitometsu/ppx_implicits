@@ -336,7 +336,7 @@ module MapArg : TypedtreeMap.MapArgument = struct
     | _ -> []
 
   let enter_expression e = match e.exp_desc with
-    | Texp_apply ({ exp_desc= Texp_ident (_path, _lidloc, vdesc) } as f,  args) when is_prim_imp vdesc ->
+    | Texp_apply ({ exp_desc= Texp_ident (_path, lidloc, vdesc) } as f,  args) when is_prim_imp vdesc ->
        assert (args <> []); 
        begin match extract_args vdesc.val_type with
        | (true, _l, _t) :: xs ->
@@ -348,6 +348,16 @@ module MapArg : TypedtreeMap.MapArgument = struct
           | (_l, Some e, Some _) -> { e with exp_desc = Texp_apply (e, List.tl args) }
           | _ -> 
              (* (Ppx_implicits.imp : ?d:'a add -> 'a -> 'a -> 'a) args *)
+             let fix_lid = function
+               | Longident.Lident s -> Longident.Lident ("__Ppx_implicits_imp__" ^ s)
+               | Ldot (t, s) -> Ldot (t, "__Ppx_implicits_imp__" ^ s)
+               | Lapply _-> assert false
+             in
+             let x = Ppxx.Helper.Exp.lident
+                       ~loc: f.exp_loc
+                       (fix_lid & lidloc.txt)
+             in
+             { e with exp_desc = Texp_apply (Typpx.Forge.Exp.untyped x, args) }
           end
        | _ ->
           raise_errorf "%a: This implicit primitive has a strange type %a"

@@ -1,6 +1,10 @@
 # 0.3.1
 
 - Ported to OCaml 4.05.0, AST_405 and typpx.1.4.1
+- val %imp name : type  is introduced to declare the implicit primitive.
+  This implicit primitive is equivalent with
+    let name : type = Ppx_implicits.imp,
+  but with an optimization. 
 
 # 0.3.0
 

@@ -11,3 +11,5 @@ let () = assert (add 1 2 = 3)
 let () = assert (add 1.2 3.4 = 4.6)
 
 let double ?d x = add ?d x x
+let () = assert (double 2 = 4)
+let () = assert (double 2.3 = 4.6)
