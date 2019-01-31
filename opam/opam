@@ -1,6 +1,6 @@
 opam-version: "1.2"
 version: "0.3.1"
-synopsis: "ppx extension for implicits, overloading and type classes."
+synopsis: "A ppx extension for implicits, overloading and type classes"
 description: """
 ppx_implicits  is a PPX syntax extension for 
 
