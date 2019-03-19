@@ -581,13 +581,13 @@ MyOCamlPPXMigratePackage(name1, files1) =
   MyOCamlPPX($(name1), $(files1) legacy)
   MyOCamlPPX($(name1)_migrate, $(files1) migrate_register migrate)
 
-MyOCamlPPXMigrateLibrary(name1, files1) =
+MyOCamlPPXMigrateLibrary(name1, files1, legacy) =
   export .RULE .PHONY
   export OCAMLFIND_INSTALL_TARGETS
   PPXMigrateFiles()
-  MyOCamlLibrary($(name1)_plugin, $(files1) migrate_register)
-  MyOCamlPPX($(name1), $(files1) legacy)
-  MyOCamlPPX($(name1)_migrate, $(files1) migrate_register migrate)
+#  MyOCamlLibrary($(name1)_plugin, $(files1) migrate_register)
+  MyOCamlPPX($(name1), $(files1) $(legacy))
+#  MyOCamlPPX($(name1)_migrate, $(files1) migrate_register migrate)
 
 string_to_file(path,s) =
   section:
