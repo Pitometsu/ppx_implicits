@@ -10,6 +10,10 @@ include Typpx.Make.F(struct
   (* let firstUntypedTransformation = Pre.extend default_mapper *)
   let firstUntypedTransformation = Typpx.Default.untyped_identity
   module Typemod = Typpx.Default.Typemod
-  module TypedTransformation = Mod.Map
+  module Config = struct
+    let exp_function_enabled = false
+    let final_check_enabled = true
+  end
+  module TypedTransformation = Mod.Map(Config)
   let lastUntypedTransformation = Typpx.Default.untyped_identity
 end)
