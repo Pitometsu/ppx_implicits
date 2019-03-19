@@ -1,7 +1,7 @@
 LIBFILES[] =
-   ppx_implicits
+   ppx_implicits_type_reduction
 
-LIB = ppx_implicits
+LIB = ppx_implicits_type_reduction
 
 PACKAGE_NAME=ppx_implicits_type_reduction
 
