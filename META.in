@@ -1,4 +1,4 @@
-name="ppx_implicits"
+name="ppx_implicits_type_reduction"
 version="@version@"
 description="PPX extension for implicit values and type classes"
 requires = "ppx_implicits.runtime"
