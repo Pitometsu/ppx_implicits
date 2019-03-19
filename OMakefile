@@ -7,7 +7,7 @@ if $(file-exists OMakeroot)
    include OMyMakefile
    export
 
-MyOCamlfindInstall(ppx_implicits_type_reduction, lib ppx)
+MyOCamlfindInstall(ppx_implicits, lib ppx)
 
 .SUBDIRS: tests
 
