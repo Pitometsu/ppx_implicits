@@ -21,3 +21,4 @@ a\.out$
 ^ppx/ppx_implicits$
 ^ppx/ppx_implicits\.exe$
 opam/generated
+^_opam/
