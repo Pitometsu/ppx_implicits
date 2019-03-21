@@ -146,7 +146,7 @@ let rec resolve retmark loc env : (trace * type_expr * Spec.t) list -> Resolve_r
   | [] -> Resolve_result.Ok [[]] (* one solution with the empty expression set *)
   | (trace,ty,spec)::problems ->
       let cs = get_candidates env loc spec ty in
-      if true (* !Debug.debug_unif *) then begin
+      if !Debug.debug_unif then begin
         !!% "Candidates:@.";
         iter (!!% "  %a@." Candidate.format) cs
       end;
@@ -155,7 +155,7 @@ let rec resolve retmark loc env : (trace * type_expr * Spec.t) list -> Resolve_r
         map (fun x -> 
                let r = Random.int 99999 in
                ignore r;
-               !!% " random %d %d %s@." r1 r (Path.name c.Candidate.path);
+               (* !!% " random %d %d %s@." r1 r (Path.name c.Candidate.path); *)
                (r1, r, c.Candidate.path, c.expr, x) ) & extract_candidate spec env loc c
       ) cs
       in
@@ -165,7 +165,7 @@ let rec resolve retmark loc env : (trace * type_expr * Spec.t) list -> Resolve_r
 
 (* CR jfuruse: Once given, loc is constant *)
 and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
-  !!% " resolve_cand %d %d %s@." rand1 rand (Path.name path);
+  (* !!% " resolve_cand %d %d %s@." rand1 rand (Path.name path); *)
 
   let org_tysize = Tysize.size ty in 
 
@@ -174,9 +174,9 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
 
   match assoc_opt path trace with
   | Some ty' when ( not & Tysize.(lt org_tysize (size ty')) ) && ( not (isundec (Path.name path)) ) ->
-      !!% "qqqq %s@." (Path.name path);
+      (* !!% "qqqq %s@." (Path.name path); *)
       (* recursive call of path and the type size is not strictly decreasing *)
-      if true (* !Debug.debug_unif *) then begin
+      if !Debug.debug_unif then begin
         !!% "  Checking %a <> ... using %a ... oops@."
           Printtyp.type_expr ty
           Path.format path;
@@ -223,7 +223,7 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
         let rec chekk lim a = match lim with
          | 0 -> false
          | _ -> (
-          !!% "lile %d %d@." (List.length a) lim;
+          (* !!% "lile %d %d@." (List.length a) lim; *)
           if List.length a = 4
           then
             let b = List.nth a 2 in
@@ -235,9 +235,11 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
                let d = Printtyp.tree_of_type_scheme d in
                match (b,c,d) with
                  | (Outcometree.Otyp_constr (Outcometree.Oide_ident b,_),Outcometree.Otyp_constr (Outcometree.Oide_dot (_,c),_),_) ->
+(*
               !!% "    Type 1: @[%a@]@." Printtyp.type_scheme  ity;
               !!% "    Type 2: @[%a@]@." Printtyp.type_scheme  ivty;
-                      !!% "b = %s@." b;
+*)
+                      (* !!% "b = %s@." b; *)
                       String.length b > 5 && String.sub b 0 6 = "*uniq*" && c = "occupy"
 (*
                  | (Outcometree.Otyp_constr (Outcometree.Oide_ident b,_),_,_) ->
@@ -284,15 +286,17 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
           | (a,b) ->
              let c = Printtyp.tree_of_type_scheme a in
              ignore c;
+(*
              !!% "    KU1: @[%a@]@." Printtyp.type_scheme  a;
              !!% "    KU2: @[%a@]@." Printtyp.type_scheme  b;
              !!% "    KU3: %s@." (cnvv c);
+*)
              "Unk"
         in
-        !!% " match %d %d %s@." rand1 rand (Path.name path);
+        (* !!% " match %d %d %s@." rand1 rand (Path.name path); *)
         match proxy (protect & fun () -> Ctype.unify env ity ivty) with
         | Error (Ctype.Unify utrace) ->
-            if true (* !Debug.debug_unif *) then begin
+            if !Debug.debug_unif then begin
               !!% "    no@.";
               !!% "      Reason: @[%a@]@."
                 (fun ppf utrace -> Printtyp.report_unification_error ppf
@@ -312,9 +316,11 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
         | Error e -> raise e (* unexpected *)
 
         | Ok _ ->
+(*
             !!% " match ok %d %d %s@." rand1 rand (Path.name path);
             !!% "    Type 1: @[%a@]@." Printtyp.type_scheme  ity;
             !!% "    Type 2: @[%a@]@." Printtyp.type_scheme  ivty;
+*)
             if !Debug.debug_unif then
               !!% "    ok: %a@." Printtyp.type_expr ity;
             
@@ -336,18 +342,18 @@ and resolve_cand loc env trace ty problems (rand1, rand, path, expr, (cs,vty)) =
               (* Add the sub-problems *)
               let problems = map (fun (_,ty,spec,_conv) -> (trace',ty,spec)) cs @ problems in
 
-              if true (* !Debug.debug_unif *) then
+              if !Debug.debug_unif then
                 !!% "    subproblems: [ @[<v>%a@] ]@."
                   (List.format "@," (fun ppf (_,ty,spec,_) ->
                     Format.fprintf ppf "%a / %s"
                       Printtyp.type_scheme ty
                       (Spec.to_string spec))) cs;
               
-              !!% " next resolve %d %d %s@." rand1 rand (Path.name path);
+              (* !!% " next resolve %d %d %s@." rand1 rand (Path.name path); *)
               match resolve (rand1*100+1) loc env problems with
               | MayLoop es -> MayLoop es
               | Ok res_list ->
-                  !!% "return to %d from %d@ after resolve problems." rand1 rand;
+                  (* !!% "return to %d from %d@ after resolve problems." rand1 rand; *)
                   let build res =
                     let args, res = split_at (length cs) res in
                     Forge.Exp.(app expr (map2 (fun (l,_,_,conv) a -> (l,conv a)) cs args)) :: res
@@ -373,7 +379,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
   (* CR jfuruse: Only one value at a time so far *)
   match resolve retmark loc env [([],ty,spec)] with
   | MayLoop es -> 
-      !!% "last resolve MayLoop@.";
+      (* !!% "last resolve MayLoop@."; *)
       raise_errorf "%a:@ The experssion has type @[%a@] which is too ambiguous to resolve this implicit.@ @[<2>The following instances may cause infinite loop of the resolution:@ @[<2>%a@]@]"
         Location.format loc
         Printtyp.type_expr ty
@@ -381,7 +387,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
         (List.format ",@," Utils.format_expression) es
 
   | Ok [] ->
-     !!% "last resolve []@.";
+     (* !!% "last resolve []@."; *)
      if C.final_check_enabled
      then
       raise_errorf "%a:@ KUKU no instance found for@ @[%a@]"
@@ -390,17 +396,17 @@ let resolve env loc spec ty = with_snapshot & fun () ->
      else None
 
   | Ok (ea::eb::_ as es) ->
-      !!% "last resolve _::_::_@.";
+      (* !!% "last resolve _::_::_@."; *)
       let es = map (function [e] -> e | _ -> assert false (* impos *)) es in
 
       let convv a =
         let empty = Array.make 0 "" in
         match a with
         | Typedtree.Texp_apply (a,_) -> (match a.exp_desc with
-              | Texp_ident (p,_,_) -> !!% "ident%s@." (Path.name p);
+              | Texp_ident (p,_,_) -> (* !!% "ident%s@." (Path.name p); *)
                                       try
                                         let res = (Re_pcre.extract (Re_pcre.regexp "OVER_(.*)_LAPPING") (Path.name p)) in
-                                        !!% " OLAPI %s@." (Path.name p);
+                                        (* !!% " OLAPI %s@." (Path.name p); *)
                                         res
                                       with Not_found -> empty
               | _ -> empty
@@ -415,7 +421,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
               | Texp_ident (p,_,_) -> 
                                       try
                                         let res = (Re_pcre.extract (Re_pcre.regexp "OVER_(.*)_LAPPABLE") (Path.name p)) in
-                                        !!% " OLAPA %s@." (Path.name p);
+                                        (* !!% " OLAPA %s@." (Path.name p); *)
                                         res
                                       with Not_found -> empty
               | _ -> empty
@@ -424,7 +430,7 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       in
 
       let tes =
-         !!% "start %d %b@." (List.length es) (ea == eb);
+         (* !!% "start %d %b@." (List.length es) (ea == eb); *)
          let to_remove = map (fun a -> convv (a.exp_desc)) es in
          let remover a b =
            let c = convv2 (a.exp_desc) in
@@ -435,14 +441,14 @@ let resolve env loc spec ty = with_snapshot & fun () ->
       in
       if List.length tes == 1
       then
-        ( !!% "last resolve Length tes == 1@.";
+        ( (* !!% "last resolve Length tes == 1@."; *)
         match tes with
         | [e] -> Some (Unshadow.Replace.replace e)
 	| _ -> assert false (* impos *) )
 	else
         if List.length tes == 0
         then 
-           ( !!% "last resolve Length tes == 0@.";
+           ( (* !!% "last resolve Length tes == 0@."; *)
            if C.final_check_enabled
            then
              raise_errorf "%a:@ KUKU2 no instance found for@ @[%a@]"
@@ -452,14 +458,14 @@ let resolve env loc spec ty = with_snapshot & fun () ->
         else
         if C.final_check_enabled
         then
-          ( !!% "last resolve Length tes > 1@.";
+          ( (* !!% "last resolve Length tes > 1@."; *)
           raise_errorf "%a: KUKU This implicit has too ambiguous type:@ @[%a@]@ @[<2>Following possible resolutions:@ @[<v>%a@]"
             Location.format loc
             Printtyp.type_expr ty
             (List.format "@," Utils.format_expression) tes )
         else None 
   | Ok [es] ->
-      !!% "last resolve [es]@.";
+      (* !!% "last resolve [es]@."; *)
       match es with
       | [e] -> Some (Unshadow.Replace.replace e)
       | _ -> assert false (* impos *)
@@ -549,6 +555,7 @@ module MapArg (C : Config) : TypedtreeMap.MapArgument = struct
         e
     | _ -> assert false (* impos *)
 end
+
 
 module Map (C : Config) = struct
   module MA = MapArg (C)
