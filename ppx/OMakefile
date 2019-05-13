@@ -1,7 +1,7 @@
 OCAMLWARNING_NON_ERROR += 41
 
-OCAMLPACKS[]= ocaml-compiler-libs.common ocaml-migrate-parsetree ppx_tools_versioned.metaquot_405 re.pcre ppxx typpx
-OCAMLDEPFLAGS= -package ppx_tools_versioned.metaquot_405
+OCAMLPACKS[]= ocaml-compiler-libs.common ocaml-migrate-parsetree ppx_tools_versioned.metaquot_406 re.pcre ppxx typpx
+OCAMLDEPFLAGS= -package ppx_tools_versioned.metaquot_406
 
 FILES[] =
     unembed
