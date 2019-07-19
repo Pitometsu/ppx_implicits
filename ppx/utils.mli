@@ -1,4 +1,4 @@
-open Ast_406
+open Ast_405
 
 module String : sig
   include module type of struct include Ppxx.Utils.String end
@@ -7,7 +7,7 @@ module String : sig
 
   val is_prefix : ?from:int -> string -> string -> string option
   (** is_prefix "hello" "hello world" = Some " world" *)
-end
+end 
 
 val scrape_sg
   : Path.t
@@ -54,7 +54,7 @@ module Option : sig
 end
 
 val from_Some : 'a option -> 'a (** may raise Option.Is_None *)
-
+  
 module List : sig
   include module type of struct include Ppxx.Utils.List end
 
@@ -64,7 +64,7 @@ end
 
 val mangle : string -> string
 (** convert an arbitrary string to Lexer.identchar's
-   '_' is a special char.
+   '_' is a special char. 
 *)
 
 val unmangle : string -> (string, [> `Failed_unmangle of string ]) Result.t
@@ -83,7 +83,7 @@ val sig_module_of_stri : Parsetree.structure_item -> Parsetree.signature_item
 val values_of_module
   : recursive:bool -> (*+ dig in the sub-modules or not *)
   Env.t ->
-  Location.t -> (*+ Location of the environment obtained *)
+  Location.t -> (*+ Location of the environment obtained *) 
   Path.t ->
   Path.t list
 (** Extract values defined in the specified Path.t *)
