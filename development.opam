@@ -1,0 +1,19 @@
+opam-version: "2.0"
+synopsis: "Development tools"
+maintainer: "Pitometsu@gmail.com"
+authors: [ "Yuriy Pitomets <Pitometsu@gmail.com>" ]
+homepage: "https://github.com/Pitometsu/ppx_implicits#readme"
+bug-reports: "https://github.com/Pitometsu/ppx_implicits#readme"
+license: "LGPL-2.0 with OCaml linking exception"
+depends: [
+  "opam-lock"
+  "ocaml-system" {= "4.06.1" }
+  "dune" { >= "1.7.3" }
+  "ocamlformat"
+  "utop"
+  "odoc"
+  "merlin"
+  "ocp-indent"
+  "ocp-index"
+  "ocp-browser"
+]

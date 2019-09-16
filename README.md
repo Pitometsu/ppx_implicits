@@ -120,8 +120,13 @@ but it is likely dependent on development versions of other libraries:
 
 
 ```shell
-$ hg clone https://bitbucket.org/camlspotter/ppx_implicits
+$ git clone git@github.com:Pitometsu/ppx_implicits.git
 $ cd ppx_implicits
+$ nix-shell --pure
+$ opam init -a --bare
+$ opam switch create -yw --unlock-base --deps-only . --locked --with-doc --with-test --empty
+$ opam install -yw --unlock-base --deps-only ./**.opam --with-doc --with-test
+$ eval $(opam env)
 $ cp OMakeroot.in OMakeroot
 $ omake
 $ omake install
