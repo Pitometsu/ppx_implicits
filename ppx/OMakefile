@@ -1,29 +1,36 @@
-OCAMLPACKS[]= compiler-libs.common ppx_tools.metaquot re.pcre ppxx typpx
+OCAMLWARNING_NON_ERROR += 41
 
-OCAMLDEPFLAGS= -package ppx_tools.metaquot
-OCAMLPPFLAGS=  
+OCAMLPACKS[]= ocaml-compiler-libs.common ocaml-migrate-parsetree ppx_tools_versioned.metaquot_405 re.pcre ppxx typpx
+OCAMLDEPFLAGS= -package ppx_tools_versioned.metaquot_405
 
 FILES[] =
+    unembed
     utils
-    options
+    debug
     unshadow
     klabel
     candidate
     crelated
-    ctypeclass
+    chas_type
     cderiving
     cppxderive
-    typeencode
     spec
+    specconv
+    pre_imp_spec
+    pre_typeclass
     pre
     tysize
     mod
-    ppx
 
-# This drops dependency of typpx
-# MyOCamlFindPackage(ppx_implicits, $(MyOCamlPPX ppx_implicits, $(FILES)))
+MyOCamlPPXMigrateLibrary(ppx_implicits, $(FILES) ppx, legacy)
+MyOCamlPPXMigrateLibrary(ppx_implicits_type_reduction, $(FILES) ppx_type_reduction, legacy_type_reduction)
+MyOCamlPPXMigrateLibrary(ppx_implicits_final_check, $(FILES) ppx_final_check, legacy_final_check)
 
-targets=$(MyOCamlPPX ppx_implicits, $(FILES))
-MyOCamlFindPackage(ppx_implicits, $(targets))
+AddLocalOCamlPackageDependencies() # we need this to make ppx available
 
 WithMerlin()
+
+.PHONY:doc
+
+doc:
+    ocamlfind ocamldoc -html $(PREFIXED_OCAMLPACKS) spec.mli

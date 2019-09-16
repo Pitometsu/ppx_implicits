@@ -4,6 +4,7 @@ open Ppxx.Utils
 open List
 
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Longident
 open Types
 
@@ -19,9 +20,9 @@ let obj_repr env loc e =
       Env.lookup_value (Longident.(Ldot (Lident "Obj", "repr"))) env
     with
     | Not_found -> 
-        errorf "%a: Obj.repr is required but not accessible" Location.format loc
+        raise_errorf "%a: Obj.repr is required but not accessible" Location.format loc
   in
-  Forge.Exp.(app (with_env env & ident obj_repr_path) ["", e])
+  Forge.Exp.(app (with_env env & ident obj_repr_path) [Nolabel, e])
 
 (* vd.val_type must have the form ~_d:Obj.t list -> ty['a] *)
 let test_cand_deriving env loc ty lid =
@@ -37,7 +38,7 @@ let test_cand_deriving env loc ty lid =
     match expand_repr_desc env vty with
     | Tarrow (l, dty, vty', _) when Klabel.is_klabel l = Some `Normal -> l, dty, vty'
     | _ -> 
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]"
+        raise_errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have a constraint non optional label argument.@]"
           Location.format loc
           Path.format path
           Printtyp.type_scheme vty
@@ -49,7 +50,7 @@ let test_cand_deriving env loc ty lid =
     match gen_vars vty', Ctype.free_variables vty' with
     | [v], [v'] when v == v' -> v 
     | _ ->
-        errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]"
+        raise_errorf "@[<2>%a: %a has a bad type %a for deriving.@ It must have only one type variable and it must be generalized.@]"
           Location.format loc
           Path.format path
           Printtyp.type_scheme vty'
@@ -62,19 +63,19 @@ let test_cand_deriving env loc ty lid =
            the unification is undone *)
         Ctype.unify env ty vty'';
         (path, dlabel, Ctype.repr v, vty')
-  | _ -> assert false
+  | _ -> assert false (* impos *)
 
 type 'a field = {
   value : 'a;
   ident : Ident.t;
-  dlabel : label;
+  dlabel : arg_label;
 }
 
 let make_fields vs =
   mapi (fun i v ->
     { value= v;
       ident = Ident.create (Printf.sprintf "__deriving__%d" i);
-      dlabel = Printf.sprintf "_d%d" i }) vs
+      dlabel = Labelled (Printf.sprintf "_d%d" i) }) vs
 
 (* konstraint abstractions *)    
 let kabs fields e =
@@ -91,7 +92,7 @@ let build_type getty env template_ty fields ty_return =
     let template_ty' = instance env template_ty in
     begin match free_variables template_ty' with
     | [v] -> unify env ty v
-    | _ -> assert false
+    | _ -> assert false (* template_ty is ill-formed *)
     end;
     Forge.Typ.arrow ~label:dlabel template_ty' st) fields ty_return
 
@@ -110,7 +111,7 @@ let cand_deriving_tuple env loc ty mlid =
         let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
         let expr = kabs fields e in
         let type_ = build_type (fun ty -> ty) env template_ty fields ty in
-        Some { lid; path; expr; type_; aggressive = false}
+        Some { path; expr; type_; aggressive = false}
     | _ -> None
   
   
@@ -162,9 +163,10 @@ let cand_deriving_polymorphic_variant env loc ty mlid =
         in
         let expr = kabs fields e in
         let type_ = build_type snd env template_ty fields ty in
-        Format.eprintf "candidate deriving PV: %a@."
-          Printtyp.type_scheme type_;
-        Some { lid; path; expr; type_; aggressive = false}
+        (* !!% "candidate deriving PV: %a@."
+           Printtyp.type_scheme type_;
+        *)
+        Some { path; expr; type_; aggressive = false}
   | _ -> None
   
   
@@ -198,7 +200,7 @@ let cand_deriving_object env loc ty mlid =
               let ty' = newvar () in
               unify env (instance_def ty) (newty(Tpoly(ty',[])));
               ty'
-          | _ -> assert false
+          | _ -> assert false (* impos *)
         in
         let fields = map (fun (l,fk,ty) -> (l, field_kind_repr fk, fix_ty l ty)) fields in
         if exists (fun (_,fk,_) -> fk <> Fpresent) fields then begin
@@ -222,9 +224,9 @@ let cand_deriving_object env loc ty mlid =
         let e = Forge.Exp.(app (with_env env & ident path) [dlabel, ds]) in
         let expr = kabs fields e in
         let type_ = build_type snd env template_ty fields ty in
-        Format.eprintf "candidate deriving PV: %a@."
-          Printtyp.type_scheme type_;
-        Some { lid; path; expr; type_; aggressive = false}
+        (* !!% "candidate deriving PV: %a@."
+           Printtyp.type_scheme type_; *)
+        Some { path; expr; type_; aggressive = false}
   | _ -> None
   
   

@@ -7,7 +7,9 @@ if $(file-exists OMakeroot)
    include OMyMakefile
    export
 
-Subdirs()
+MyOCamlfindInstall(ppx_implicits, lib ppx)
+
+.SUBDIRS: tests
 
 setup.ml: _oasis
 	oasis setup

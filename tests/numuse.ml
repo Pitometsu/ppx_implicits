@@ -1,4 +1,5 @@
-open Numdef
+(* Using implicits defined outside of the compilation unit *)
+open Numc
 
 let () =
   assert ((+) 2 2 = 4);

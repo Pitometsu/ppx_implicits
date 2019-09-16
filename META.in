@@ -1,0 +1,23 @@
+name="ppx_implicits"
+version="@version@"
+description="PPX extension for implicit values and type classes"
+requires = "ppx_implicits.runtime"
+ppx="./ppx_implicits"
+
+package "runtime" (
+  version = "@version@"
+  archive(byte) = "ppx_implicits.cma"
+  archive(native) = "ppx_implicits.cmxa"
+)
+
+package "type_reduction" (
+  version = "@version@"
+  ppx="./ppx_implicits_type_reduction"
+  requires = "ppx_implicits.runtime"
+)
+
+package "final_check" (
+  version = "@version@"
+  ppx="./ppx_implicits_final_check"
+  requires = "ppx_implicits.runtime"
+)

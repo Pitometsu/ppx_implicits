@@ -1,6 +1,6 @@
 (*
 
-  Instance search space specification DSL, magling to and back from
+  Instance search space specification DSL, mangling to and back from
   OCaml type definitions.
 
 *)
@@ -8,21 +8,26 @@ open Ppxx.Utils
 open List
 
 open Ppxx.Compilerlib
-open Longident
+open Typpx.Compilerlib
 open Path
 open Types
 open Asttypes
 
-open Typpx
+module Forge = Typpx.Forge
 
 type t = {
-  lid        : Longident.t;
   path       : Path.t;
   expr       : Typedtree.expression;
   type_      : Types.type_expr;
   aggressive : bool
 }
 
+let format ppf c =
+  Format.fprintf ppf "@[<2>\"%a\" : %a@ : %a@]"
+    Path.format c.path
+    Utils.format_expression c.expr
+    Printtyp.type_scheme c.type_
+    
 let uniq xs =
   let tbl = Hashtbl.create 107 in
   iter (fun x ->
@@ -32,34 +37,6 @@ let uniq xs =
     with
     | Not_found -> Hashtbl.add tbl x.path x) xs;
   Hashtbl.to_list tbl |> map snd
-
-let rec values_of_module ~recursive env lid path mdecl : t list =
-  let m = new Utils.dummy_module env path mdecl.md_type in
-  let sg = Utils.scrape_sg path env mdecl in
-  flip2 fold_right sg [] & fun sitem st -> match sitem with
-    | Sig_value (id, _vdesc) ->
-        let lid = Ldot (lid, Ident.name id) in
-        let path = try m#lookup_value & Ident.name id with Not_found ->
-          !!% "VOM m#lookup_value %s not found@." & Ident.name id;
-          assert false
-        in
-        begin
-          try
-            let type_ = (Env.find_value path env).val_type in
-            let expr = Forge.Exp.(with_env env & ident path) in
-            (* !!% "    VOM: %a@." Path.format_verbose path; *)
-            { lid; path; expr; type_; aggressive= false }  :: st
-          with
-          | Not_found ->
-              !!% "VOM: %a but not found@." Path.format_verbose path;
-              assert false
-        end
-    | Sig_module (id, moddecl, _) when recursive -> 
-        let lid = Ldot (lid, Ident.name id) in
-        let path = m#lookup_module & Ident.name id in
-        values_of_module ~recursive env lid path moddecl @ st
-          
-    | _ -> st
 
 let get_opens env =
   let rec get = function
@@ -71,6 +48,7 @@ let get_opens env =
     | Env_modtype (s, _, _)
     | Env_class (s, _, _)
     | Env_cltype (s, _, _)
+    | Env_constraints (s, _)
     | Env_functor_arg (s, _) -> get s
     | Env_open (s, path) -> path :: get s
   in
@@ -84,6 +62,7 @@ let _dump_summary env =
     | Env_modtype (s, _, _)
     | Env_class (s, _, _)
     | Env_cltype (s, _, _)
+    | Env_constraints (s, _)
     | Env_functor_arg (s, _) -> dump s
     | Env_type (s, id, _) -> !!% "type %a@." Ident.format id; dump s
     | Env_module (s, id, _) -> !!% "module %a@." Ident.format id; dump s
@@ -116,13 +95,13 @@ let module_lids_in_open_path env lids = function
         with
         | _ -> None)
       
-let check_module env loc path =
-  match 
-    try Some (Env.find_module path env) with _ -> None
+let default_candidate_of_path env path = 
+  try
+    let type_ = (Env.find_value path env).val_type in
+    let expr = Forge.Exp.(with_env env & ident path) in
+    { path; expr; type_; aggressive= false }
   with
-  | None -> 
-      errorf "%a: no module desc found: %a" Location.format loc Path.format path
-  | Some mdecl -> mdecl
+  | Not_found -> assert false (* impos *)
 
 let cand_direct env loc (flg,lid,popt) =
   let recursive = match flg with
@@ -135,14 +114,14 @@ let cand_direct env loc (flg,lid,popt) =
         try
           Env.lookup_module ~load:true lid env
         with
-        | Not_found -> errorf "%a: Unbound module %a." Location.format loc Longident.format lid
+        | Not_found -> raise_errorf "%a: Unbound module %a." Location.format loc Longident.format lid
   in
-  let mdecl = check_module env loc path in
-  values_of_module ~recursive env lid path mdecl
+  let paths = Utils.values_of_module ~recursive env loc path in
+  map (default_candidate_of_path env) paths
 
 let cand_opened env loc (flg,lid) =
   let opens = get_opens env in
-  if !Options.debug_resolve then begin
+  if !Debug.debug_resolve then begin
     !!% "debug_resolve: cand_opened opened paths@.";
     flip iter opens & !!% "  %a@." Path.format
   end;
@@ -151,7 +130,7 @@ let cand_opened env loc (flg,lid) =
     & map (module_lids_in_open_path env [lid]) 
     & None :: map (fun x -> Some x) opens
   in
-  if !Options.debug_resolve then begin
+  if !Debug.debug_resolve then begin
     !!% "debug_resolve: cand_opened cand modules@.";
     flip iter paths & !!% "  %a@." Path.format
   end;
@@ -164,4 +143,4 @@ let cand_opened env loc (flg,lid) =
 
 
 let cand_name rex f =
-  f () |> filter (fun x -> Re_pcre.pmatch ~rex & Longident.to_string x.lid)
+  f () |> filter (fun x -> Re_pcre.pmatch ~rex & Longident.to_string & (* Typpx. *) Untypeast.lident_of_path x.path)

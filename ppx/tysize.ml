@@ -6,15 +6,23 @@ open Types
 open Btype
 
 type t = (int option, int) Hashtbl.t
+(** Polynomial. v_1 * 2 + v_2 * 3 + 4 has the following bindings:
+    [(Some 1, 2); (Some 3, 2); (None, 4)]
+*)
 
 let to_string t =
+  let open Printf in
   String.concat " + "
   & Hashtbl.fold (fun k v st ->
-    let k = match k with
-      | None -> ""
-      | Some n -> Printf.sprintf " a%d" n
+    let s = match k,v with
+      | None, _ -> sprintf "%d" v
+      | Some _, 0 -> ""
+      | Some k, 1 -> sprintf "a%d" k
+      | Some k, _ -> sprintf "%d*a%d" v k
     in
-    Printf.sprintf "%d%s" v k :: st) t []
+    s :: st) t []
+    
+let format ppf t = Format.fprintf ppf "%s" (to_string t)
     
 let size ty =
   let open Hashtbl in
@@ -33,7 +41,13 @@ let size ty =
         | Tvar _ -> incr (Some ty.id)
         | _ -> incr None
         end;
-        type_iterators.it_do_type_expr it ty)
+        begin match ty.desc with
+        | Tvariant row -> 
+           (* Tvariant may contain a Tvar at row_more even if it is `closed'. *)
+           let row = row_repr row in
+           if not & static_row row then type_iterators.it_do_type_expr it ty
+        | _ -> type_iterators.it_do_type_expr it ty
+        end)
     }
   in
   it.it_type_expr it ty;
@@ -41,7 +55,8 @@ let size ty =
   tbl
 
 let lt t1 t2 =
-  (* All the components in t1 must appear in t2 with GE multiplier.
+  (* Comparison of polynomials.
+     All the components in t1 must appear in t2 with GE multiplier.
      At least one component in t1 must appear in t2 with GT multiplier.
   *)
   let open Hashtbl in
@@ -55,6 +70,10 @@ let lt t1 t2 =
   with
   | Exit | Not_found -> false
 
-(* hello world
- 
- *)
+let has_var t =
+  try
+    Hashtbl.iter (fun k v -> if k <> None && v > 0 then raise Exit) t;
+    false
+  with
+  | Exit -> true
+  

@@ -7,35 +7,28 @@
 open Utils
 open Ppxx.Utils
 open Ppxx.Compilerlib
+open Typpx.Compilerlib
 open Typedtree
 open Types
 
-type t = {
-  temp_path : Path.t;
-  temp_expr : Parsetree.core_type -> Parsetree.expression;
-  temp_tvar : type_expr; (* The type variable appear in temp_type *)
-  temp_type : type_expr;
-}
+(* CR jfuruse: this is crazy *)      
+let fake_path e = 
+  Path.Pident (Ident.create_persistent & Utils.mangle & Pprintast.string_of_expression e)
 
-(* (xxx : ty) *)
-let parse env p =
+let instance_template e cty = 
+  let open Ast_mapper in
   let open Parsetree in
-  (* CR jfuruse: this is crazy *)      
-  let temp_path = Path.Pident (Ident.create_persistent & Utils.mangle & Pprintast.string_of_expression p) in 
-  match p.pexp_desc with
-  | Pexp_constraint (e, cty) ->
-      let temp_expr cty =
-        let open Ast_mapper in
-        let extend super =
-          let typ self ty = match ty.ptyp_desc with
-            | Ptyp_any -> cty
-            | _ -> super.typ self ty
-          in
-          { super with typ }
-        in
-        let mapper = extend default_mapper in
-        mapper.expr mapper e
-      in
+  let extend super =
+    let typ self ty = match ty.ptyp_desc with
+      | Ptyp_any -> cty
+      | _ -> super.typ self ty
+    in
+    { super with typ }
+  in
+  let mapper = extend default_mapper in
+  mapper.expr mapper e
+
+(*
       let {Typedtree.ctyp_type= temp_type} =
         try Typetexp.transl_simple_type env true cty with _ -> assert false (* CR jfuruse: better error *)
       in
@@ -46,11 +39,19 @@ let parse env p =
       in
       { temp_path; temp_expr; temp_tvar; temp_type }
   | _ -> assert false (* CR jfuruse: better error *)
-      
-let cand_derive env loc temp ty =
-  let ttvar, ttype = match Ctype.instance_list env [temp.temp_tvar; temp.temp_type] with
-    | [ttvar; ttype] -> ttvar, ttype
-    | _ -> assert false
+*)
+    
+let cand_derive env loc e temp_ty ty =
+  let ttvar, ttype = match expand_repr_desc env temp_ty with
+    | Tpoly (temp_ty, [temp_tv]) ->
+        begin match Ctype.instance_poly false [temp_tv] temp_ty with
+        | [ttvar], ttype -> ttvar, ttype
+        | _ -> assert false
+        end
+    | _ ->
+        raise_errorf "%a: ppxderive's type %a does not have one type variable"
+          Location.format loc
+          Printtyp.type_expr temp_ty
   in
   exit_then [] & fun () ->
     begin try Ctype.unify env ttype ty with Ctype.Unify _ -> raise Exit end;
@@ -77,9 +78,9 @@ let cand_derive env loc temp ty =
               Printtyp.type_scheme ttvar;
             raise Exit
         end;
-        [ { Candidate.lid= Typpx.Untypeast.lident_of_path temp.temp_path;
-            path= temp.temp_path;
-            expr= Typpx.Forge.Exp.untyped (temp.temp_expr cty);
+        let path = fake_path e in
+        [ { Candidate.path= path;
+            expr= Typpx.Forge.Exp.untyped (instance_template e cty);
             type_= ttype;
             aggressive = false } ]
     | _ -> []

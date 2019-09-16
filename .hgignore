@@ -14,8 +14,11 @@ setup\.ml\.ba.*$
 tests/test$
 ppx/ppx_test$
 ^tests/out/.*$
+^tests/ppxderive/out/.*$
 \#.*
 a\.out$
 \.(aux|log|out|pdf)$
 ^ppx/ppx_implicits$
 ^ppx/ppx_implicits\.exe$
+opam/generated
+^_opam/

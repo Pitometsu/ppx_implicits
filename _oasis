@@ -1,14 +1,14 @@
-OASISFormat: 0.2
-Name:        ppx_implicits
-Version:     0.2.0
+OASISFormat: 0.4
+Name:        ppx_implicits_type_reduction
+Version:     0.3.1
 Synopsis:    ppx_implicits: ppx extension for implicits, overloading and type classes.
 Authors:     Jun FURUSE
 License:     LGPL-2.0 with OCaml linking exception
 Plugins:     StdFiles (0.2)
 BuildType:   Custom (0.2)
 InstallType: Custom (0.2)
-XCustomBuild:      sh -c "cp OMakeroot.in OMakeroot; omake PREFIX="
-XCustomInstall:    sh -c "cp OMakeroot.in OMakeroot; omake PREFIX= install"
-XCustomUninstall:  sh -c "cp OMakeroot.in OMakeroot; omake PREFIX= uninstall"
-XCustomBuildClean: sh -c "cp OMakeroot.in OMakeroot; omake PREFIX= clean"
+XCustomBuild:      sh -c "cp OMakeroot.in OMakeroot; unset OCAMLPARAM; omake"
+XCustomInstall:    sh -c "cp OMakeroot.in OMakeroot; unset OCAMLPARAM; omake install"
+XCustomUninstall:  sh -c "cp OMakeroot.in OMakeroot; unset OCAMLPARAM; omake uninstall"
+XCustomBuildClean: sh -c "cp OMakeroot.in OMakeroot; unset OCAMLPARAM; omake clean"
 BuildTools: omake

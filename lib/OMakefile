@@ -1,0 +1,11 @@
+LIBFILES[] =
+   ppx_implicits
+
+LIB = ppx_implicits
+
+PACKAGE_NAME=ppx_implicits_type_reduction
+
+OCamlRequirePackages(ppxx typpx)
+
+# MyOCamlPackage($(LIB), $(LIBFILES), $(EMPTY), $(EMPTY))
+MyOCamlLibrary($(LIB), $(LIBFILES))

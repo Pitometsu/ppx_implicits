@@ -1,0 +1,40 @@
+opam-version: "1.2"
+version: "0.3.1"
+synopsis: "A ppx extension for implicits, overloading and type classes"
+description: """
+ppx_implicits  is a PPX syntax extension for 
+
+* Implicit values
+* Implicit parameters
+* Overloadings
+* Modular implicits
+* Type classes
+
+Note: ppx_implicits works only with `ocamlc` and `ocamlopt`. It does not work with REPL (`ocaml`).
+"""
+maintainer: "jun.furuse@gmail.com"
+authors: "Jun Furuse"
+homepage: "http://bitbucket.org/camlspotter/ppx_implicits"
+bug-reports:
+  "https://bitbucket.org/camlspotter/ppx_implicits/issues?status=new&status=open"
+dev-repo: "hg://https://bitbucket.org/camlspotter/ppx_implicits"
+build: [
+  ["ocaml" "setup.ml" "-configure" "--prefix" prefix]
+  ["ocaml" "setup.ml" "-build"]
+]
+install: ["ocaml" "setup.ml" "-install"]
+remove: [
+  ["ocaml" "setup.ml" "-configure" "--prefix" prefix]
+  ["ocaml" "setup.ml" "-uninstall"]
+]
+depends: [
+  "ocamlfind" {build}
+  "omake" {build}
+  "ocaml-compiler-libs"
+  "ocaml-migrate-parsetree"
+  "ppx_tools_versioned"
+  "ppx_deriving"
+  "re"
+  "typpx" {>= "1.4.1" & < "1.5.0"}
+]
+available: [ocaml-version >= "4.05.0" & ocaml-version < "4.06.0"]

@@ -1,9 +1,12 @@
 depends: [
   "ocamlfind"
   "omake"
-  "ppx_tools"
+  "ocaml-compiler-libs"
+  "ocaml-migrate-parsetree"
+  "ppx_tools_versioned"
+  "ppx_deriving"
   "re"
-  "typpx"
+  "typpx" { >= "1.4.1" & < "1.5.0" }
 ]
-available: [ ocaml-version >= "4.02.2" & ocaml-version < "4.03.0" ]
+available: [ ocaml-version >= "4.05.0" & ocaml-version < "4.06.0" ]
 homepage: "http://bitbucket.org/camlspotter/ppx_implicits"

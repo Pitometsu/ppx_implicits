@@ -5,37 +5,27 @@ module type Eq = sig
 end [@@typeclass]
 
 module EqBool = struct
-  type a = bool
   let (===) = (=)
   let (=/=) = (<>)
-end [@@instance Eq]
+end [@@instance: (module Eq with type a = bool)]
 
 module EqInt = struct
-  type a = int
   let (===) = (=)
   let (=/=) = (<>)
-end [@@instance Eq]
+end [@@instance: (module Eq with type a = int)]
 
 module EqFloat = struct
-  type a = float
   let (===) = (=)
   let (=/=) = (<>)
-end [@@instance Eq]
+end [@@instance: (module Eq with type a = float)]
 
-module EqList(A : Eq) = struct
-  type a = A.a list
+module EqList(A : Eq [@typeclass a' Eq]) = struct
   let (===) x y = List.for_all2 A.(===) x y
   let (=/=) x y = List.exists2 A.(=/=) x y
-end (* [@@instance Eq]? *)
+end [@@instance: (module Eq with type a = a' list)]
+(* CR jfuruse: we cannot write [@typeclass a Eq] since [a] crashes...
+*)
 
-(* Can we auto-generate the following from the above ? *)
-module EqListInstance = struct
-  let list (type a) ~_a:(a : a Eq._module) : a list Eq._module =
-    let module A : Eq with type a = a = (val a) in
-    (module EqList(A))
-  type __imp_instance__ = Eq.__imp_spec__
-end
-  
 module TestEq = struct
   open Eq
   
@@ -65,34 +55,32 @@ module type Ord = sig
 end [@@typeclass]
 
 module OrdInt = struct
-  type a = int
   let compare x y = match compare x y with
     | 0 -> EQ
     | 1 -> GT
     | -1 -> LT
     | _ -> assert false
-  let (<=?) (x : a) y = x <= y        
-  let (<?) (x : a) y = x < y        
-  let (>=?) (x : a) y = x >= y        
-  let (>?) (x : a) y = x > y        
-  let max (x : a) y = max x y
-  let min (x : a) y = min x y
-end [@@instance Ord]
+  let (<=?) (x : int) y = x <= y        
+  let (<?) (x : int) y = x < y        
+  let (>=?) (x : int) y = x >= y        
+  let (>?) (x : int) y = x > y        
+  let max (x : int) y = max x y
+  let min (x : int) y = min x y
+end [@@instance: (module Ord with type a = int)]
 
 module OrdFloat = struct
-  type a = float
   let compare x y = match compare x y with
     | 0 -> EQ
     | 1 -> GT
     | -1 -> LT
     | _ -> assert false
-  let (<=?) (x : a) y = x <= y        
-  let (<?) (x : a) y = x < y        
-  let (>=?) (x : a) y = x >= y        
-  let (>?) (x : a) y = x > y        
-  let max (x : a) y = max x y
-  let min (x : a) y = min x y
-end [@@instance Ord]
+  let (<=?) (x : float) y = x <= y        
+  let (<?) (x : float) y = x < y        
+  let (>=?) (x : float) y = x >= y        
+  let (>?) (x : float) y = x > y        
+  let max (x : float) y = max x y
+  let min (x : float) y = min x y
+end [@@instance: (module Ord with type a = float)]
 
 module TestOrd = struct
   let () = assert (Ord.compare 1 1 = EQ)
@@ -115,3 +103,4 @@ module Monad = struct
 end
 *)
   
+

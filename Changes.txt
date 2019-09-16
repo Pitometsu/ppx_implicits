@@ -1,3 +1,12 @@
+# 0.3.1
+
+- Ported to OCaml 4.05.0, AST_405 and typpx.1.4.1
+
+# 0.3.0
+
+- Fixed Tysize.size for polymorphic variants
+* Ported to typpx.1.4.0 and OCaml 4.04.2
+
 # 0.2.0
 
 - Added -debug-resolve and -debug-unif options. PPX_IMPLICITS_DEBUG_RESOLVE and PPX_IMPLICITS_DEBUG_UNIF env vars are also usable.

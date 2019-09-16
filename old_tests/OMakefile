@@ -1,0 +1,93 @@
+OUT=.exe
+PPX=$(file ../ppx/ppx_implicits$(EXE))
+.SCANNER: scan-ocaml-%: $(PPX)
+OCamlRequire($(PPX))
+
+OCAMLDEPFLAGS= -ppx $(PPX)
+
+# OCAMLINCLUDES += ../lib ../ocaml
+
+# FILES[] =
+#    ../lib/meta_conv
+#    ../ocaml/ocaml
+#    ../ocaml/ocaml_conv
+#    conv_test
+
+%.out.ml: %.ml $(PPX)
+  $(PPX) -debug $< > $@
+
+Test_(name, deps) =
+  CMOS=$(addsuffix .cmo, $(deps))
+  $(name)$(OUT) $(name).cmo $(name).cmi: $(name).ml $(PPX) implicits.cmo $(CMOS)
+    mkdir_if_not_exists(out)
+    $(PPX) -debug $(name).ml > out/$(name).ml 
+    ocamlc -ppx $(PPX) -i $(name).ml > out/$(name).mli
+    ocamlc -ppx $(PPX) implicits.cmo $(CMOS) -o $(name)$(OUT) $(name).ml
+  out/$(name).out: $(name)$(OUT)
+    stdout = $(fopen out/$(name).out, w)
+    stderr = stdout
+    ./$(name)$(OUT)
+
+  $(name)_test_ocamlfind$(OUT): $(name).ml implicits.cmo $(CMOS)
+    mkdir_if_not_exists(out)
+    ocamlfind ocamlc -package ppx_implicits implicits.cmo $(CMOS) -o $(name)_test_ocamlfind$(OUT) $(name).ml
+  out/$(name)_test_ocamlfind.out: $(name)_test_ocamlfind$(OUT)
+    stdout = $(fopen out/$(name)_test_ocamlfind.out, w)
+    stderr = stdout
+    ./$(name)_test_ocamlfind$(OUT)
+  clean:
+    rm -f $(name).cmi $(name).cmo $(name).cmt $(name)$(OUT) $(name)_test_ocamlfind$(OUT)
+  export
+
+# omake test_ocamlfind tests things using installed ppx_implicits
+.PHONY: test_ocamlfind
+
+Testx(name, deps) =
+  Test_($(name), $(deps))
+  .DEFAULT: out/$(name).out
+  test_ocamlfind: out/$(name)_test_ocamlfind.out
+  export
+
+Test(name)=
+  Testx($(name), $(EMPTY))
+  export
+
+# Test(imp)
+# Test(imp1)
+# Test(imp2)
+# Test(imp3)
+# Test(imp31)
+# Test(imp4)
+# Test(unshadow)
+# Test(prop)
+# Test(typeclass)
+# Test(just)
+# Test(opened)
+# Test(template)
+# Test(readme)
+# Test(aggressive)
+# Test(typeclass2)
+# Test(typeclass3)
+# Test(typeclass5)
+# Test(typeclass52)
+# Test(multiparam)
+# Test(multiparam2)
+# Test(constraint)
+# Test_(adm, $(EMPTY))
+# Test(xformat)
+# Test(double_use)
+# Test(fvar)
+# Test(nomodule)
+# Test(typeclass6)
+# Test(kgap)
+# Test(numdef)
+# Testx(numuse, numdef)
+# Test(prelude)
+# Test(monad_hk)
+# # Test(highk)
+# Test(length_class)
+# Test(showc)
+# Test(fcmod)
+# Test(deriving)
+# Test(packer)
+# 

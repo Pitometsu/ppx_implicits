@@ -1,5 +1,0 @@
-name="ppx_implicits"
-version="0.2.0"
-description="PPX extension for implicit values and type classes"
-requires=""
-ppx="./ppx_implicits"
